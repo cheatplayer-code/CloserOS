@@ -1,0 +1,20 @@
+---
+description: Messaging and CRM integration rules
+globs:
+  - "apps/api/**/integrations/**"
+  - "apps/worker/**/integrations/**"
+  - "packages/contracts/**"
+alwaysApply: false
+---
+
+Use official APIs only.
+
+Before implementation:
+- verify current official docs;
+- record verification date;
+- document permissions, review requirements, limits, pricing implications, and history constraints.
+
+Implement signature verification, idempotency, quick acknowledgement, asynchronous processing, retries, dead-letter handling, token revocation, health, and reconciliation.
+
+Never assume universal historical access.
+Never use browser scraping or account impersonation.

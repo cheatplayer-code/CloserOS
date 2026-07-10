@@ -1,0 +1,19 @@
+---
+description: AI, redaction, evaluation, and grounded-output rules
+globs:
+  - "apps/api/**/ai/**"
+  - "apps/worker/**/ai/**"
+  - "apps/api/**/privacy/**"
+  - "apps/worker/**/privacy/**"
+alwaysApply: false
+---
+
+External LLM input must be sanitized and policy-approved.
+
+Use a provider-neutral interface and validated structured outputs.
+Reject unknown issue codes and nonexistent evidence IDs.
+Store prompt/rubric/model versions, input/output hashes, cost, latency, and validation status.
+Never store chain-of-thought.
+CRM outcomes are factual authority.
+High-impact or low-confidence results require human review.
+No cross-tenant training without explicit legal and contractual approval.

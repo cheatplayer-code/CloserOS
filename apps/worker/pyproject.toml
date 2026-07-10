@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling==1.31.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "closeros-worker"
+version = "0.0.0"
+description = "Thin no-op worker executable entry point for CloserOS AI"
+requires-python = "==3.12.13"
+dependencies = ["closeros-backend"]
+
+[project.scripts]
+closeros-worker = "closeros_worker.__main__:main"
+
+[tool.uv.sources]
+closeros-backend = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/closeros_worker"]

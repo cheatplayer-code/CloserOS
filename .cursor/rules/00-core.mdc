@@ -1,0 +1,19 @@
+---
+description: Core CloserOS engineering and agent workflow rules
+alwaysApply: true
+---
+
+Read `AGENTS.md` and `PROJECT_STATUS.md` before material changes.
+
+Follow task IDs in `TASKS.md`. Work on one task at a time.
+
+Never:
+- fabricate provider behavior;
+- claim production readiness without the release gate;
+- log or commit secrets or customer data;
+- send raw personal data to an external LLM;
+- bypass tenant authorization;
+- implement autonomous outbound messaging in the initial release;
+- introduce microservices or Kubernetes without an accepted ADR.
+
+Before completion, run applicable formatting, linting, type checks, tests, and update `PROJECT_STATUS.md`.

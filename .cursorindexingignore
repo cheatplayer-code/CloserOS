@@ -1,0 +1,7 @@
+# Keep large/raw research material out of automatic semantic indexing.
+# Summarize verified conclusions into docs/ instead.
+research/raw/
+**/*.pdf
+**/*.docx
+**/*.pptx
+**/*.zip

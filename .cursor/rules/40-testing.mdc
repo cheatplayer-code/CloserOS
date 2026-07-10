@@ -1,0 +1,24 @@
+---
+description: Quality and testing requirements
+globs:
+  - "**/*test*"
+  - "**/tests/**"
+  - "**/*.spec.*"
+alwaysApply: false
+---
+
+Prefer behavior-focused tests over implementation snapshots.
+
+Release-blocking areas:
+- cross-tenant access;
+- webhook verification and replay;
+- idempotency;
+- PII redaction;
+- AI evidence validation;
+- migrations;
+- deletion;
+- backup restore;
+- official provider contract behavior.
+
+External provider calls are mocked or use explicit sandbox opt-in.
+Never allow tests to call paid APIs by default.

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling==1.31.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "closeros-api"
+version = "0.0.0"
+description = "Thin FastAPI executable entry point for CloserOS AI"
+requires-python = "==3.12.13"
+dependencies = [
+  "closeros-backend",
+  "fastapi==0.139.0",
+  "uvicorn==0.51.0",
+]
+
+[project.scripts]
+closeros-api = "closeros_api.__main__:main"
+
+[tool.uv.sources]
+closeros-backend = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/closeros_api"]

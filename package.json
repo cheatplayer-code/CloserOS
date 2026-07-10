@@ -1,0 +1,48 @@
+{
+  "name": "closeros",
+  "version": "0.0.0",
+  "private": true,
+  "description": "CloserOS AI monorepo developer command interface",
+  "packageManager": "pnpm@11.11.0",
+  "engines": {
+    "node": "24.14.1",
+    "pnpm": "11.11.0"
+  },
+  "scripts": {
+    "setup": "corepack pnpm install --frozen-lockfile && uv sync --all-packages --frozen",
+    "format": "prettier --write . && uv run ruff format .",
+    "format:check": "prettier --check . && uv run ruff format --check .",
+    "lint": "corepack pnpm lint:ts && corepack pnpm lint:py",
+    "lint:ts": "eslint .",
+    "lint:py": "uv run ruff check .",
+    "typecheck": "corepack pnpm typecheck:ts && corepack pnpm typecheck:py",
+    "typecheck:ts": "corepack pnpm --recursive --if-present typecheck",
+    "typecheck:py": "uv run mypy packages apps tests",
+    "test": "corepack pnpm test:ts && corepack pnpm test:py",
+    "test:ts": "corepack pnpm --recursive --if-present test",
+    "test:py": "uv run pytest",
+    "build": "corepack pnpm --filter @closeros/web build",
+    "quality": "corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm build",
+    "infra:config": "node infra/docker/validate.mjs",
+    "infra:up": "docker compose -f infra/docker/compose.yaml up --detach --wait --wait-timeout 120",
+    "infra:status": "docker compose -f infra/docker/compose.yaml ps",
+    "infra:logs": "docker compose -f infra/docker/compose.yaml logs --follow --tail 100",
+    "infra:check": "node infra/docker/check.mjs",
+    "infra:down": "docker compose -f infra/docker/compose.yaml down --remove-orphans",
+    "infra:reset": "docker compose -f infra/docker/compose.yaml down --volumes --remove-orphans",
+    "infra:clean-checkout": "node infra/docker/clean-checkout.mjs",
+    "dev:web": "corepack pnpm --filter @closeros/web dev",
+    "dev:api": "uv run closeros-api",
+    "dev:worker": "uv run closeros-worker"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.4",
+    "eslint-config-next": "16.2.10",
+    "prettier": "3.9.4",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

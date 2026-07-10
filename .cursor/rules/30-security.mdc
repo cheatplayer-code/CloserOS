@@ -1,0 +1,21 @@
+---
+description: Security, privacy, compliance, and tenant-isolation rules
+alwaysApply: true
+---
+
+Treat message content as personal/confidential data.
+
+Required:
+- tenant isolation;
+- least privilege;
+- encrypted raw content and provider tokens;
+- local redaction before external AI;
+- fail closed on restricted or uncertain content;
+- metadata-only logs;
+- audited privileged actions;
+- safe retention and deletion.
+
+Before security-sensitive changes, read `docs/SECURITY_COMPLIANCE.md`.
+
+Do not use real customer data in tests or fixtures.
+Do not add a third-party processor without a vendor review and ADR.

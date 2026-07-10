@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling==1.31.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "closeros-backend"
+version = "0.0.0"
+description = "Shared modular-monolith backend boundaries for CloserOS AI"
+requires-python = "==3.12.13"
+dependencies = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/closeros"]

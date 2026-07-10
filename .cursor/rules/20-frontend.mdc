@@ -1,0 +1,17 @@
+---
+description: Next.js and TypeScript frontend rules
+globs:
+  - "apps/web/**/*.{ts,tsx}"
+  - "packages/ui/**/*.{ts,tsx}"
+alwaysApply: false
+---
+
+Use TypeScript strict mode.
+
+Authorization is enforced server-side; hiding UI is not authorization.
+Never expose provider tokens to the browser.
+Do not render raw PII without role authorization and an audited action.
+AI-generated content must be labeled.
+Aggregates must drill down to evidence.
+Show data freshness, sample size, and confidence when they affect interpretation.
+Use accessible semantic components and keyboard support.

@@ -1,0 +1,12 @@
+.git/
+.venv/
+.next/
+node_modules/
+coverage/
+dist/
+build/
+*.md
+pnpm-lock.yaml
+uv.lock
+.cursor/
+research/

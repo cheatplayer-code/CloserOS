@@ -1,0 +1,61 @@
+services:
+  postgres:
+    image: postgres:18.4-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-closeros_local}
+      POSTGRES_USER: ${POSTGRES_USER:-closeros_local}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-closeros_local_only_change_me}
+      POSTGRES_INITDB_ARGS: --encoding=UTF8
+    ports:
+      - target: 5432
+        published: "${POSTGRES_HOST_PORT:-5432}"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'pg_isready --username "$${POSTGRES_USER}" --dbname "$${POSTGRES_DB}"'
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+    networks:
+      - local_infra
+
+  redis:
+    image: redis:8.8.0-trixie
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-closeros_local_redis_only_change_me}
+    command:
+      - sh
+      - -ec
+      - 'exec redis-server --appendonly yes --appendfsync everysec --requirepass "$${REDIS_PASSWORD}"'
+    ports:
+      - target: 6379
+        published: "${REDIS_HOST_PORT:-6379}"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'test "$$(REDISCLI_AUTH="$${REDIS_PASSWORD}" redis-cli --no-auth-warning ping)" = PONG'
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+    networks:
+      - local_infra
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  local_infra:
+    driver: bridge

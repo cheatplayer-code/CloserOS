@@ -1,0 +1,22 @@
+---
+description: FastAPI, Python, domain, persistence, and worker rules
+globs:
+  - "apps/api/**/*.py"
+  - "apps/worker/**/*.py"
+  - "tests/**/*.py"
+alwaysApply: false
+---
+
+Use Python 3.12+, strict typing, Pydantic v2, SQLAlchemy 2, and Alembic.
+
+Respect boundaries:
+- domain: pure business logic;
+- application: use cases and ports;
+- infrastructure: vendors, database, queue, providers;
+- interfaces: HTTP, webhook, CLI, worker entry points.
+
+Every tenant-owned query is tenant-scoped.
+No provider payload types in domain code.
+No raw message content in logs.
+External operations require timeout, bounded retry, and idempotency where relevant.
+Tests must not call paid APIs by default.
