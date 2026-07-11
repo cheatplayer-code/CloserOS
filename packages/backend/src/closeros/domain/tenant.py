@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from closeros.domain.identity import TenantStatus
+from closeros.domain.retention import RetentionPolicy
 
 
 @dataclass(slots=True)
@@ -12,6 +13,7 @@ class Tenant:
     name: str
     status: TenantStatus
     time_zone: str
+    retention_policy: RetentionPolicy
 
     def __post_init__(self) -> None:
         if not isinstance(self.id, UUID):
@@ -35,6 +37,9 @@ class Tenant:
 
         if not normalized_time_zone:
             raise ValueError("time_zone must not be empty")
+
+        if not isinstance(self.retention_policy, RetentionPolicy):
+            raise TypeError("retention_policy must be a RetentionPolicy")
 
         self.name = normalized_name
         self.time_zone = normalized_time_zone

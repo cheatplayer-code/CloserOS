@@ -5,6 +5,7 @@ from uuid import UUID
 import pytest
 from closeros.domain import (
     Membership,
+    RetentionPolicy,
     Tenant,
     TenantAccessDeniedError,
     User,
@@ -21,12 +22,24 @@ DENIED_MESSAGE = "tenant access denied"
 MANAGER_ROLES = frozenset({Role.MANAGER})
 
 
+def _valid_retention_policy() -> RetentionPolicy:
+    return RetentionPolicy(
+        raw_message_days=30,
+        sanitized_message_days=30,
+        ai_output_days=30,
+        audit_log_days=365,
+        backup_days=30,
+        post_contract_deletion_days=90,
+    )
+
+
 def _active_tenant(*, tenant_id: UUID = TENANT_ID) -> Tenant:
     return Tenant(
         id=tenant_id,
         name="Acme Corp",
         status=TenantStatus.ACTIVE,
         time_zone="UTC",
+        retention_policy=_valid_retention_policy(),
     )
 
 
@@ -87,6 +100,7 @@ def test_suspended_tenant_is_denied() -> None:
         name="Acme Corp",
         status=TenantStatus.SUSPENDED,
         time_zone="Asia/Almaty",
+        retention_policy=_valid_retention_policy(),
     )
 
     with pytest.raises(TenantAccessDeniedError, match=f"^{DENIED_MESSAGE}$") as exc_info:
