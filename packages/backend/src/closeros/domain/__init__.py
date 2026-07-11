@@ -11,6 +11,7 @@ from closeros.domain.authentication import (
 )
 from closeros.domain.authentication_session import AuthenticationSession
 from closeros.domain.authentication_token import AuthenticationOneTimeToken
+from closeros.domain.email_password_credential import EmailPasswordCredential
 from closeros.domain.identity import (
     InvitationStatus,
     MembershipStatus,
@@ -31,6 +32,7 @@ __all__ = [
     "AuthenticationSession",
     "AuthenticationTokenHash",
     "AuthenticationTokenPurpose",
+    "EmailPasswordCredential",
     "Invitation",
     "InvitationStatus",
     "MfaMethod",
