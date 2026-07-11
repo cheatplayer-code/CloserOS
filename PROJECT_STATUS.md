@@ -15,7 +15,7 @@
 
 ## Last updated
 
-2026-07-10
+2026-07-11
 
 ## What exists
 
@@ -397,3 +397,106 @@ Next step: open a Pull Request from `feat/cls-010-identity-domain` into
 After merge, the next development task is `CLS-011` authentication design, not
 implementation, because session architecture and provider choice remain open
 decisions.
+
+## CLS-011 authentication core
+
+Status: **Core domain implemented locally; GitHub Pull Request verification
+pending. CLS-011 as a whole is not complete.**
+
+Branch: `feat/cls-011-auth-core`.
+
+Implemented:
+
+- `AuthenticationAssuranceLevel`:
+  - `single_factor`;
+  - `multi_factor`.
+- `MfaMethod`:
+  - `webauthn`;
+  - `totp`;
+  - no SMS.
+- `AuthenticationTokenPurpose`:
+  - `email_verification`;
+  - `password_reset`.
+- `AuthenticationTokenHash`:
+  - immutable 32-byte SHA-256 digest container;
+  - digest hidden from repr.
+- `PasswordHash`:
+  - immutable Argon2id PHC-string container;
+  - encoded hash hidden from repr;
+  - no password hashing or verification implementation yet.
+- `AuthenticationEmail`:
+  - strip-and-lowercase normalization;
+  - minimal structural validation;
+  - personal data hidden from repr.
+- `EmailPasswordCredential`:
+  - separate from the `User` domain entity;
+  - links user ID, `AuthenticationEmail` and `PasswordHash`;
+  - tracks email verification timestamp.
+- `AuthenticationSession`:
+  - opaque server-side session domain record;
+  - stores only `AuthenticationTokenHash`;
+  - lifecycle timestamps;
+  - assurance level and MFA completion state.
+- `AuthenticationOneTimeToken`:
+  - email-verification and password-reset purposes;
+  - hashed token only;
+  - created, expiry, consumed and revoked timestamps.
+- privileged-role MFA policy:
+  - Owner;
+  - Sales Head;
+  - Compliance Admin.
+- verified-email authentication policy.
+- one-time-token usability policy.
+- authentication-session usability policy.
+- fail-closed generic denial messages without secrets, hashes, email addresses,
+  timestamps or identifiers.
+
+Consolidated verification (2026-07-11):
+
+- Ruff: passed;
+- mypy: 0 errors in 17 source files;
+- pytest: 218 passed.
+
+Not implemented yet:
+
+- actual Argon2id hashing and verification library integration;
+- password rehash implementation;
+- secure 256-bit raw-token generation;
+- SHA-256 token-hashing adapter;
+- session stage distinguishing authenticated and pending-MFA sessions;
+- 30-minute authenticated idle timeout;
+- 12-hour absolute session timeout calculation;
+- 5-minute pending-MFA timeout;
+- session rotation;
+- session and token persistence;
+- SQLAlchemy models;
+- Alembic migrations;
+- PostgreSQL repositories;
+- Redis caching;
+- registration and login application services;
+- logout;
+- email verification flow execution;
+- password-reset flow execution;
+- generic anti-enumeration API responses;
+- CSRF token generation and validation;
+- rate limiting;
+- email-provider integration;
+- WebAuthn;
+- TOTP;
+- recovery codes;
+- audit events;
+- FastAPI routes;
+- Next.js authentication UI.
+
+Notes:
+
+- ADR-0010 remains the authoritative authentication architecture;
+- this branch intentionally adds no dependencies, persistence, API routes or
+  frontend code;
+- CLS-011 must not be marked complete;
+- next step after merge is CLS-011 authentication infrastructure, beginning
+  with an explicit session-stage model and timeout policy before cryptographic
+  adapters and persistence.
+
+Next step: open a Pull Request from `feat/cls-011-auth-core` into `master` and
+verify GitHub CI.
