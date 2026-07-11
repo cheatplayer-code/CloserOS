@@ -10,6 +10,7 @@ from closeros.domain.identity import (
 )
 from closeros.domain.invitation import Invitation
 from closeros.domain.membership import Membership
+from closeros.domain.retention import RetentionPolicy
 from closeros.domain.tenant import Tenant
 from closeros.domain.user import User
 
@@ -18,6 +19,7 @@ __all__ = [
     "InvitationStatus",
     "Membership",
     "MembershipStatus",
+    "RetentionPolicy",
     "Role",
     "Tenant",
     "TenantAccessDeniedError",
