@@ -327,3 +327,17 @@ Every completed task must update:
 - next recommended task.
 
 Do not delete historical decisions. Supersede them with an ADR.
+
+## CLS-003 remote verification
+
+Status: **Remote verification started**.
+
+Verification branch: `chore/verify-cls-003`.
+
+This branch exists only to trigger and verify:
+
+- `Quality / quality`;
+- `Security / secret-scan`;
+- `Security / dependency-review`.
+
+No application code, dependencies, lockfiles, or Docker configuration were changed.
