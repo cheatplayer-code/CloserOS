@@ -30,6 +30,10 @@ class AuthenticationTokenUnavailableError(PermissionError):
     """Raised when a one-time authentication token cannot be used."""
 
 
+class AuthenticationSessionUnavailableError(PermissionError):
+    """Raised when an authentication session cannot be used."""
+
+
 def requires_mfa_for_roles(roles: frozenset[Role]) -> bool:
     if not isinstance(roles, frozenset):
         raise TypeError("roles must be a frozenset")
@@ -97,4 +101,29 @@ def require_usable_authentication_token(
     ):
         raise AuthenticationTokenUnavailableError(
             "authentication token unavailable"
+        )
+
+
+def require_usable_authentication_session(
+    *,
+    session: AuthenticationSession,
+    now: datetime,
+) -> None:
+    if not isinstance(session, AuthenticationSession):
+        raise TypeError("session must be an AuthenticationSession")
+
+    if not isinstance(now, datetime):
+        raise TypeError("now must be a datetime")
+
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("now must be timezone-aware")
+
+    if (
+        now < session.created_at
+        or now < session.last_seen_at
+        or now >= session.expires_at
+        or session.revoked_at is not None
+    ):
+        raise AuthenticationSessionUnavailableError(
+            "authentication session unavailable"
         )
