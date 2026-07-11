@@ -1,7 +1,8 @@
-"""Framework-independent privileged-role MFA policy."""
+"""Framework-independent authentication policy guards."""
 
 from closeros.domain.authentication import AuthenticationAssuranceLevel
 from closeros.domain.authentication_session import AuthenticationSession
+from closeros.domain.email_password_credential import EmailPasswordCredential
 from closeros.domain.identity import Role
 from closeros.domain.membership import Membership
 
@@ -16,6 +17,10 @@ _PRIVILEGED_MFA_ROLES: frozenset[Role] = frozenset(
 
 class MfaRequiredError(PermissionError):
     """Raised when privileged access requires completed MFA."""
+
+
+class EmailVerificationRequiredError(PermissionError):
+    """Raised when authentication requires a verified email."""
 
 
 def requires_mfa_for_roles(roles: frozenset[Role]) -> bool:
@@ -50,3 +55,14 @@ def require_privileged_mfa(
         or session.mfa_completed is not True
     ):
         raise MfaRequiredError("multi-factor authentication required")
+
+
+def require_verified_email(
+    *,
+    credential: EmailPasswordCredential,
+) -> None:
+    if not isinstance(credential, EmailPasswordCredential):
+        raise TypeError("credential must be an EmailPasswordCredential")
+
+    if credential.email_verified_at is None:
+        raise EmailVerificationRequiredError("email verification required")
