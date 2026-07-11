@@ -7,11 +7,13 @@ from closeros.domain.identity import (
     TenantStatus,
     UserStatus,
 )
+from closeros.domain.tenant import Tenant
 
 __all__ = [
     "InvitationStatus",
     "MembershipStatus",
     "Role",
+    "Tenant",
     "TenantStatus",
     "UserStatus",
 ]
