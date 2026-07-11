@@ -4,6 +4,12 @@ from datetime import datetime
 
 from closeros.domain.authentication import AuthenticationAssuranceLevel
 from closeros.domain.authentication_session import AuthenticationSession
+from closeros.domain.authentication_timeout import (
+    AUTHENTICATION_SESSION_TIMEOUT_POLICY,
+    AuthenticationSessionTimeoutPolicy,
+    calculate_authentication_session_absolute_expiry,
+    calculate_authentication_session_idle_expiry,
+)
 from closeros.domain.authentication_token import AuthenticationOneTimeToken
 from closeros.domain.email_password_credential import EmailPasswordCredential
 from closeros.domain.identity import Role
@@ -106,6 +112,7 @@ def require_usable_authentication_session(
     *,
     session: AuthenticationSession,
     now: datetime,
+    policy: AuthenticationSessionTimeoutPolicy = (AUTHENTICATION_SESSION_TIMEOUT_POLICY),
 ) -> None:
     if not isinstance(session, AuthenticationSession):
         raise TypeError("session must be an AuthenticationSession")
@@ -116,10 +123,26 @@ def require_usable_authentication_session(
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("now must be timezone-aware")
 
+    if not isinstance(policy, AuthenticationSessionTimeoutPolicy):
+        raise TypeError("policy must be an AuthenticationSessionTimeoutPolicy")
+
+    absolute_expiry = calculate_authentication_session_absolute_expiry(
+        stage=session.stage,
+        created_at=session.created_at,
+        policy=policy,
+    )
+    idle_expiry = calculate_authentication_session_idle_expiry(
+        stage=session.stage,
+        last_seen_at=session.last_seen_at,
+        policy=policy,
+    )
+
     if (
         now < session.created_at
         or now < session.last_seen_at
         or now >= session.expires_at
+        or now >= absolute_expiry
+        or (idle_expiry is not None and now >= idle_expiry)
         or session.revoked_at is not None
     ):
         raise AuthenticationSessionUnavailableError("authentication session unavailable")

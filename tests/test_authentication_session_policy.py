@@ -11,6 +11,7 @@ from closeros.domain import (
     AuthenticationAssuranceLevel,
     AuthenticationSession,
     AuthenticationSessionStage,
+    AuthenticationSessionTimeoutPolicy,
     AuthenticationSessionUnavailableError,
     AuthenticationTokenHash,
     require_usable_authentication_session,
@@ -25,7 +26,21 @@ EXPIRES_AT = datetime(2026, 7, 12, 0, 0, 0, tzinfo=UTC)
 REVOKED_AT = datetime(2026, 7, 11, 13, 0, 0, tzinfo=UTC)
 FUTURE_REVOKED_AT = datetime(2026, 7, 11, 14, 0, 0, tzinfo=UTC)
 NOW_WITHIN_VALIDITY = datetime(2026, 7, 11, 12, 30, 0, tzinfo=UTC)
+PENDING_MFA_DEADLINE = CREATED_AT + timedelta(minutes=5)
+RECENT_LAST_SEEN_AT = CREATED_AT + timedelta(hours=11, minutes=30)
+ABSOLUTE_DEADLINE = CREATED_AT + timedelta(hours=12)
 DENIED_MESSAGE = "authentication session unavailable"
+CUSTOM_PENDING_MFA_TIMEOUT = timedelta(minutes=2)
+CUSTOM_IDLE_TIMEOUT = timedelta(minutes=7)
+CUSTOM_ABSOLUTE_TIMEOUT = timedelta(hours=3)
+
+
+def _custom_policy() -> AuthenticationSessionTimeoutPolicy:
+    return AuthenticationSessionTimeoutPolicy(
+        authenticated_idle_timeout=CUSTOM_IDLE_TIMEOUT,
+        authenticated_absolute_timeout=CUSTOM_ABSOLUTE_TIMEOUT,
+        pending_mfa_timeout=CUSTOM_PENDING_MFA_TIMEOUT,
+    )
 
 
 def _build_session(**overrides: object) -> AuthenticationSession:
@@ -70,9 +85,13 @@ def test_temporally_valid_pending_mfa_session_is_allowed() -> None:
         stage=AuthenticationSessionStage.PENDING_MFA,
         assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
         mfa_completed=False,
+        last_seen_at=CREATED_AT,
     )
 
-    require_usable_authentication_session(session=session, now=NOW_WITHIN_VALIDITY)
+    require_usable_authentication_session(
+        session=session,
+        now=PENDING_MFA_DEADLINE - timedelta(microseconds=1),
+    )
 
 
 def test_allowed_call_returns_none() -> None:
@@ -103,7 +122,9 @@ def test_now_equal_to_last_seen_at_is_allowed() -> None:
 
 
 def test_now_one_microsecond_before_expires_at_is_allowed() -> None:
-    session = _build_session()
+    session = _build_session(
+        last_seen_at=EXPIRES_AT - timedelta(minutes=30),
+    )
 
     require_usable_authentication_session(
         session=session,
@@ -263,6 +284,232 @@ def test_naive_now_raises_value_error() -> None:
         )
 
 
+def test_pending_mfa_one_microsecond_before_five_minute_deadline_is_allowed() -> None:
+    session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
+        assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
+        mfa_completed=False,
+        last_seen_at=CREATED_AT,
+    )
+
+    require_usable_authentication_session(
+        session=session,
+        now=PENDING_MFA_DEADLINE - timedelta(microseconds=1),
+    )
+
+
+def test_pending_mfa_exactly_at_five_minute_deadline_is_denied() -> None:
+    session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
+        assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
+        mfa_completed=False,
+        last_seen_at=CREATED_AT,
+    )
+
+    with pytest.raises(AuthenticationSessionUnavailableError, match=f"^{DENIED_MESSAGE}$"):
+        require_usable_authentication_session(session=session, now=PENDING_MFA_DEADLINE)
+
+
+def test_pending_mfa_after_five_minute_deadline_is_denied() -> None:
+    session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
+        assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
+        mfa_completed=False,
+        last_seen_at=CREATED_AT,
+    )
+
+    with pytest.raises(AuthenticationSessionUnavailableError, match=f"^{DENIED_MESSAGE}$"):
+        require_usable_authentication_session(
+            session=session,
+            now=PENDING_MFA_DEADLINE + timedelta(seconds=1),
+        )
+
+
+def test_pending_mfa_early_stored_expires_at_denies_at_stored_expires_at() -> None:
+    early_expires_at = CREATED_AT + timedelta(minutes=3)
+    session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
+        assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
+        mfa_completed=False,
+        last_seen_at=CREATED_AT,
+        expires_at=early_expires_at,
+    )
+
+    with pytest.raises(AuthenticationSessionUnavailableError, match=f"^{DENIED_MESSAGE}$"):
+        require_usable_authentication_session(session=session, now=early_expires_at)
+
+
+def test_pending_mfa_late_stored_expires_at_does_not_extend_deadline() -> None:
+    late_expires_at = CREATED_AT + timedelta(minutes=10)
+    session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
+        assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
+        mfa_completed=False,
+        last_seen_at=CREATED_AT,
+        expires_at=late_expires_at,
+    )
+
+    with pytest.raises(AuthenticationSessionUnavailableError, match=f"^{DENIED_MESSAGE}$"):
+        require_usable_authentication_session(session=session, now=PENDING_MFA_DEADLINE)
+
+
+def test_authenticated_one_microsecond_before_thirty_minute_idle_deadline_is_allowed() -> None:
+    idle_deadline = LAST_SEEN_AT + timedelta(minutes=30)
+    session = _build_session()
+
+    require_usable_authentication_session(
+        session=session,
+        now=idle_deadline - timedelta(microseconds=1),
+    )
+
+
+def test_authenticated_exactly_at_thirty_minute_idle_deadline_is_denied() -> None:
+    idle_deadline = LAST_SEEN_AT + timedelta(minutes=30)
+    session = _build_session()
+
+    with pytest.raises(AuthenticationSessionUnavailableError, match=f"^{DENIED_MESSAGE}$"):
+        require_usable_authentication_session(session=session, now=idle_deadline)
+
+
+def test_authenticated_after_thirty_minute_idle_deadline_is_denied() -> None:
+    idle_deadline = LAST_SEEN_AT + timedelta(minutes=30)
+    session = _build_session()
+
+    with pytest.raises(AuthenticationSessionUnavailableError, match=f"^{DENIED_MESSAGE}$"):
+        require_usable_authentication_session(
+            session=session,
+            now=idle_deadline + timedelta(seconds=1),
+        )
+
+
+def test_authenticated_one_microsecond_before_twelve_hour_absolute_deadline_is_allowed() -> None:
+    session = _build_session(last_seen_at=RECENT_LAST_SEEN_AT)
+
+    require_usable_authentication_session(
+        session=session,
+        now=ABSOLUTE_DEADLINE - timedelta(microseconds=1),
+    )
+
+
+def test_authenticated_exactly_at_twelve_hour_absolute_deadline_is_denied() -> None:
+    session = _build_session(last_seen_at=RECENT_LAST_SEEN_AT)
+
+    with pytest.raises(AuthenticationSessionUnavailableError, match=f"^{DENIED_MESSAGE}$"):
+        require_usable_authentication_session(session=session, now=ABSOLUTE_DEADLINE)
+
+
+def test_authenticated_after_twelve_hour_absolute_deadline_is_denied() -> None:
+    session = _build_session(last_seen_at=RECENT_LAST_SEEN_AT)
+
+    with pytest.raises(AuthenticationSessionUnavailableError, match=f"^{DENIED_MESSAGE}$"):
+        require_usable_authentication_session(
+            session=session,
+            now=ABSOLUTE_DEADLINE + timedelta(seconds=1),
+        )
+
+
+def test_authenticated_early_stored_expires_at_denies_at_stored_expires_at() -> None:
+    early_expires_at = CREATED_AT + timedelta(hours=1)
+    session = _build_session(
+        last_seen_at=CREATED_AT,
+        expires_at=early_expires_at,
+    )
+
+    with pytest.raises(AuthenticationSessionUnavailableError, match=f"^{DENIED_MESSAGE}$"):
+        require_usable_authentication_session(session=session, now=early_expires_at)
+
+
+def test_authenticated_late_stored_expires_at_does_not_extend_absolute_deadline() -> None:
+    late_expires_at = CREATED_AT + timedelta(hours=24)
+    session = _build_session(
+        last_seen_at=RECENT_LAST_SEEN_AT,
+        expires_at=late_expires_at,
+    )
+
+    with pytest.raises(AuthenticationSessionUnavailableError, match=f"^{DENIED_MESSAGE}$"):
+        require_usable_authentication_session(session=session, now=ABSOLUTE_DEADLINE)
+
+
+def test_custom_policy_changes_pending_mfa_timeout() -> None:
+    policy = _custom_policy()
+    session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
+        assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
+        mfa_completed=False,
+        last_seen_at=CREATED_AT,
+        expires_at=CREATED_AT + timedelta(hours=1),
+    )
+    custom_deadline = CREATED_AT + CUSTOM_PENDING_MFA_TIMEOUT
+
+    require_usable_authentication_session(
+        session=session,
+        now=custom_deadline - timedelta(microseconds=1),
+        policy=policy,
+    )
+
+    with pytest.raises(AuthenticationSessionUnavailableError, match=f"^{DENIED_MESSAGE}$"):
+        require_usable_authentication_session(
+            session=session,
+            now=custom_deadline,
+            policy=policy,
+        )
+
+
+def test_custom_policy_changes_authenticated_idle_timeout() -> None:
+    policy = _custom_policy()
+    session = _build_session(
+        expires_at=CREATED_AT + timedelta(hours=24),
+    )
+    custom_idle_deadline = LAST_SEEN_AT + CUSTOM_IDLE_TIMEOUT
+
+    require_usable_authentication_session(
+        session=session,
+        now=custom_idle_deadline - timedelta(microseconds=1),
+        policy=policy,
+    )
+
+    with pytest.raises(AuthenticationSessionUnavailableError, match=f"^{DENIED_MESSAGE}$"):
+        require_usable_authentication_session(
+            session=session,
+            now=custom_idle_deadline,
+            policy=policy,
+        )
+
+
+def test_custom_policy_changes_authenticated_absolute_timeout() -> None:
+    policy = _custom_policy()
+    session = _build_session(
+        last_seen_at=CREATED_AT + timedelta(hours=2, minutes=53),
+        expires_at=CREATED_AT + timedelta(hours=24),
+    )
+    custom_absolute_deadline = CREATED_AT + CUSTOM_ABSOLUTE_TIMEOUT
+
+    require_usable_authentication_session(
+        session=session,
+        now=custom_absolute_deadline - timedelta(microseconds=1),
+        policy=policy,
+    )
+
+    with pytest.raises(AuthenticationSessionUnavailableError, match=f"^{DENIED_MESSAGE}$"):
+        require_usable_authentication_session(
+            session=session,
+            now=custom_absolute_deadline,
+            policy=policy,
+        )
+
+
+def test_wrong_policy_type_raises_type_error() -> None:
+    with pytest.raises(
+        TypeError,
+        match="policy must be an AuthenticationSessionTimeoutPolicy",
+    ):
+        require_usable_authentication_session(
+            session=_build_session(),
+            now=NOW_WITHIN_VALIDITY,
+            policy=cast(Any, object()),
+        )
+
+
 def test_policy_does_not_mutate_allowed_session() -> None:
     session = _build_session()
     before = (
@@ -324,6 +571,38 @@ def test_policy_does_not_mutate_denied_session() -> None:
         session.last_seen_at,
         session.expires_at,
         session.revoked_at,
+    )
+    assert after == before
+
+
+def test_guard_does_not_mutate_custom_timeout_policy() -> None:
+    policy = _custom_policy()
+    before = (
+        policy.authenticated_idle_timeout,
+        policy.authenticated_absolute_timeout,
+        policy.pending_mfa_timeout,
+    )
+
+    require_usable_authentication_session(
+        session=_build_session(last_seen_at=CREATED_AT + timedelta(minutes=1)),
+        now=CREATED_AT + timedelta(minutes=5),
+        policy=policy,
+    )
+
+    with pytest.raises(AuthenticationSessionUnavailableError):
+        require_usable_authentication_session(
+            session=_build_session(
+                revoked_at=REVOKED_AT,
+                last_seen_at=CREATED_AT + timedelta(minutes=1),
+            ),
+            now=CREATED_AT + timedelta(minutes=5),
+            policy=policy,
+        )
+
+    after = (
+        policy.authenticated_idle_timeout,
+        policy.authenticated_absolute_timeout,
+        policy.pending_mfa_timeout,
     )
     assert after == before
 
