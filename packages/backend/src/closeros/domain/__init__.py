@@ -9,6 +9,11 @@ from closeros.domain.authentication import (
     MfaMethod,
     PasswordHash,
 )
+from closeros.domain.authentication_policy import (
+    MfaRequiredError,
+    require_privileged_mfa,
+    requires_mfa_for_roles,
+)
 from closeros.domain.authentication_session import AuthenticationSession
 from closeros.domain.authentication_token import AuthenticationOneTimeToken
 from closeros.domain.email_password_credential import EmailPasswordCredential
@@ -39,6 +44,7 @@ __all__ = [
     "PasswordHash",
     "Membership",
     "MembershipStatus",
+    "MfaRequiredError",
     "RetentionPolicy",
     "Role",
     "Tenant",
@@ -46,5 +52,7 @@ __all__ = [
     "TenantStatus",
     "User",
     "UserStatus",
+    "require_privileged_mfa",
     "require_tenant_access",
+    "requires_mfa_for_roles",
 ]
