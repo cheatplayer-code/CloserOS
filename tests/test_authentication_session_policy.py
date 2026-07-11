@@ -310,7 +310,4 @@ def test_policy_does_not_mutate_denied_session() -> None:
 
 def test_authentication_session_policy_symbols_can_be_imported_from_closeros_domain() -> None:
     assert AuthenticationSessionUnavailableError.__name__ == "AuthenticationSessionUnavailableError"
-    assert (
-        require_usable_authentication_session.__name__
-        == "require_usable_authentication_session"
-    )
+    assert require_usable_authentication_session.__name__ == "require_usable_authentication_session"

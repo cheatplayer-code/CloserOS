@@ -8,12 +8,8 @@ from typing import Any, cast
 import pytest
 from closeros.domain import PasswordHash
 
-VALID_ENCODED = (
-    "$argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHQ$ZGlnaWVzdGRpZ2VzdGRpZ2VzdA"
-)
-OTHER_VALID_ENCODED = (
-    "$argon2id$v=19$m=65536,t=3,p=4$YW5vdGhlcnNhbHQ$YW5vdGhlcmRpZ2VzdGRpZ2VzdA"
-)
+VALID_ENCODED = "$argon2id$v=19$m=19456,t=2,p=1$c2FsdHNhbHQ$ZGlnaWVzdGRpZ2VzdGRpZ2VzdA"
+OTHER_VALID_ENCODED = "$argon2id$v=19$m=65536,t=3,p=4$YW5vdGhlcnNhbHQ$YW5vdGhlcmRpZ2VzdGRpZ2VzdA"
 
 
 def test_valid_argon2id_phc_string_is_accepted() -> None:

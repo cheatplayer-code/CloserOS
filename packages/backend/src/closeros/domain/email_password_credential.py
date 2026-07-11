@@ -54,6 +54,4 @@ class EmailPasswordCredential:
             )
 
             if email_verified_at < created_at:
-                raise ValueError(
-                    "email_verified_at must be greater than or equal to created_at"
-                )
+                raise ValueError("email_verified_at must be greater than or equal to created_at")

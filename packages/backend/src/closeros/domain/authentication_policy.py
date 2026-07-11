@@ -99,9 +99,7 @@ def require_usable_authentication_token(
         or token.consumed_at is not None
         or token.revoked_at is not None
     ):
-        raise AuthenticationTokenUnavailableError(
-            "authentication token unavailable"
-        )
+        raise AuthenticationTokenUnavailableError("authentication token unavailable")
 
 
 def require_usable_authentication_session(
@@ -124,6 +122,4 @@ def require_usable_authentication_session(
         or now >= session.expires_at
         or session.revoked_at is not None
     ):
-        raise AuthenticationSessionUnavailableError(
-            "authentication session unavailable"
-        )
+        raise AuthenticationSessionUnavailableError("authentication session unavailable")
