@@ -1,7 +1,10 @@
 """Framework-independent authentication policy guards."""
 
+from datetime import datetime
+
 from closeros.domain.authentication import AuthenticationAssuranceLevel
 from closeros.domain.authentication_session import AuthenticationSession
+from closeros.domain.authentication_token import AuthenticationOneTimeToken
 from closeros.domain.email_password_credential import EmailPasswordCredential
 from closeros.domain.identity import Role
 from closeros.domain.membership import Membership
@@ -21,6 +24,10 @@ class MfaRequiredError(PermissionError):
 
 class EmailVerificationRequiredError(PermissionError):
     """Raised when authentication requires a verified email."""
+
+
+class AuthenticationTokenUnavailableError(PermissionError):
+    """Raised when a one-time authentication token cannot be used."""
 
 
 def requires_mfa_for_roles(roles: frozenset[Role]) -> bool:
@@ -66,3 +73,28 @@ def require_verified_email(
 
     if credential.email_verified_at is None:
         raise EmailVerificationRequiredError("email verification required")
+
+
+def require_usable_authentication_token(
+    *,
+    token: AuthenticationOneTimeToken,
+    now: datetime,
+) -> None:
+    if not isinstance(token, AuthenticationOneTimeToken):
+        raise TypeError("token must be an AuthenticationOneTimeToken")
+
+    if not isinstance(now, datetime):
+        raise TypeError("now must be a datetime")
+
+    if now.tzinfo is None or now.utcoffset() is None:
+        raise ValueError("now must be timezone-aware")
+
+    if (
+        now < token.created_at
+        or now >= token.expires_at
+        or token.consumed_at is not None
+        or token.revoked_at is not None
+    ):
+        raise AuthenticationTokenUnavailableError(
+            "authentication token unavailable"
+        )

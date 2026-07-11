@@ -10,9 +10,11 @@ from closeros.domain.authentication import (
     PasswordHash,
 )
 from closeros.domain.authentication_policy import (
+    AuthenticationTokenUnavailableError,
     EmailVerificationRequiredError,
     MfaRequiredError,
     require_privileged_mfa,
+    require_usable_authentication_token,
     require_verified_email,
     requires_mfa_for_roles,
 )
@@ -39,6 +41,7 @@ __all__ = [
     "AuthenticationSession",
     "AuthenticationTokenHash",
     "AuthenticationTokenPurpose",
+    "AuthenticationTokenUnavailableError",
     "EmailPasswordCredential",
     "EmailVerificationRequiredError",
     "Invitation",
@@ -57,6 +60,7 @@ __all__ = [
     "UserStatus",
     "require_privileged_mfa",
     "require_tenant_access",
+    "require_usable_authentication_token",
     "require_verified_email",
     "requires_mfa_for_roles",
 ]
