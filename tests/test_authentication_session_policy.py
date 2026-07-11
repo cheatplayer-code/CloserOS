@@ -10,6 +10,7 @@ import pytest
 from closeros.domain import (
     AuthenticationAssuranceLevel,
     AuthenticationSession,
+    AuthenticationSessionStage,
     AuthenticationSessionUnavailableError,
     AuthenticationTokenHash,
     require_usable_authentication_session,
@@ -32,6 +33,7 @@ def _build_session(**overrides: object) -> AuthenticationSession:
         "id": SESSION_ID,
         "user_id": USER_ID,
         "token_hash": TOKEN_HASH,
+        "stage": AuthenticationSessionStage.AUTHENTICATED,
         "assurance_level": AuthenticationAssuranceLevel.MULTI_FACTOR,
         "mfa_completed": True,
         "created_at": CREATED_AT,
@@ -45,6 +47,7 @@ def _build_session(**overrides: object) -> AuthenticationSession:
 
 def test_active_single_factor_session_is_allowed() -> None:
     session = _build_session(
+        stage=AuthenticationSessionStage.AUTHENTICATED,
         assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
         mfa_completed=False,
     )
@@ -54,8 +57,19 @@ def test_active_single_factor_session_is_allowed() -> None:
 
 def test_active_multi_factor_session_is_allowed() -> None:
     session = _build_session(
+        stage=AuthenticationSessionStage.AUTHENTICATED,
         assurance_level=AuthenticationAssuranceLevel.MULTI_FACTOR,
         mfa_completed=True,
+    )
+
+    require_usable_authentication_session(session=session, now=NOW_WITHIN_VALIDITY)
+
+
+def test_temporally_valid_pending_mfa_session_is_allowed() -> None:
+    session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
+        assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
+        mfa_completed=False,
     )
 
     require_usable_authentication_session(session=session, now=NOW_WITHIN_VALIDITY)
@@ -217,6 +231,8 @@ def test_denial_message_and_repr_contain_no_sensitive_details() -> None:
     assert repr(TOKEN_HASH.digest) not in error_text
     assert TOKEN_HASH.digest.hex() not in error_text
     assert AuthenticationAssuranceLevel.MULTI_FACTOR.value not in error_text
+    assert AuthenticationSessionStage.PENDING_MFA.value not in error_text
+    assert AuthenticationSessionStage.AUTHENTICATED.value not in error_text
     assert CREATED_AT.isoformat() not in error_text
     assert LAST_SEEN_AT.isoformat() not in error_text
     assert EXPIRES_AT.isoformat() not in error_text
@@ -253,6 +269,7 @@ def test_policy_does_not_mutate_allowed_session() -> None:
         session.id,
         session.user_id,
         session.token_hash,
+        session.stage,
         session.assurance_level,
         session.mfa_completed,
         session.created_at,
@@ -267,6 +284,7 @@ def test_policy_does_not_mutate_allowed_session() -> None:
         session.id,
         session.user_id,
         session.token_hash,
+        session.stage,
         session.assurance_level,
         session.mfa_completed,
         session.created_at,
@@ -283,6 +301,7 @@ def test_policy_does_not_mutate_denied_session() -> None:
         session.id,
         session.user_id,
         session.token_hash,
+        session.stage,
         session.assurance_level,
         session.mfa_completed,
         session.created_at,
@@ -298,6 +317,7 @@ def test_policy_does_not_mutate_denied_session() -> None:
         session.id,
         session.user_id,
         session.token_hash,
+        session.stage,
         session.assurance_level,
         session.mfa_completed,
         session.created_at,

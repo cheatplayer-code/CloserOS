@@ -6,8 +6,14 @@ from uuid import UUID
 
 from closeros.domain.authentication import (
     AuthenticationAssuranceLevel,
+    AuthenticationSessionStage,
     AuthenticationTokenHash,
 )
+
+_PENDING_MFA_COMBINATION_ERROR = (
+    "pending MFA session must use single-factor assurance with incomplete MFA"
+)
+_AUTHENTICATED_MFA_STATE_ERROR = "authenticated session MFA state must match assurance level"
 
 
 def _validate_timezone_aware_datetime(value: object, field_name: str) -> datetime:
@@ -25,6 +31,7 @@ class AuthenticationSession:
     id: UUID
     user_id: UUID
     token_hash: AuthenticationTokenHash = field(repr=False)
+    stage: AuthenticationSessionStage
     assurance_level: AuthenticationAssuranceLevel
     mfa_completed: bool
     created_at: datetime
@@ -42,11 +49,32 @@ class AuthenticationSession:
         if not isinstance(self.token_hash, AuthenticationTokenHash):
             raise TypeError("token_hash must be an AuthenticationTokenHash")
 
+        if not isinstance(self.stage, AuthenticationSessionStage):
+            raise TypeError("stage must be an AuthenticationSessionStage")
+
         if not isinstance(self.assurance_level, AuthenticationAssuranceLevel):
             raise TypeError("assurance_level must be an AuthenticationAssuranceLevel")
 
         if type(self.mfa_completed) is not bool:
             raise TypeError("mfa_completed must be a bool")
+
+        if self.stage is AuthenticationSessionStage.PENDING_MFA:
+            if (
+                self.assurance_level is not AuthenticationAssuranceLevel.SINGLE_FACTOR
+                or self.mfa_completed is not False
+            ):
+                raise ValueError(_PENDING_MFA_COMBINATION_ERROR)
+        elif self.stage is AuthenticationSessionStage.AUTHENTICATED:
+            if (
+                self.assurance_level is AuthenticationAssuranceLevel.SINGLE_FACTOR
+                and self.mfa_completed is not False
+            ):
+                raise ValueError(_AUTHENTICATED_MFA_STATE_ERROR)
+            if (
+                self.assurance_level is AuthenticationAssuranceLevel.MULTI_FACTOR
+                and self.mfa_completed is not True
+            ):
+                raise ValueError(_AUTHENTICATED_MFA_STATE_ERROR)
 
         created_at = _validate_timezone_aware_datetime(self.created_at, "created_at")
         last_seen_at = _validate_timezone_aware_datetime(self.last_seen_at, "last_seen_at")
