@@ -8,6 +8,7 @@ from closeros.domain.authentication import (
     MfaMethod,
 )
 from closeros.domain.authentication_session import AuthenticationSession
+from closeros.domain.authentication_token import AuthenticationOneTimeToken
 from closeros.domain.identity import (
     InvitationStatus,
     MembershipStatus,
@@ -23,6 +24,7 @@ from closeros.domain.user import User
 
 __all__ = [
     "AuthenticationAssuranceLevel",
+    "AuthenticationOneTimeToken",
     "AuthenticationSession",
     "AuthenticationTokenHash",
     "AuthenticationTokenPurpose",
