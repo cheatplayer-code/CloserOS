@@ -341,3 +341,59 @@ This branch exists only to trigger and verify:
 - `Security / dependency-review`.
 
 No application code, dependencies, lockfiles, or Docker configuration were changed.
+
+## CLS-010 identity domain
+
+Status: **Implemented locally; GitHub Pull Request verification pending**.
+
+Branch: `feat/cls-010-identity-domain`.
+
+Implemented:
+
+- stable `Role`, `TenantStatus`, `UserStatus`, `MembershipStatus`, and
+  `InvitationStatus` enums;
+- `Tenant` with UUID, normalized name, lifecycle status, configured time zone,
+  and `RetentionPolicy`;
+- `User` with lifecycle status;
+- `Membership` linking one user to one tenant with tenant-scoped roles;
+- `Invitation` with normalized email, roles, lifecycle status, and
+  timezone-aware expiration;
+- immutable `RetentionPolicy` for raw messages, sanitized messages, AI outputs,
+  audit logs, backups, and post-contract deletion;
+- fail-closed tenant access guard;
+- denial for cross-tenant membership;
+- denial for mismatched user membership;
+- denial for suspended tenants;
+- denial for disabled users;
+- denial for suspended or removed memberships.
+
+Not implemented in CLS-010:
+
+- persistence;
+- SQLAlchemy;
+- Alembic migrations;
+- repositories;
+- authentication;
+- API routes;
+- audit logging;
+- role-specific authorization;
+- invitation delivery or acceptance workflows.
+
+Consolidated verification (2026-07-11):
+
+- Ruff: passed;
+- mypy: 0 errors in 15 source files;
+- pytest: 100 passed.
+
+Notes:
+
+- Tenant legal-status controlled values remain unspecified and were not invented.
+- `CLS-003` Quality, secret scanning, and dependency review were remotely
+  verified successfully.
+
+Next step: open a Pull Request from `feat/cls-010-identity-domain` into
+`master` and verify GitHub CI.
+
+After merge, the next development task is `CLS-011` authentication design, not
+implementation, because session architecture and provider choice remain open
+decisions.
