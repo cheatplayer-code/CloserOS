@@ -1,5 +1,8 @@
 """Tests for CLS-010.3a tenant access guard."""
 
+# mypy: disable-error-code=import-untyped
+
+from typing import Any, cast
 from uuid import UUID
 
 import pytest
@@ -63,13 +66,11 @@ def _active_membership(
 
 
 def test_active_matching_membership_is_allowed() -> None:
-    result = require_tenant_access(
+    require_tenant_access(
         tenant=_active_tenant(),
         user=_active_user(),
         membership=_active_membership(),
     )
-
-    assert result is None
 
 
 def test_membership_for_another_tenant_is_denied() -> None:
@@ -151,7 +152,7 @@ def test_removed_membership_is_denied() -> None:
 def test_wrong_tenant_argument_type_raises_type_error() -> None:
     with pytest.raises(TypeError, match="tenant must be a Tenant"):
         require_tenant_access(
-            tenant="tenant",  # type: ignore[arg-type]
+            tenant=cast(Any, "tenant"),
             user=_active_user(),
             membership=_active_membership(),
         )
@@ -161,7 +162,7 @@ def test_wrong_user_argument_type_raises_type_error() -> None:
     with pytest.raises(TypeError, match="user must be a User"):
         require_tenant_access(
             tenant=_active_tenant(),
-            user="user",  # type: ignore[arg-type]
+            user=cast(Any, "user"),
             membership=_active_membership(),
         )
 
@@ -171,7 +172,7 @@ def test_wrong_membership_argument_type_raises_type_error() -> None:
         require_tenant_access(
             tenant=_active_tenant(),
             user=_active_user(),
-            membership="membership",  # type: ignore[arg-type]
+            membership=cast(Any, "membership"),
         )
 
 

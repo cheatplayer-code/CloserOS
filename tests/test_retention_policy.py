@@ -1,6 +1,9 @@
 """Tests for CLS-010.3c retention policy value object."""
 
+# mypy: disable-error-code=import-untyped
+
 from dataclasses import FrozenInstanceError
+from typing import Any, cast
 
 import pytest
 from closeros.domain import RetentionPolicy
@@ -60,7 +63,7 @@ def test_each_field_rejects_string_value(field_name: str) -> None:
 @pytest.mark.parametrize("field_name", RETENTION_FIELDS)
 def test_each_field_rejects_bool_value(field_name: str) -> None:
     values = VALID_POLICY_VALUES.copy()
-    values[field_name] = True  # type: ignore[assignment]
+    values[field_name] = True
 
     with pytest.raises(TypeError, match=f"{field_name} must be an int"):
         RetentionPolicy(**values)
@@ -70,7 +73,7 @@ def test_retention_policy_is_immutable() -> None:
     policy = RetentionPolicy(**VALID_POLICY_VALUES)
 
     with pytest.raises(FrozenInstanceError):
-        policy.raw_message_days = 10  # type: ignore[misc]
+        cast(Any, policy).raw_message_days = 10
 
 
 def test_retention_policy_can_be_imported_from_closeros_domain() -> None:

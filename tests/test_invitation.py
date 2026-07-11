@@ -1,6 +1,9 @@
 """Tests for CLS-010.2d invitation domain entity."""
 
+# mypy: disable-error-code=import-untyped
+
 from datetime import UTC, datetime
+from typing import Any, cast
 from uuid import UUID
 
 import pytest
@@ -23,7 +26,7 @@ def _build_invitation(**overrides: object) -> Invitation:
         "expires_at": EXPIRES_AT,
     }
     values.update(overrides)
-    return Invitation(**values)  # type: ignore[arg-type]
+    return Invitation(**cast(Any, values))
 
 
 def test_valid_invitation_stores_all_supplied_values() -> None:
@@ -70,7 +73,7 @@ def test_set_roles_raise_type_error() -> None:
 
 def test_frozenset_with_string_role_raises_type_error() -> None:
     with pytest.raises(TypeError, match="roles must contain only Role values"):
-        _build_invitation(roles=frozenset({"manager"}))  # type: ignore[arg-type]
+        _build_invitation(roles=frozenset({"manager"}))
 
 
 def test_multiple_valid_roles_are_accepted() -> None:
