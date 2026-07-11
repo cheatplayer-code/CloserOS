@@ -1,4 +1,17 @@
-"""Framework-independent business rules.
+"""Framework-independent business rules for the modular-monolith backend."""
 
-CLS-001 intentionally contains no domain entities or product behavior.
-"""
+from closeros.domain.identity import (
+    InvitationStatus,
+    MembershipStatus,
+    Role,
+    TenantStatus,
+    UserStatus,
+)
+
+__all__ = [
+    "InvitationStatus",
+    "MembershipStatus",
+    "Role",
+    "TenantStatus",
+    "UserStatus",
+]
