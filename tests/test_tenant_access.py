@@ -22,7 +22,12 @@ MANAGER_ROLES = frozenset({Role.MANAGER})
 
 
 def _active_tenant(*, tenant_id: UUID = TENANT_ID) -> Tenant:
-    return Tenant(id=tenant_id, name="Acme Corp", status=TenantStatus.ACTIVE)
+    return Tenant(
+        id=tenant_id,
+        name="Acme Corp",
+        status=TenantStatus.ACTIVE,
+        time_zone="UTC",
+    )
 
 
 def _active_user(*, user_id: UUID = USER_ID) -> User:
@@ -77,7 +82,12 @@ def test_membership_for_another_user_is_denied() -> None:
 
 
 def test_suspended_tenant_is_denied() -> None:
-    tenant = Tenant(id=TENANT_ID, name="Acme Corp", status=TenantStatus.SUSPENDED)
+    tenant = Tenant(
+        id=TENANT_ID,
+        name="Acme Corp",
+        status=TenantStatus.SUSPENDED,
+        time_zone="Asia/Almaty",
+    )
 
     with pytest.raises(TenantAccessDeniedError, match=f"^{DENIED_MESSAGE}$") as exc_info:
         require_tenant_access(

@@ -11,6 +11,7 @@ class Tenant:
     id: UUID
     name: str
     status: TenantStatus
+    time_zone: str
 
     def __post_init__(self) -> None:
         if not isinstance(self.id, UUID):
@@ -27,4 +28,13 @@ class Tenant:
         if not isinstance(self.status, TenantStatus):
             raise TypeError("status must be a TenantStatus")
 
+        if not isinstance(self.time_zone, str):
+            raise TypeError("time_zone must be a string")
+
+        normalized_time_zone = self.time_zone.strip()
+
+        if not normalized_time_zone:
+            raise ValueError("time_zone must not be empty")
+
         self.name = normalized_name
+        self.time_zone = normalized_time_zone
