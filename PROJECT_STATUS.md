@@ -500,3 +500,109 @@ Notes:
 
 Next step: open a Pull Request from `feat/cls-011-auth-core` into `master` and
 verify GitHub CI.
+
+## CLS-011 authentication infrastructure
+
+Status: **Implemented locally; GitHub Pull Request verification pending. CLS-011
+as a whole remains incomplete.**
+
+Branch: `feat/cls-011-auth-infrastructure`.
+
+Implemented:
+
+- explicit `pending_mfa` and `authenticated` session stages;
+- strict valid combinations of session stage, assurance level, and MFA
+  completion;
+- authenticated idle timeout of 30 minutes;
+- authenticated absolute timeout of 12 hours;
+- pending-MFA timeout of 5 minutes;
+- deterministic session deadline calculations;
+- stage-aware session-usability enforcement;
+- stored `expires_at` may shorten but cannot extend canonical deadlines;
+- email-verification token timeout of 24 hours;
+- password-reset token timeout of 30 minutes;
+- deterministic one-time-token expiry calculations;
+- cryptographically secure raw authentication tokens using 256 bits of entropy;
+- canonical 43-character URL-safe Base64 encoding without padding;
+- SHA-256 authentication-token hashing;
+- constant-time hash comparison using `hmac.compare_digest`;
+- pending-MFA session issuance;
+- authenticated single-factor session issuance;
+- authenticated multi-factor session issuance;
+- email-verification token issuance;
+- password-reset token issuance;
+- MFA completion through:
+  - a revoked copy of the previous pending session;
+  - no mutation of the original pending session;
+  - a new session ID;
+  - a new raw token and token hash;
+  - a new authenticated multi-factor session;
+- raw authentication tokens hidden from repr.
+
+Consolidated verification (2026-07-11):
+
+- targeted authentication Ruff format: passed;
+- targeted authentication Ruff lint: passed;
+- targeted authentication mypy: 0 errors in 19 source files;
+- targeted authentication pytest: 428 passed;
+- native `corepack pnpm run quality` could not run locally because the native
+  `uv` executable is unavailable on PATH;
+- no claim that native `corepack pnpm run quality` passed locally;
+- command-by-command offline equivalent passed using existing `node_modules` for
+  JavaScript/TypeScript checks and existing `.venv` for Python checks:
+  - Prettier: passed;
+  - Ruff format: passed (52 files already formatted);
+  - ESLint: passed;
+  - Ruff lint: passed;
+  - TypeScript type checking: passed;
+  - mypy: 0 errors in 52 source files;
+  - Vitest: 1 passed;
+  - full pytest: 531 passed;
+  - Next.js production build: passed;
+  - `git diff --check`: passed;
+- GitHub CI with repository-pinned uv remains the authoritative PR verification.
+
+Not implemented:
+
+- Argon2id library integration;
+- password hashing;
+- password verification;
+- password rehash;
+- credential registration;
+- login orchestration;
+- logout;
+- password change;
+- session persistence;
+- one-time-token persistence;
+- invalidation of older verification/reset tokens;
+- SQLAlchemy models;
+- Alembic migrations;
+- PostgreSQL repositories;
+- Redis session caching;
+- authentication-cookie creation and parsing;
+- CSRF protection;
+- rate limiting;
+- email delivery;
+- generic anti-enumeration HTTP responses;
+- WebAuthn;
+- TOTP;
+- recovery codes;
+- audit events;
+- FastAPI authentication routes;
+- Next.js authentication UI.
+
+Architectural boundaries:
+
+- ADR-0010 remains authoritative;
+- PostgreSQL will be the source of truth for sessions;
+- Redis must never become session authority;
+- raw authentication tokens must never be persisted;
+- no dependencies or lockfiles were changed;
+- no database, Docker, API, or frontend functionality was added;
+- CLS-011 must not be marked complete.
+
+Next recommended task after merge: Authentication persistence design and schema,
+beginning with repository interfaces and SQLAlchemy/Alembic planning.
+
+Next step: open a Pull Request from `feat/cls-011-auth-infrastructure` into
+`master` and verify GitHub CI.

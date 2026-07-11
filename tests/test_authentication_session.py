@@ -10,6 +10,7 @@ import pytest
 from closeros.domain import (
     AuthenticationAssuranceLevel,
     AuthenticationSession,
+    AuthenticationSessionStage,
     AuthenticationTokenHash,
 )
 
@@ -20,6 +21,10 @@ CREATED_AT = datetime(2026, 7, 11, 12, 0, 0, tzinfo=UTC)
 LAST_SEEN_AT = datetime(2026, 7, 11, 12, 15, 0, tzinfo=UTC)
 EXPIRES_AT = datetime(2026, 7, 12, 0, 0, 0, tzinfo=UTC)
 REVOKED_AT = datetime(2026, 7, 11, 13, 0, 0, tzinfo=UTC)
+PENDING_MFA_COMBINATION_ERROR = (
+    "pending MFA session must use single-factor assurance with incomplete MFA"
+)
+AUTHENTICATED_MFA_STATE_ERROR = "authenticated session MFA state must match assurance level"
 
 
 def _build_session(**overrides: object) -> AuthenticationSession:
@@ -27,6 +32,7 @@ def _build_session(**overrides: object) -> AuthenticationSession:
         "id": SESSION_ID,
         "user_id": USER_ID,
         "token_hash": TOKEN_HASH,
+        "stage": AuthenticationSessionStage.AUTHENTICATED,
         "assurance_level": AuthenticationAssuranceLevel.MULTI_FACTOR,
         "mfa_completed": True,
         "created_at": CREATED_AT,
@@ -44,6 +50,7 @@ def test_valid_active_session_stores_every_supplied_value() -> None:
     assert session.id == SESSION_ID
     assert session.user_id == USER_ID
     assert session.token_hash is TOKEN_HASH
+    assert session.stage is AuthenticationSessionStage.AUTHENTICATED
     assert session.assurance_level is AuthenticationAssuranceLevel.MULTI_FACTOR
     assert session.mfa_completed is True
     assert session.created_at == CREATED_AT
@@ -54,12 +61,94 @@ def test_valid_active_session_stores_every_supplied_value() -> None:
 
 def test_pending_mfa_session_is_accepted() -> None:
     session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
         assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
         mfa_completed=False,
     )
 
+    assert session.stage is AuthenticationSessionStage.PENDING_MFA
     assert session.assurance_level is AuthenticationAssuranceLevel.SINGLE_FACTOR
     assert session.mfa_completed is False
+
+
+def test_valid_pending_mfa_single_factor_false_session_is_accepted() -> None:
+    session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
+        assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
+        mfa_completed=False,
+    )
+
+    assert session.stage is AuthenticationSessionStage.PENDING_MFA
+
+
+def test_valid_authenticated_single_factor_false_session_is_accepted() -> None:
+    session = _build_session(
+        stage=AuthenticationSessionStage.AUTHENTICATED,
+        assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
+        mfa_completed=False,
+    )
+
+    assert session.stage is AuthenticationSessionStage.AUTHENTICATED
+
+
+def test_valid_authenticated_multi_factor_true_session_is_accepted() -> None:
+    session = _build_session(
+        stage=AuthenticationSessionStage.AUTHENTICATED,
+        assurance_level=AuthenticationAssuranceLevel.MULTI_FACTOR,
+        mfa_completed=True,
+    )
+
+    assert session.stage is AuthenticationSessionStage.AUTHENTICATED
+
+
+def test_plain_string_stage_raises_type_error() -> None:
+    with pytest.raises(TypeError, match="stage must be an AuthenticationSessionStage"):
+        _build_session(stage=cast(Any, "authenticated"))
+
+
+def test_pending_mfa_multi_factor_true_raises_pending_mfa_value_error() -> None:
+    with pytest.raises(ValueError, match=f"^{PENDING_MFA_COMBINATION_ERROR}$"):
+        _build_session(
+            stage=AuthenticationSessionStage.PENDING_MFA,
+            assurance_level=AuthenticationAssuranceLevel.MULTI_FACTOR,
+            mfa_completed=True,
+        )
+
+
+def test_pending_mfa_multi_factor_false_raises_pending_mfa_value_error() -> None:
+    with pytest.raises(ValueError, match=f"^{PENDING_MFA_COMBINATION_ERROR}$"):
+        _build_session(
+            stage=AuthenticationSessionStage.PENDING_MFA,
+            assurance_level=AuthenticationAssuranceLevel.MULTI_FACTOR,
+            mfa_completed=False,
+        )
+
+
+def test_pending_mfa_single_factor_true_raises_pending_mfa_value_error() -> None:
+    with pytest.raises(ValueError, match=f"^{PENDING_MFA_COMBINATION_ERROR}$"):
+        _build_session(
+            stage=AuthenticationSessionStage.PENDING_MFA,
+            assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
+            mfa_completed=True,
+        )
+
+
+def test_authenticated_single_factor_true_raises_authenticated_session_value_error() -> None:
+    with pytest.raises(ValueError, match=f"^{AUTHENTICATED_MFA_STATE_ERROR}$"):
+        _build_session(
+            stage=AuthenticationSessionStage.AUTHENTICATED,
+            assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
+            mfa_completed=True,
+        )
+
+
+def test_authenticated_multi_factor_false_raises_authenticated_session_value_error() -> None:
+    with pytest.raises(ValueError, match=f"^{AUTHENTICATED_MFA_STATE_ERROR}$"):
+        _build_session(
+            stage=AuthenticationSessionStage.AUTHENTICATED,
+            assurance_level=AuthenticationAssuranceLevel.MULTI_FACTOR,
+            mfa_completed=False,
+        )
 
 
 def test_multi_factor_session_with_mfa_completed_is_accepted() -> None:

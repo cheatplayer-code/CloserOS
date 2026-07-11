@@ -19,6 +19,11 @@ class AuthenticationTokenPurpose(StrEnum):
     PASSWORD_RESET = "password_reset"
 
 
+class AuthenticationSessionStage(StrEnum):
+    PENDING_MFA = "pending_mfa"
+    AUTHENTICATED = "authenticated"
+
+
 @dataclass(frozen=True, slots=True)
 class AuthenticationTokenHash:
     digest: bytes = field(repr=False)

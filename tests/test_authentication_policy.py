@@ -10,6 +10,7 @@ import pytest
 from closeros.domain import (
     AuthenticationAssuranceLevel,
     AuthenticationSession,
+    AuthenticationSessionStage,
     AuthenticationTokenHash,
     Membership,
     MfaRequiredError,
@@ -56,6 +57,7 @@ def _build_session(**overrides: object) -> AuthenticationSession:
         "id": SESSION_ID,
         "user_id": USER_ID,
         "token_hash": TOKEN_HASH,
+        "stage": AuthenticationSessionStage.AUTHENTICATED,
         "assurance_level": AuthenticationAssuranceLevel.MULTI_FACTOR,
         "mfa_completed": True,
         "created_at": CREATED_AT,
@@ -108,6 +110,7 @@ def test_frozenset_containing_string_raises_type_error() -> None:
 def test_non_privileged_membership_with_single_factor_incomplete_session_is_allowed() -> None:
     membership = _build_membership(roles=frozenset({Role.MANAGER}))
     session = _build_session(
+        stage=AuthenticationSessionStage.AUTHENTICATED,
         assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
         mfa_completed=False,
     )
@@ -118,6 +121,7 @@ def test_non_privileged_membership_with_single_factor_incomplete_session_is_allo
 def test_privileged_membership_with_multi_factor_and_mfa_completed_true_is_allowed() -> None:
     membership = _build_membership(roles=frozenset({Role.OWNER}))
     session = _build_session(
+        stage=AuthenticationSessionStage.AUTHENTICATED,
         assurance_level=AuthenticationAssuranceLevel.MULTI_FACTOR,
         mfa_completed=True,
     )
@@ -128,6 +132,7 @@ def test_privileged_membership_with_multi_factor_and_mfa_completed_true_is_allow
 def test_privileged_membership_with_single_factor_and_mfa_completed_false_is_denied() -> None:
     membership = _build_membership(roles=frozenset({Role.OWNER}))
     session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
         assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
         mfa_completed=False,
     )
@@ -139,9 +144,11 @@ def test_privileged_membership_with_single_factor_and_mfa_completed_false_is_den
 def test_privileged_membership_with_single_factor_and_mfa_completed_true_is_denied() -> None:
     membership = _build_membership(roles=frozenset({Role.OWNER}))
     session = _build_session(
+        stage=AuthenticationSessionStage.AUTHENTICATED,
         assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
-        mfa_completed=True,
+        mfa_completed=False,
     )
+    session.mfa_completed = True
 
     with pytest.raises(MfaRequiredError, match=f"^{DENIED_MESSAGE}$"):
         require_privileged_mfa(membership=membership, session=session)
@@ -150,9 +157,11 @@ def test_privileged_membership_with_single_factor_and_mfa_completed_true_is_deni
 def test_privileged_membership_with_multi_factor_and_mfa_completed_false_is_denied() -> None:
     membership = _build_membership(roles=frozenset({Role.OWNER}))
     session = _build_session(
+        stage=AuthenticationSessionStage.AUTHENTICATED,
         assurance_level=AuthenticationAssuranceLevel.MULTI_FACTOR,
-        mfa_completed=False,
+        mfa_completed=True,
     )
+    session.mfa_completed = False
 
     with pytest.raises(MfaRequiredError, match=f"^{DENIED_MESSAGE}$"):
         require_privileged_mfa(membership=membership, session=session)
@@ -169,6 +178,7 @@ def test_mismatched_membership_user_id_and_session_user_id_is_denied() -> None:
 def test_mixed_role_membership_with_privileged_role_denied_without_mfa() -> None:
     membership = _build_membership(roles=frozenset({Role.MANAGER, Role.SALES_HEAD}))
     session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
         assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
         mfa_completed=False,
     )
@@ -189,6 +199,7 @@ def test_mixed_role_membership_with_privileged_role_denied_without_mfa() -> None
 def test_every_denial_raises_mfa_required_error(roles: frozenset[Role]) -> None:
     membership = _build_membership(roles=roles)
     session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
         assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
         mfa_completed=False,
     )
@@ -209,6 +220,7 @@ def test_every_denial_raises_mfa_required_error(roles: frozenset[Role]) -> None:
 def test_every_denial_uses_exact_denial_message(roles: frozenset[Role]) -> None:
     membership = _build_membership(roles=roles)
     session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
         assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
         mfa_completed=False,
     )
@@ -222,6 +234,7 @@ def test_every_denial_uses_exact_denial_message(roles: frozenset[Role]) -> None:
 def test_denial_repr_and_message_contain_none_of_supplied_uuid_strings() -> None:
     membership = _build_membership(roles=frozenset({Role.OWNER}))
     session = _build_session(
+        stage=AuthenticationSessionStage.PENDING_MFA,
         assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
         mfa_completed=False,
     )
@@ -263,6 +276,7 @@ def test_policy_does_not_mutate_membership() -> None:
     require_privileged_mfa(
         membership=membership,
         session=_build_session(
+            stage=AuthenticationSessionStage.AUTHENTICATED,
             assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
             mfa_completed=False,
         ),
@@ -281,6 +295,7 @@ def test_policy_does_not_mutate_membership() -> None:
 def test_policy_does_not_mutate_authentication_session() -> None:
     membership = _build_membership(roles=frozenset({Role.MANAGER}))
     session = _build_session(
+        stage=AuthenticationSessionStage.AUTHENTICATED,
         assurance_level=AuthenticationAssuranceLevel.SINGLE_FACTOR,
         mfa_completed=False,
     )
@@ -288,6 +303,7 @@ def test_policy_does_not_mutate_authentication_session() -> None:
         session.id,
         session.user_id,
         session.token_hash,
+        session.stage,
         session.assurance_level,
         session.mfa_completed,
         session.created_at,
@@ -302,6 +318,7 @@ def test_policy_does_not_mutate_authentication_session() -> None:
         session.id,
         session.user_id,
         session.token_hash,
+        session.stage,
         session.assurance_level,
         session.mfa_completed,
         session.created_at,
