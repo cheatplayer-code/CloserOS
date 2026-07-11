@@ -4,6 +4,7 @@ from closeros.domain.access import TenantAccessDeniedError, require_tenant_acces
 from closeros.domain.authentication import (
     AuthenticationAssuranceLevel,
     AuthenticationEmail,
+    AuthenticationSessionStage,
     AuthenticationTokenHash,
     AuthenticationTokenPurpose,
     MfaMethod,
@@ -41,6 +42,7 @@ __all__ = [
     "AuthenticationEmail",
     "AuthenticationOneTimeToken",
     "AuthenticationSession",
+    "AuthenticationSessionStage",
     "AuthenticationSessionUnavailableError",
     "AuthenticationTokenHash",
     "AuthenticationTokenPurpose",
