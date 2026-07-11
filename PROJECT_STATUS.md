@@ -213,6 +213,14 @@ feature was added. No commit was created.
 
 Status: **Implemented locally; remote verification pending**.
 
+Remote verification started on 2026-07-10:
+
+- initial remote commit:
+  `52f8a715053728621ed2c9a0e2e2799176d5dbbb`;
+- verification branch: `chore/verify-cls-003`;
+- `Quality / quality`, `Security / secret-scan`, and
+  `Security / dependency-review` results: pending.
+
 Created:
 
 - `.github/workflows/quality.yml`;
@@ -319,3 +327,17 @@ Every completed task must update:
 - next recommended task.
 
 Do not delete historical decisions. Supersede them with an ADR.
+
+## CLS-003 remote verification
+
+Status: **Remote verification started**.
+
+Verification branch: `chore/verify-cls-003`.
+
+This branch exists only to trigger and verify:
+
+- `Quality / quality`;
+- `Security / secret-scan`;
+- `Security / dependency-review`.
+
+No application code, dependencies, lockfiles, or Docker configuration were changed.
