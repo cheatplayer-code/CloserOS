@@ -1,5 +1,6 @@
 """Framework-independent business rules for the modular-monolith backend."""
 
+from closeros.domain.access import TenantAccessDeniedError, require_tenant_access
 from closeros.domain.identity import (
     InvitationStatus,
     MembershipStatus,
@@ -19,7 +20,9 @@ __all__ = [
     "MembershipStatus",
     "Role",
     "Tenant",
+    "TenantAccessDeniedError",
     "TenantStatus",
     "User",
     "UserStatus",
+    "require_tenant_access",
 ]
