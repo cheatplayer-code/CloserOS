@@ -22,6 +22,12 @@ from closeros.domain.authentication_policy import (
     requires_mfa_for_roles,
 )
 from closeros.domain.authentication_session import AuthenticationSession
+from closeros.domain.authentication_timeout import (
+    AUTHENTICATION_SESSION_TIMEOUT_POLICY,
+    AuthenticationSessionTimeoutPolicy,
+    calculate_authentication_session_absolute_expiry,
+    calculate_authentication_session_idle_expiry,
+)
 from closeros.domain.authentication_token import AuthenticationOneTimeToken
 from closeros.domain.email_password_credential import EmailPasswordCredential
 from closeros.domain.identity import (
@@ -43,10 +49,12 @@ __all__ = [
     "AuthenticationOneTimeToken",
     "AuthenticationSession",
     "AuthenticationSessionStage",
+    "AuthenticationSessionTimeoutPolicy",
     "AuthenticationSessionUnavailableError",
     "AuthenticationTokenHash",
     "AuthenticationTokenPurpose",
     "AuthenticationTokenUnavailableError",
+    "AUTHENTICATION_SESSION_TIMEOUT_POLICY",
     "EmailPasswordCredential",
     "EmailVerificationRequiredError",
     "Invitation",
@@ -63,6 +71,8 @@ __all__ = [
     "TenantStatus",
     "User",
     "UserStatus",
+    "calculate_authentication_session_absolute_expiry",
+    "calculate_authentication_session_idle_expiry",
     "require_privileged_mfa",
     "require_tenant_access",
     "require_usable_authentication_session",
