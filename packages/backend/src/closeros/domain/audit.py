@@ -47,8 +47,14 @@ _ALLOWED_METADATA_KEYS: frozenset[str] = frozenset(
         "affected_count",
         "previous_status",
         "new_status",
+        "content_kind",
+        "key_version_code",
+        "job_kind",
+        "outcome_code",
     }
 )
+
+_FRAGMENT_EXEMPT_METADATA_KEYS: frozenset[str] = frozenset({"content_kind"})
 
 
 class AuditActorType(StrEnum):
@@ -87,6 +93,11 @@ class AuditAction(StrEnum):
     CHANNEL_CONNECTION_CREATED = "channel_connection.created"
     CHANNEL_CONNECTION_STATUS_CHANGED = "channel_connection.status.changed"
     MANAGER_ASSIGNMENT_CHANGED = "manager_assignment.changed"
+    ENCRYPTED_CONTENT_STORED = "encrypted_content.stored"
+    ENCRYPTED_CONTENT_ACCESSED = "encrypted_content.accessed"
+    ENCRYPTED_CONTENT_KEY_REWRAPPED = "encrypted_content.key_rewrapped"
+    OUTBOX_JOB_DEAD_LETTERED = "outbox.job.dead_lettered"
+    OUTBOX_RECONCILIATION_COMPLETED = "outbox.reconciliation.completed"
     AUDIT_LOG_VIEWED = "audit.log_viewed"
 
 
@@ -99,6 +110,9 @@ class AuditTargetType(StrEnum):
     INVITATION = "invitation"
     CHANNEL_CONNECTION = "channel_connection"
     MANAGER_ASSIGNMENT = "manager_assignment"
+    ENCRYPTED_CONTENT = "encrypted_content"
+    OUTBOX_JOB = "outbox_job"
+    OUTBOX_RECONCILIATION = "outbox_reconciliation"
     AUDIT_LOG = "audit_log"
     AUTHENTICATION = "authentication"
 
@@ -128,9 +142,10 @@ def _validate_metadata_key(key: object) -> str:
     if normalized not in _ALLOWED_METADATA_KEYS:
         raise AuditMetadataError("metadata key is not allowlisted")
 
-    for fragment in _SENSITIVE_KEY_FRAGMENTS:
-        if fragment in normalized:
-            raise AuditMetadataError("metadata key contains a sensitive fragment")
+    if normalized not in _FRAGMENT_EXEMPT_METADATA_KEYS:
+        for fragment in _SENSITIVE_KEY_FRAGMENTS:
+            if fragment in normalized:
+                raise AuditMetadataError("metadata key contains a sensitive fragment")
 
     return normalized
 

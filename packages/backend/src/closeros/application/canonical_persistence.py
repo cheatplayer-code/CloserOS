@@ -262,6 +262,14 @@ class WebhookEventRepository(Protocol):
         processed_at: datetime | None,
     ) -> None: ...
 
+    async def attach_encrypted_payload(
+        self,
+        *,
+        tenant_id: UUID,
+        event_id: UUID,
+        encrypted_payload_content_id: UUID,
+    ) -> None: ...
+
 
 class CanonicalUnitOfWork(Protocol):
     channel_connections: ChannelConnectionRepository

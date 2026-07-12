@@ -30,11 +30,27 @@ and `PROJECT_STATUS.md`.
 - Tenant-scoped audit query HTTP route.
 - Migration revision `d4e8f1a2b3c5` chained from audit revision `8e4b1d0f6a23`.
 
-## Block HI scope (next)
+## Block HI scope (completed locally)
 
-- Encrypted raw message content storage (`content_id` resolution).
-- Transactional outbox and job-claim foundation in PostgreSQL.
-- No provider ingestion orchestration yet.
+- AES-256-GCM envelope encryption with per-content DEKs, AAD binding, and
+  `KeyProvider` / `DataKeyCryptography` ports.
+- `encrypted_contents` table with tenant-scoped composite foreign keys from
+  canonical message and webhook tables.
+- `ContentEncryptionService` with purpose-gated decrypt and audited rewrap.
+- Atomic commands persisting encrypted content, canonical rows, outbox jobs, and
+  audit events in one transaction.
+- Transactional outbox domain, `outbox_jobs` / `outbox_job_attempts` persistence,
+  publisher/processor/reconciliation services, and queue-ID-only publication port.
+- Alembic revision `e7a1c3d5f9b2`; ADR-0012, `docs/ENCRYPTED_CONTENT.md`, and
+  `docs/OUTBOX.md`.
+- No provider ingestion orchestration, production KMS adapter, or concrete queue
+  worker wiring yet.
+
+## Block JK scope (next)
+
+- Generic ingestion pipeline and controlled CSV import.
+- Concrete queue adapter and worker entry points consuming outbox jobs.
+- `webhook.normalize` and downstream handler implementations.
 
 ## Rules
 

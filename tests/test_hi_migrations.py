@@ -1,4 +1,4 @@
-"""PostgreSQL migration tests for platform and canonical schema."""
+"""PostgreSQL migration tests for encrypted content and outbox schema."""
 
 # mypy: disable-error-code=import-untyped
 
@@ -25,24 +25,21 @@ from tests.conftest import (
 
 def _create_isolated_database_url() -> tuple[str, str, str]:
     admin_url = _admin_database_url()
-    database_name = f"closeros_platform_migration_{uuid.uuid4().hex[:12]}"
+    database_name = f"closeros_hi_migration_{uuid.uuid4().hex[:12]}"
     _create_database(admin_url, database_name)
-
     database_url = _sqlalchemy_database_url(admin_url, database_name)
     return admin_url, database_name, database_url
 
 
-def test_platform_migration_revision_is_head() -> None:
+def test_hi_migration_revision_is_head() -> None:
     config = build_alembic_config("postgresql+psycopg://local/local@127.0.0.1:5432/local")
     script = ScriptDirectory.from_config(config)
-
     assert script.get_current_head() == "e7a1c3d5f9b2"
 
 
-def test_platform_migration_upgrade_creates_platform_tables() -> None:
+def test_hi_migration_upgrade_creates_tables() -> None:
     admin_url, database_name, database_url = _create_isolated_database_url()
     config = build_alembic_config(database_url)
-
     try:
         command.upgrade(config, "head")
         engine = create_migration_engine(database_url)
@@ -50,64 +47,51 @@ def test_platform_migration_upgrade_creates_platform_tables() -> None:
             table_names = set(inspect(engine).get_table_names())
         finally:
             engine.dispose()
-
         assert {
-            "tenants",
-            "memberships",
-            "membership_roles",
-            "invitations",
-            "invitation_roles",
-            "channel_connections",
-            "conversation_threads",
-            "messages",
-            "webhook_events",
+            "encrypted_contents",
+            "outbox_jobs",
+            "outbox_job_attempts",
         }.issubset(table_names)
     finally:
         _drop_database(admin_url, database_name)
 
 
-def test_platform_migration_downgrade_and_reupgrade() -> None:
+def test_hi_migration_downgrade_and_reupgrade() -> None:
     admin_url, database_name, database_url = _create_isolated_database_url()
     config = build_alembic_config(database_url)
-
     try:
         command.upgrade(config, "head")
-        command.downgrade(config, "base")
-
+        command.downgrade(config, "d4e8f1a2b3c5")
         engine = create_migration_engine(database_url)
         try:
             table_names = set(inspect(engine).get_table_names())
         finally:
             engine.dispose()
-
-        assert "tenants" not in table_names
-        assert "messages" not in table_names
-
+        assert "encrypted_contents" not in table_names
+        assert "outbox_jobs" not in table_names
         command.upgrade(config, "head")
-
         engine = create_migration_engine(database_url)
         try:
-            upgraded_table_names = inspect(engine).get_table_names()
+            upgraded = set(inspect(engine).get_table_names())
         finally:
             engine.dispose()
-
-        assert "channel_connections" in upgraded_table_names
+        assert "encrypted_contents" in upgraded
+        assert "outbox_jobs" in upgraded
     finally:
         _drop_database(admin_url, database_name)
 
 
-def test_cross_tenant_composite_foreign_key_rejects_mismatched_tenant() -> None:
+def test_hi_cross_tenant_content_foreign_key_rejects_mismatch() -> None:
     admin_url, database_name, database_url = _create_isolated_database_url()
     config = build_alembic_config(database_url)
-
     tenant_a = uuid.uuid4()
     tenant_b = uuid.uuid4()
+    content_a = uuid.uuid4()
+    message_b = uuid.uuid4()
+    thread_a = uuid.uuid4()
     connection_a = uuid.uuid4()
-    thread_b = uuid.uuid4()
-
     try:
         command.upgrade(config, "head")
-
         direct_url = _rebuild_database_url(
             database_url,
             database=database_name,
@@ -137,47 +121,63 @@ def test_cross_tenant_composite_foreign_key_rejects_mismatched_tenant() -> None:
             )
             connection.execute(
                 """
+                INSERT INTO encrypted_contents (
+                    id, tenant_id, kind, encoding, ciphertext, content_nonce,
+                    wrapped_data_key, key_wrap_nonce, algorithm, key_version,
+                    aad_version, plaintext_byte_length, created_at, expires_at
+                ) VALUES (
+                    %s, %s, 'raw_message', 'utf8', '\\x0102', '\\x000000000000000000000000',
+                    '\\x0304', '\\x000000000000000000000000', 'aes_256_gcm', 'test-kek-v1',
+                    1, 2,
+                    TIMESTAMPTZ '2026-07-12T09:00:00Z',
+                    TIMESTAMPTZ '2026-08-12T09:00:00Z'
+                )
+                """,
+                (content_a, tenant_a),
+            )
+            connection.execute(
+                """
                 INSERT INTO channel_connections (
                     id, tenant_id, provider, external_connection_id, status,
                     adapter_metadata, created_at, updated_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s::jsonb,
+                    %s, %s, 'whatsapp', 'wa-hi-fk-test', 'active', '{}'::jsonb,
                     TIMESTAMPTZ '2026-07-12T09:00:00Z',
                     TIMESTAMPTZ '2026-07-12T09:00:00Z'
                 )
                 """,
-                (
-                    connection_a,
-                    tenant_a,
-                    "whatsapp",
-                    "wa-cross-tenant-test",
-                    "active",
-                    '{"provider_ref": "synthetic"}',
-                ),
+                (connection_a, tenant_a),
+            )
+            connection.execute(
+                """
+                INSERT INTO conversation_threads (
+                    id, tenant_id, channel_connection_id, external_conversation_id,
+                    sales_case_id, lifecycle_status, adapter_metadata,
+                    created_at, updated_at
+                ) VALUES (
+                    %s, %s, %s, 'thread-hi-fk-test', NULL, 'awaiting_customer', '{}'::jsonb,
+                    TIMESTAMPTZ '2026-07-12T09:00:00Z',
+                    TIMESTAMPTZ '2026-07-12T09:00:00Z'
+                )
+                """,
+                (thread_a, tenant_a, connection_a),
             )
             connection.commit()
-
             with pytest.raises(psycopg.errors.ForeignKeyViolation):
                 connection.execute(
                     """
-                    INSERT INTO conversation_threads (
-                        id, tenant_id, channel_connection_id, external_conversation_id,
-                        sales_case_id, lifecycle_status, adapter_metadata,
-                        created_at, updated_at
+                    INSERT INTO messages (
+                        id, tenant_id, conversation_thread_id, external_message_id,
+                        sender_type, direction, sent_at, received_at, content_id,
+                        reply_to_message_id, adapter_metadata
                     ) VALUES (
-                        %s, %s, %s, %s, NULL, %s, %s::jsonb,
+                        %s, %s, %s, 'msg-hi-fk-test', 'customer', 'inbound',
                         TIMESTAMPTZ '2026-07-12T09:00:00Z',
-                        TIMESTAMPTZ '2026-07-12T09:00:00Z'
+                        TIMESTAMPTZ '2026-07-12T09:00:00Z',
+                        %s, NULL, '{}'::jsonb
                     )
                     """,
-                    (
-                        thread_b,
-                        tenant_b,
-                        connection_a,
-                        "thread-cross-tenant-test",
-                        "awaiting_customer",
-                        '{"provider_ref": "synthetic"}',
-                    ),
+                    (message_b, tenant_b, thread_a, content_a),
                 )
     finally:
         _drop_database(admin_url, database_name)

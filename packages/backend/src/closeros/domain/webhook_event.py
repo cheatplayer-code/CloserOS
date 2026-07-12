@@ -49,6 +49,7 @@ class WebhookEvent:
     processing_status: WebhookProcessingStatus
     received_at: datetime
     processed_at: datetime | None
+    encrypted_payload_content_id: UUID | None
     adapter_metadata: AdapterMetadata
 
     def __post_init__(self) -> None:
@@ -74,6 +75,9 @@ class WebhookEvent:
 
             if self.processed_at < self.received_at:
                 raise ValueError("processed_at must not be earlier than received_at")
+
+        if self.encrypted_payload_content_id is not None:
+            _validate_uuid(self.encrypted_payload_content_id, "encrypted_payload_content_id")
 
         if not isinstance(self.adapter_metadata, AdapterMetadata):
             raise TypeError("adapter_metadata must be an AdapterMetadata")

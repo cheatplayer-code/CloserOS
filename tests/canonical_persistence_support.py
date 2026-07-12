@@ -275,5 +275,6 @@ def synthetic_webhook_event(
         processing_status=processing_status,
         received_at=NOW,
         processed_at=processed_at,
+        encrypted_payload_content_id=None,
         adapter_metadata=synthetic_adapter_metadata(),
     )

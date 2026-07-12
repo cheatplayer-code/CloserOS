@@ -20,6 +20,8 @@ from closeros.domain.canonical_enums import (
 from tests.canonical_persistence_support import (
     CHANNEL_CONNECTION_A_ID,
     CHANNEL_CONNECTION_B_ID,
+    CONTENT_A_ID,
+    CONTENT_B_ID,
     CRM_OUTCOME_A_ID,
     DELETION_EVENT_A_ID,
     EDIT_EVENT_A_ID,
@@ -39,16 +41,27 @@ from tests.canonical_persistence_support import (
     synthetic_sales_case,
     synthetic_webhook_event,
 )
+from tests.encryption_support import seed_canonical_encrypted_content_stubs
 from tests.tenant_persistence_support import TENANT_A_ID, TENANT_B_ID, synthetic_tenant
 
 pytestmark = pytest.mark.platform_persistence
 
 
-async def _seed_channel_graph(canonical_uow_factory: Any, platform_uow_factory: Any) -> None:
+async def _seed_channel_graph(
+    canonical_uow_factory: Any,
+    platform_uow_factory: Any,
+    integrated_uow_factory: Any,
+) -> None:
     uow = platform_uow_factory()
     async with uow:
         await uow.tenants.add(synthetic_tenant())
         await uow.commit()
+
+    await seed_canonical_encrypted_content_stubs(
+        integrated_uow_factory,
+        tenant_id=TENANT_A_ID,
+        content_ids=(CONTENT_A_ID, CONTENT_B_ID),
+    )
 
     canonical = canonical_uow_factory()
     async with canonical:
@@ -148,9 +161,14 @@ def test_lead_repository_round_trip(
 def test_message_repository_append_and_lookup(
     canonical_uow_factory: Any,
     platform_uow_factory: Any,
+    integrated_uow_factory: Any,
 ) -> None:
     async def exercise() -> None:
-        await _seed_channel_graph(canonical_uow_factory, platform_uow_factory)
+        await _seed_channel_graph(
+            canonical_uow_factory,
+            platform_uow_factory,
+            integrated_uow_factory,
+        )
 
         write = canonical_uow_factory()
         async with write:
@@ -174,9 +192,14 @@ def test_message_repository_append_and_lookup(
 def test_message_repository_enforces_external_idempotency(
     canonical_uow_factory: Any,
     platform_uow_factory: Any,
+    integrated_uow_factory: Any,
 ) -> None:
     async def exercise() -> None:
-        await _seed_channel_graph(canonical_uow_factory, platform_uow_factory)
+        await _seed_channel_graph(
+            canonical_uow_factory,
+            platform_uow_factory,
+            integrated_uow_factory,
+        )
 
         write = canonical_uow_factory()
         async with write:
@@ -194,9 +217,14 @@ def test_message_repository_enforces_external_idempotency(
 def test_message_event_repositories_append_and_lookup(
     canonical_uow_factory: Any,
     platform_uow_factory: Any,
+    integrated_uow_factory: Any,
 ) -> None:
     async def exercise() -> None:
-        await _seed_channel_graph(canonical_uow_factory, platform_uow_factory)
+        await _seed_channel_graph(
+            canonical_uow_factory,
+            platform_uow_factory,
+            integrated_uow_factory,
+        )
 
         write = canonical_uow_factory()
         async with write:
@@ -225,9 +253,14 @@ def test_message_event_repositories_append_and_lookup(
 def test_message_edit_event_repository_enforces_idempotency(
     canonical_uow_factory: Any,
     platform_uow_factory: Any,
+    integrated_uow_factory: Any,
 ) -> None:
     async def exercise() -> None:
-        await _seed_channel_graph(canonical_uow_factory, platform_uow_factory)
+        await _seed_channel_graph(
+            canonical_uow_factory,
+            platform_uow_factory,
+            integrated_uow_factory,
+        )
 
         write = canonical_uow_factory()
         async with write:
@@ -249,9 +282,14 @@ def test_message_edit_event_repository_enforces_idempotency(
 def test_message_deletion_event_repository_enforces_idempotency(
     canonical_uow_factory: Any,
     platform_uow_factory: Any,
+    integrated_uow_factory: Any,
 ) -> None:
     async def exercise() -> None:
-        await _seed_channel_graph(canonical_uow_factory, platform_uow_factory)
+        await _seed_channel_graph(
+            canonical_uow_factory,
+            platform_uow_factory,
+            integrated_uow_factory,
+        )
 
         write = canonical_uow_factory()
         async with write:
@@ -299,9 +337,14 @@ def test_conversation_thread_repository_rejects_cross_tenant_channel_connection(
 def test_message_repository_denies_cross_tenant_lookup(
     canonical_uow_factory: Any,
     platform_uow_factory: Any,
+    integrated_uow_factory: Any,
 ) -> None:
     async def exercise() -> None:
-        await _seed_channel_graph(canonical_uow_factory, platform_uow_factory)
+        await _seed_channel_graph(
+            canonical_uow_factory,
+            platform_uow_factory,
+            integrated_uow_factory,
+        )
 
         write = canonical_uow_factory()
         async with write:
@@ -322,9 +365,14 @@ def test_message_repository_denies_cross_tenant_lookup(
 def test_manager_assignment_and_crm_outcome_repositories(
     canonical_uow_factory: Any,
     platform_uow_factory: Any,
+    integrated_uow_factory: Any,
 ) -> None:
     async def exercise() -> None:
-        await _seed_channel_graph(canonical_uow_factory, platform_uow_factory)
+        await _seed_channel_graph(
+            canonical_uow_factory,
+            platform_uow_factory,
+            integrated_uow_factory,
+        )
 
         write = canonical_uow_factory()
         async with write:
@@ -454,9 +502,14 @@ def test_channel_connection_update_persists_status(
 def test_conversation_thread_repository_get_by_external_id(
     canonical_uow_factory: Any,
     platform_uow_factory: Any,
+    integrated_uow_factory: Any,
 ) -> None:
     async def exercise() -> None:
-        await _seed_channel_graph(canonical_uow_factory, platform_uow_factory)
+        await _seed_channel_graph(
+            canonical_uow_factory,
+            platform_uow_factory,
+            integrated_uow_factory,
+        )
 
         lookup = canonical_uow_factory()
         async with lookup:

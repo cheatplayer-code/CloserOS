@@ -518,3 +518,21 @@ class SqlAlchemyWebhookEventRepository:
         row.processing_status = processing_status.value
         row.processed_at = processed_at
         await _flush(self._session)
+
+    async def attach_encrypted_payload(
+        self,
+        *,
+        tenant_id: UUID,
+        event_id: UUID,
+        encrypted_payload_content_id: UUID,
+    ) -> None:
+        row = await tenant_scoped_get_required(
+            self._session,
+            WebhookEventRow,
+            tenant_id=tenant_id,
+            record_id=event_id,
+            not_found_error=CanonicalRecordNotFoundError,
+            not_found_message="webhook event not found",
+        )
+        row.encrypted_payload_content_id = encrypted_payload_content_id
+        await _flush(self._session)

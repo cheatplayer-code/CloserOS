@@ -41,10 +41,17 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "platform_persistence: PostgreSQL platform and canonical persistence integration tests",
     )
+    config.addinivalue_line(
+        "markers",
+        "hi_persistence: PostgreSQL encrypted content and outbox integration tests",
+    )
 
 
 _PLATFORM_TRUNCATE_TABLES = (
     "webhook_events",
+    "outbox_job_attempts",
+    "outbox_jobs",
+    "encrypted_contents",
     "crm_outcomes",
     "manager_assignments",
     "message_delivery_status_events",
@@ -238,10 +245,21 @@ def canonical_uow_factory(auth_session_factory: Any) -> Any:
     return factory
 
 
+@pytest.fixture
+def integrated_uow_factory(auth_session_factory: Any) -> Any:
+    from closeros.infrastructure.integrated_unit_of_work import SqlAlchemyIntegratedUnitOfWork
+
+    def factory() -> SqlAlchemyIntegratedUnitOfWork:
+        return SqlAlchemyIntegratedUnitOfWork(auth_session_factory)
+
+    return factory
+
+
 def _requires_persistence_reset(request: pytest.FixtureRequest) -> bool:
     return (
         request.node.get_closest_marker("auth_persistence") is not None
         or request.node.get_closest_marker("platform_persistence") is not None
+        or request.node.get_closest_marker("hi_persistence") is not None
     )
 
 
