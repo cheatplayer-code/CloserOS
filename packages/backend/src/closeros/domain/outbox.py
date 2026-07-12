@@ -37,6 +37,8 @@ class OutboxJobKind(StrEnum):
     RECONCILIATION_RUN = "reconciliation.run"
     CSV_IMPORT = "csv.import"
     METRICS_RECALCULATE = "metrics.recalculate"
+    PROVIDER_MESSAGE_SEND = "provider.message.send"
+    PROVIDER_TEMPLATES_SYNC = "provider.templates.sync"
 
 
 class OutboxJobState(StrEnum):

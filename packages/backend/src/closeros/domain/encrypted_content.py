@@ -22,6 +22,7 @@ class EncryptedContentKind(StrEnum):
     RAW_MESSAGE = "raw_message"
     SANITIZED_MESSAGE = "sanitized_message"
     PROVIDER_PAYLOAD = "provider_payload"
+    OUTBOUND_MESSAGE = "outbound_message"
     CSV_IMPORT = "csv_import"
     KNOWLEDGE_DOCUMENT = "knowledge_document"
     KNOWLEDGE_CHUNK = "knowledge_chunk"
@@ -40,6 +41,8 @@ class EncryptionAlgorithm(StrEnum):
 class ContentAccessPurpose(StrEnum):
     REDACTION = "redaction"
     WEBHOOK_NORMALIZATION = "webhook_normalization"
+    OUTBOUND_SEND = "outbound_send"
+    WHATSAPP_TEMPLATE_SYNC = "whatsapp_template_sync"
     AI_ANALYSIS = "ai_analysis"
     RETENTION_DELETION = "retention_deletion"
     AUDIT_REVIEW = "audit_review"

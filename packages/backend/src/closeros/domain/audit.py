@@ -162,6 +162,20 @@ class AuditAction(StrEnum):
     CONVERSATION_DETAIL_VIEWED = "conversation.detail.viewed"
     DASHBOARD_VIEWED = "dashboard.viewed"
     SCORECARD_VIEWED = "scorecard.viewed"
+    WHATSAPP_CONNECTION_CREATED = "whatsapp.connection.created"
+    WHATSAPP_CONNECTION_VERIFIED = "whatsapp.connection.verified"
+    WHATSAPP_CONNECTION_DISABLED = "whatsapp.connection.disabled"
+    WEBHOOK_REJECTED = "webhook.rejected"
+    MEDIA_QUARANTINED = "media.quarantined"
+    PROVIDER_TEMPLATES_SYNC_COMPLETED = "provider.templates.sync.completed"
+    PROVIDER_TEMPLATES_SYNC_FAILED = "provider.templates.sync.failed"
+    OUTBOUND_DRAFT_CREATED = "outbound_message.draft.created"
+    OUTBOUND_MESSAGE_APPROVED = "outbound_message.approved"
+    OUTBOUND_MESSAGE_QUEUED = "outbound_message.queued"
+    OUTBOUND_PROVIDER_ACCEPTED = "outbound_message.provider_accepted"
+    OUTBOUND_DELIVERY_UNKNOWN = "outbound_message.delivery_unknown"
+    OUTBOUND_DELIVERY_FAILED = "outbound_message.delivery_failed"
+    WHATSAPP_RECONCILIATION_COMPLETED = "whatsapp.reconciliation.completed"
 
 
 class AuditTargetType(StrEnum):
@@ -190,6 +204,10 @@ class AuditTargetType(StrEnum):
     CONVERSATION_THREAD = "conversation_thread"
     DASHBOARD = "dashboard"
     SCORECARD = "scorecard"
+    WHATSAPP_CLOUD_CONNECTION = "whatsapp_cloud_connection"
+    OUTBOUND_MESSAGE = "outbound_message"
+    PROVIDER_TEMPLATE = "provider_template"
+    PROVIDER_MEDIA_REFERENCE = "provider_media_reference"
 
 
 class AuditMetadataError(ValueError):

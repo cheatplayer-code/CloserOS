@@ -168,9 +168,14 @@ Audit action `outbox.reconciliation.completed` records reconciliation outcomes.
 | `retention.delete` | tenant | Future: expiry worker |
 | `knowledge.index` | tenant | Future: KB ingestion |
 | `reconciliation.run` | global | Future: scheduler |
+| `metrics.recalculate` | tenant | Metrics snapshot refresh |
+| `csv.import` | tenant | Encrypted CSV batch processing |
+| `provider.message.send` | tenant | Human-approved WhatsApp outbound send |
+| `provider.templates.sync` | tenant | WhatsApp template catalog sync (future worker) |
 
 Handlers for most kinds are deferred to later blocks. Block JK adds ingestion
-orchestration that enqueues and consumes `webhook.normalize` jobs.
+orchestration that enqueues and consumes `webhook.normalize` jobs. Block VW adds
+`provider.message.send` for WhatsApp Cloud outbound delivery.
 
 ## Future queue adapters
 

@@ -1,0 +1,13 @@
+{
+  "id": "30000000-0000-4000-8000-000000000301",
+  "whatsapp_connection_id": "30000000-0000-4000-8000-000000000101",
+  "provider_template_id": "hello_world",
+  "name": "hello_world",
+  "language_code": "en",
+  "category": "utility",
+  "approval_status": "approved",
+  "component_shape": ["body"],
+  "parameter_count": 0,
+  "last_synced_at": "2026-07-12T08:30:00+00:00",
+  "version": 1
+}

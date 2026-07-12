@@ -1,0 +1,27 @@
+{
+  "id": "30000000-0000-4000-8000-000000000101",
+  "channel_connection_id": "30000000-0000-4000-8000-000000000201",
+  "provider": "whatsapp_cloud",
+  "app_id": "100000000000001",
+  "waba_id": "200000000000001",
+  "phone_number_id": "300000000000001",
+  "display_phone_number": "+15550001111",
+  "graph_api_version": "v21.0",
+  "access_token_ref": "WHATSAPP_ACCESS_TOKEN_REF",
+  "app_secret_ref": "WHATSAPP_APP_SECRET_REF",
+  "verify_token_ref": "WHATSAPP_VERIFY_TOKEN_REF",
+  "status": "active",
+  "webhook_subscription_status": "subscribed",
+  "capabilities": [
+    "inbound_text",
+    "message_status",
+    "outbound_free_form_text",
+    "outbound_approved_template"
+  ],
+  "webhook_public_key": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+  "webhook_callback_path": "/api/v1/webhooks/whatsapp_cloud/abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+  "created_at": "2026-07-12T08:00:00+00:00",
+  "updated_at": "2026-07-12T09:00:00+00:00",
+  "last_verified_at": "2026-07-12T09:00:00+00:00",
+  "version": 2
+}

@@ -11,6 +11,7 @@ from uuid import UUID
 from closeros.domain.adapter_metadata import AdapterMetadata
 from closeros.domain.canonical_enums import ProviderKind
 from closeros.domain.normalized_operations import NormalizedOperation
+from closeros.domain.provider_credentials import SecretBytes
 
 
 class ProviderAdapterError(Exception):
@@ -75,6 +76,32 @@ class ProviderCredentialResolver(Protocol):
         tenant_id: UUID,
         channel_connection_id: UUID,
     ) -> bytes | None: ...
+
+
+class WhatsAppCredentialResolver(Protocol):
+    async def resolve_access_token(
+        self,
+        *,
+        tenant_id: UUID,
+        whatsapp_connection_id: UUID,
+        reference_key: str,
+    ) -> SecretBytes | None: ...
+
+    async def resolve_app_secret(
+        self,
+        *,
+        tenant_id: UUID,
+        whatsapp_connection_id: UUID,
+        reference_key: str,
+    ) -> SecretBytes | None: ...
+
+    async def resolve_verify_token(
+        self,
+        *,
+        tenant_id: UUID,
+        whatsapp_connection_id: UUID,
+        reference_key: str,
+    ) -> SecretBytes | None: ...
 
 
 class WebhookRateLimiter(Protocol):

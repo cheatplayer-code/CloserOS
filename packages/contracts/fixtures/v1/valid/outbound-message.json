@@ -1,0 +1,18 @@
+{
+  "id": "30000000-0000-4000-8000-000000000401",
+  "conversation_thread_id": "20000000-0000-4000-8000-000000000601",
+  "channel_connection_id": "30000000-0000-4000-8000-000000000201",
+  "kind": "free_form_text",
+  "status": "queued",
+  "provider_template_id": null,
+  "created_by_user_id": "10000000-0000-4000-8000-000000000001",
+  "approved_by_user_id": "10000000-0000-4000-8000-000000000002",
+  "failure_code": null,
+  "created_at": "2026-07-12T10:00:00+00:00",
+  "approved_at": "2026-07-12T10:01:00+00:00",
+  "queued_at": "2026-07-12T10:01:00+00:00",
+  "sent_at": null,
+  "completed_at": null,
+  "updated_at": "2026-07-12T10:01:00+00:00",
+  "version": 2
+}

@@ -1,17 +1,17 @@
-# Project Status
+﻿# Project Status
 
 ## Current phase
 
-`P0 — Repository foundation`
+`P0 вЂ” Repository foundation`
 
 ## Completed tasks
 
-- `CLS-001 — Initialize monorepo` (2026-07-10)
-- `CLS-002 — Local development environment` (2026-07-10)
+- `CLS-001 вЂ” Initialize monorepo` (2026-07-10)
+- `CLS-002 вЂ” Local development environment` (2026-07-10)
 
 ## Tasks implemented locally; remote verification pending
 
-- `CLS-003 — CI quality gate` (2026-07-10)
+- `CLS-003 вЂ” CI quality gate` (2026-07-10)
 
 ## Last updated
 
@@ -314,7 +314,7 @@ steps and rerun instructions are in `docs/CI.md`. No commit was created.
 ## Next recommended task
 
 Complete remote verification for `CLS-003`. After it passes, proceed to
-`CLS-010 — Tenant and user domain`.
+`CLS-010 вЂ” Tenant and user domain`.
 
 ## Rule for updates
 
@@ -607,7 +607,7 @@ beginning with repository interfaces and SQLAlchemy/Alembic planning.
 Next step: open a Pull Request from `feat/cls-011-auth-infrastructure` into
 `master` and verify GitHub CI.
 
-## CLS-011 Block A — authentication persistence and cryptography
+## CLS-011 Block A вЂ” authentication persistence and cryptography
 
 Status: **Implemented locally; GitHub Pull Request verification pending. CLS-011
 as a whole remains incomplete.**
@@ -630,7 +630,7 @@ Implemented:
 - async PostgreSQL repository implementations for users, credentials, sessions,
   and one-time tokens;
 - transactional async unit of work with explicit commit and rollback;
-- explicit ORM ↔ domain mapping without exposing ORM models outside
+- explicit ORM в†” domain mapping without exposing ORM models outside
   infrastructure;
 - PostgreSQL integration and migration tests against isolated temporary
   databases;
@@ -679,10 +679,10 @@ Architectural boundaries:
 - no import-time database connections or environment reads;
 - CLS-011 must not be marked complete.
 
-Next recommended task after merge: Block B — registration, login, logout, and
+Next recommended task after merge: Block B вЂ” registration, login, logout, and
 password-change application workflows on top of the persistence layer.
 
-## CLS-011 Block B — authentication application workflows
+## CLS-011 Block B вЂ” authentication application workflows
 
 Status: **Implemented locally; GitHub Pull Request verification pending. CLS-011
 as a whole remains incomplete.**
@@ -747,10 +747,10 @@ Architectural boundaries:
 - raw passwords and raw tokens are never persisted or exposed in errors/repr;
 - CLS-011 must not be marked complete.
 
-Next recommended task after merge: Block C — HTTP routes, cookies, CSRF, and
+Next recommended task after merge: Block C вЂ” HTTP routes, cookies, CSRF, and
 email delivery integration.
 
-## CLS-011 Block C — authentication API and browser security
+## CLS-011 Block C вЂ” authentication API and browser security
 
 Status: **Implemented locally; GitHub Pull Request verification pending. CLS-011
 as a whole remains incomplete.**
@@ -805,10 +805,10 @@ Architectural boundaries:
 - ADR-0010 remains authoritative;
 - CLS-011 must not be marked complete.
 
-Next recommended task after merge: Block D — Next.js authentication UI and
+Next recommended task after merge: Block D вЂ” Next.js authentication UI and
 production integration hardening.
 
-## CLS-011 Block D — authentication frontend
+## CLS-011 Block D вЂ” authentication frontend
 
 Status: **Implemented locally; GitHub Pull Request verification pending. CLS-011
 as a whole remains incomplete.**
@@ -865,7 +865,7 @@ Remaining CLS-011 work after Block D:
 - distributed rate limiting;
 - production proxy and deployment configuration.
 
-## CLS-012 Block E — immutable audit subsystem
+## CLS-012 Block E вЂ” immutable audit subsystem
 
 Status: **Implemented locally; GitHub Pull Request verification pending.**
 
@@ -904,7 +904,7 @@ Not implemented in Block E:
 - message or conversation auditing;
 - production database role separation for audit readers/writers.
 
-## Block FG — shared persistence foundation and canonical conversation platform
+## Block FG вЂ” shared persistence foundation and canonical conversation platform
 
 Status: **Implemented locally; GitHub Pull Request verification pending.**
 
@@ -955,7 +955,7 @@ Not implemented in Block FG:
 - PII detection, AI, dashboards, external provider integrations;
 - frontend tenant switcher or audit viewer.
 
-## Block HI — encrypted content storage and transactional outbox foundation
+## Block HI вЂ” encrypted content storage and transactional outbox foundation
 
 Status: **Implemented locally; GitHub Pull Request verification pending.**
 
@@ -1045,7 +1045,7 @@ Not implemented in Block JK:
 
 - official WhatsApp, Instagram, or Telegram adapters;
 - production KMS/HSM key provider, malware scanner, or webhook rate-limiter adapters;
-- PII redaction (`content.redact` handler) — Block LM.
+- PII redaction (`content.redact` handler) вЂ” Block LM.
 
 Block LM implemented locally (2026-07-12):
 
@@ -1063,7 +1063,7 @@ Implemented:
   `content_sanitization_category_counts`, `metric_snapshots`, `metric_values`);
 - ADR-0014, `docs/PRIVACY_REDACTION.md`, and `docs/METRICS.md`;
 - worker job kinds extended: `content.redact`, `metrics.recalculate`;
-- accepted roadmap consolidation: **LM → NOPQ → RSTU → VW → XY → Z**.
+- accepted roadmap consolidation: **LM в†’ NOPQ в†’ RSTU в†’ VW в†’ XY в†’ Z**.
 
 Verification (2026-07-12):
 
@@ -1081,7 +1081,7 @@ Not implemented in Block LM:
 - owner dashboard UI or manager task queue;
 - official provider adapters, CRM integration, or autonomous outbound messaging.
 
-## Block NOPQ — governed AI gateway, evidence-backed analysis, knowledge retrieval
+## Block NOPQ вЂ” governed AI gateway, evidence-backed analysis, knowledge retrieval
 
 Status: **Implemented locally; PR verification pending.**
 
@@ -1127,10 +1127,10 @@ Not implemented in Block NOPQ:
 - autonomous outbound replies;
 - official messaging-provider adapters, CRM integrations, vector search, web search.
 
-Next block: **RSTU** — owner dashboard, conversation review, manager scorecards,
+Next block: **RSTU** вЂ” owner dashboard, conversation review, manager scorecards,
 and follow-up tasks.
 
-## Block RSTU — product workspace and follow-up management
+## Block RSTU вЂ” product workspace and follow-up management
 
 Status: **Implemented locally; PR verification pending.**
 
@@ -1158,8 +1158,42 @@ Not implemented in Block RSTU:
 - official provider adapters (VW);
 - vector search / advanced forecasting (XY/Z).
 
-Next block: **VW** — design-partner/provider decision package and first official
-messaging provider.
+Next block: **XY** вЂ” first CRM integration + production hardening.
+
+## Block VW вЂ” WhatsApp Cloud provider
+
+Status: **Implemented locally; PR verification pending.**
+
+Branch: `feat/vw-whatsapp-provider`
+
+Implemented:
+
+- Meta WhatsApp Cloud adapter with HMAC webhook verification and canonical normalization.
+- GET hub verification and POST webhook routes; tenant WhatsApp integration CRUD API.
+- Human-approved outbound messaging, `WhatsAppMessagingPolicy` v1, and
+  `ProviderMessageSendHandler` (no blind resend).
+- Migration `b3d7f1a4c8e6`; ADR-0016; `docs/WHATSAPP_CLOUD.md`,
+  `docs/WHATSAPP_SANDBOX_VERIFICATION.md`, `docs/DESIGN_PARTNER_PILOT.md`,
+  `docs/PROVIDER_CAPABILITY_MATRIX.md`.
+- VW test suite: `tests/vw_support.py`, domain/adapter/API/outbound/handler/resolver tests.
+
+Documentation review date: **2026-07-12**
+Graph API version: **v21.0**
+Sandbox verification: **NOT completed**
+
+Verification (local):
+
+- VW pytest modules (unit + `vw_persistence` integration): run via `corepack pnpm run quality`
+  when PostgreSQL test fixtures are available.
+
+Not implemented in Block VW:
+
+- Live Meta sandbox sign-off;
+- media download and malware scanning;
+- production secrets manager adapter;
+- CRM integration (XY).
+
+Next block: **XY** вЂ” first CRM integration + production hardening.
 
 ## NOPQ knowledge application/infrastructure layer (superseded section)
 

@@ -49,15 +49,22 @@ from closeros.application.knowledge_persistence import (
     KnowledgeDocumentVersionRepository,
 )
 from closeros.application.metrics_persistence import MetricSnapshotRepository
+from closeros.application.outbound_persistence import (
+    OutboundDeliveryAttemptRepository,
+    OutboundMessageRepository,
+)
 from closeros.application.outbox_persistence import (
     OutboxJobAttemptRepository,
     OutboxJobRepository,
 )
+from closeros.application.provider_media_persistence import ProviderMediaReferenceRepository
+from closeros.application.provider_template_persistence import ProviderMessageTemplateRepository
 from closeros.application.tenant_persistence import (
     InvitationRepository,
     MembershipRepository,
     TenantRepository,
 )
+from closeros.application.whatsapp_persistence import WhatsAppCloudConnectionRepository
 
 
 class IntegratedUnitOfWork(Protocol):
@@ -98,6 +105,11 @@ class IntegratedUnitOfWork(Protocol):
     conversation_finding_evidence: ConversationFindingEvidenceRepository
     conversation_finding_knowledge_citations: ConversationFindingKnowledgeCitationRepository
     follow_up_tasks: FollowUpTaskRepository
+    whatsapp_cloud_connections: WhatsAppCloudConnectionRepository
+    provider_message_templates: ProviderMessageTemplateRepository
+    provider_media_references: ProviderMediaReferenceRepository
+    outbound_messages: OutboundMessageRepository
+    outbound_delivery_attempts: OutboundDeliveryAttemptRepository
 
     async def __aenter__(self) -> IntegratedUnitOfWork: ...
 

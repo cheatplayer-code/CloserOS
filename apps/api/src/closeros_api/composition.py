@@ -6,6 +6,7 @@ import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast
+from uuid import UUID
 
 from closeros.application.analysis_enqueue_service import AnalysisEnqueueService
 from closeros.application.analysis_query_service import AnalysisQueryService
@@ -28,14 +29,24 @@ from closeros.application.integrated_unit_of_work import IntegratedUnitOfWork
 from closeros.application.knowledge_service import KnowledgeService
 from closeros.application.metrics_enqueue_service import MetricsEnqueueService
 from closeros.application.metrics_query_service import MetricsQueryService
+from closeros.application.outbound_message_service import OutboundMessageService
 from closeros.application.password_hashing import PasswordHasher
 from closeros.application.platform_unit_of_work import PlatformUnitOfWork
 from closeros.application.provider_adapter_registry import ProviderAdapterRegistry
-from closeros.application.provider_ports import ImportContentScanner, WebhookRateLimiter
+from closeros.application.provider_ports import (
+    ImportContentScanner,
+    WebhookRateLimiter,
+    WhatsAppCredentialResolver,
+)
 from closeros.application.scorecard_query_service import ScorecardQueryService
 from closeros.application.tenant_context import TenantContextResolver, TenantListingService
 from closeros.application.tenant_persistence import TenantUnitOfWork
 from closeros.application.webhook_ingestion import WebhookIngestionService
+from closeros.application.whatsapp_connection_service import WhatsAppConnectionService
+from closeros.application.whatsapp_webhook_verification_service import (
+    WhatsAppWebhookVerificationService,
+)
+from closeros.domain.provider_credentials import SecretBytes
 from closeros.infrastructure.aes_gcm_encryption import AesGcmContentCryptography
 from closeros.infrastructure.audit_unit_of_work import SqlAlchemyAuditUnitOfWork
 from closeros.infrastructure.authentication_unit_of_work import SqlAlchemyAuthenticationUnitOfWork
@@ -43,6 +54,9 @@ from closeros.infrastructure.database import (
     create_authentication_engine,
     create_authentication_sessionmaker,
     normalize_database_url,
+)
+from closeros.infrastructure.env_whatsapp_credential_resolver import (
+    EnvWhatsAppCredentialResolver,
 )
 from closeros.infrastructure.in_memory_webhook_rate_limiter import InMemoryWebhookRateLimiter
 from closeros.infrastructure.integrated_unit_of_work import SqlAlchemyIntegratedUnitOfWork
@@ -56,6 +70,7 @@ from closeros.infrastructure.static_key_provider import (
 )
 from closeros.infrastructure.synthetic_hmac_adapter import SyntheticHmacWebhookAdapter
 from closeros.infrastructure.tenant_unit_of_work import SqlAlchemyTenantUnitOfWork
+from closeros.infrastructure.whatsapp_cloud_adapter import WhatsAppCloudWebhookAdapter
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from closeros_api.auth_ports import (
@@ -113,10 +128,53 @@ def _development_webhook_secret() -> bytes:
     return bytes(range(32))
 
 
-def _development_adapter_registry() -> ProviderAdapterRegistry:
-    return ProviderAdapterRegistry(
-        adapters=(SyntheticHmacWebhookAdapter(secret=_development_webhook_secret()),),
-    )
+def _whatsapp_graph_api_version() -> str:
+    raw_value = os.environ.get("WHATSAPP_GRAPH_API_VERSION", "v21.0").strip()
+    return raw_value or "v21.0"
+
+
+def _build_development_adapter_registry(
+    *,
+    integrated_uow_factory: Callable[[], SqlAlchemyIntegratedUnitOfWork] | None,
+    credential_resolver: WhatsAppCredentialResolver,
+) -> ProviderAdapterRegistry:
+    adapters: list[object] = [
+        SyntheticHmacWebhookAdapter(secret=_development_webhook_secret()),
+    ]
+    if integrated_uow_factory is not None:
+
+        async def resolve_app_secret_for_channel(
+            tenant_id: UUID,
+            channel_connection_id: UUID,
+        ) -> SecretBytes | None:
+            uow = integrated_uow_factory()
+            async with uow:
+                records = await uow.whatsapp_cloud_connections.list_by_tenant(
+                    tenant_id=tenant_id,
+                )
+            match = next(
+                (
+                    record
+                    for record in records
+                    if record.channel_connection_id == channel_connection_id
+                ),
+                None,
+            )
+            if match is None or match.app_secret_ref is None:
+                return None
+            return await credential_resolver.resolve_app_secret(
+                tenant_id=tenant_id,
+                whatsapp_connection_id=match.id,
+                reference_key=match.app_secret_ref,
+            )
+
+        adapters.append(
+            WhatsAppCloudWebhookAdapter(
+                resolve_app_secret_for_channel=resolve_app_secret_for_channel,
+                graph_api_version=_whatsapp_graph_api_version(),
+            )
+        )
+    return ProviderAdapterRegistry(adapters=tuple(adapters))  # type: ignore[arg-type]
 
 
 def _build_content_encryption_service(
@@ -169,6 +227,10 @@ class ApiRuntimeOverrides:
     conversation_query_service: ConversationQueryService | None = None
     scorecard_query_service: ScorecardQueryService | None = None
     follow_up_task_service: FollowUpTaskService | None = None
+    whatsapp_credential_resolver: WhatsAppCredentialResolver | None = None
+    whatsapp_connection_service: WhatsAppConnectionService | None = None
+    outbound_message_service: OutboundMessageService | None = None
+    whatsapp_webhook_verification_service: WhatsAppWebhookVerificationService | None = None
     engine: AsyncEngine | None = None
     session_factory: async_sessionmaker[AsyncSession] | None = None
 
@@ -209,6 +271,9 @@ class ApiRuntime:
     conversation_query_service: ConversationQueryService | None
     scorecard_query_service: ScorecardQueryService | None
     follow_up_task_service: FollowUpTaskService | None
+    whatsapp_connection_service: WhatsAppConnectionService | None
+    outbound_message_service: OutboundMessageService | None
+    whatsapp_webhook_verification_service: WhatsAppWebhookVerificationService | None
 
     async def dispose(self) -> None:
         if self.engine is not None:
@@ -360,6 +425,13 @@ def build_api_runtime(
     password_hasher = override_values.password_hasher or Argon2idPasswordHasher()
     clock = override_values.clock or SystemClock()
     uuid_factory = override_values.uuid_factory or RandomUuidFactory()
+    whatsapp_credential_resolver = (
+        override_values.whatsapp_credential_resolver or EnvWhatsAppCredentialResolver()
+    )
+    whatsapp_connection_service: WhatsAppConnectionService | None = None
+    outbound_message_service: OutboundMessageService | None = None
+    whatsapp_webhook_verification_service: WhatsAppWebhookVerificationService | None = None
+    dev_adapter_registry: ProviderAdapterRegistry | None = override_values.adapter_registry
 
     if settings.is_production:
         if override_values.mfa_requirement_policy is None:
@@ -393,9 +465,12 @@ def build_api_runtime(
         dispatcher = override_values.notification_dispatcher or CaptureNotificationDispatcher()
         rate_limiter = override_values.rate_limiter or InMemoryRateLimiter()
         key_provider = override_values.key_provider or _development_key_provider()
-        adapter_registry = override_values.adapter_registry or _development_adapter_registry()
         webhook_rate_limiter = override_values.webhook_rate_limiter or InMemoryWebhookRateLimiter()
         content_scanner = override_values.content_scanner or NoOpImportContentScanner()
+        if dev_adapter_registry is not None:
+            adapter_registry = dev_adapter_registry
+        else:
+            adapter_registry = ProviderAdapterRegistry(adapters=())
 
     if override_values.workflow_service is None:
         if resolved_uow_factory is None:
@@ -450,6 +525,17 @@ def build_api_runtime(
 
             def integrated_uow_factory() -> SqlAlchemyIntegratedUnitOfWork:
                 return SqlAlchemyIntegratedUnitOfWork(session_factory)
+
+    if not settings.is_production and dev_adapter_registry is None:
+        if integrated_uow_factory is not None:
+            adapter_registry = _build_development_adapter_registry(
+                integrated_uow_factory=integrated_uow_factory,
+                credential_resolver=whatsapp_credential_resolver,
+            )
+        else:
+            adapter_registry = ProviderAdapterRegistry(
+                adapters=(SyntheticHmacWebhookAdapter(secret=_development_webhook_secret()),),
+            )
 
     if integrated_uow_factory is not None:
         integrated_port_factory = cast(
@@ -534,6 +620,31 @@ def build_api_runtime(
             uuid_factory=uuid_factory,
             clock=clock.now,
         )
+        whatsapp_connection_service = (
+            override_values.whatsapp_connection_service
+            or WhatsAppConnectionService(
+                uow_factory=integrated_port_factory,
+                credential_resolver=whatsapp_credential_resolver,
+                uuid_factory=uuid_factory,
+                clock=clock.now,
+            )
+        )
+        outbound_message_service = (
+            override_values.outbound_message_service
+            or OutboundMessageService(
+                uow_factory=integrated_port_factory,
+                content_encryption=content_encryption,
+                uuid_factory=uuid_factory,
+                clock=clock.now,
+            )
+        )
+        whatsapp_webhook_verification_service = (
+            override_values.whatsapp_webhook_verification_service
+            or WhatsAppWebhookVerificationService(
+                uow_factory=integrated_port_factory,
+                credential_resolver=whatsapp_credential_resolver,
+            )
+        )
     else:
         content_encryption = cast(
             ContentEncryptionService,
@@ -586,6 +697,16 @@ def build_api_runtime(
         follow_up_task_service = cast(
             FollowUpTaskService,
             override_values.follow_up_task_service or _UnconfiguredFollowUpTaskService(),
+        )
+        whatsapp_connection_service = (
+            override_values.whatsapp_connection_service or whatsapp_connection_service
+        )
+        outbound_message_service = (
+            override_values.outbound_message_service or outbound_message_service
+        )
+        whatsapp_webhook_verification_service = (
+            override_values.whatsapp_webhook_verification_service
+            or whatsapp_webhook_verification_service
         )
 
     tenant_context_resolver = override_values.tenant_context_resolver
@@ -655,6 +776,9 @@ def build_api_runtime(
         conversation_query_service=conversation_query_service,
         scorecard_query_service=scorecard_query_service,
         follow_up_task_service=follow_up_task_service,
+        whatsapp_connection_service=whatsapp_connection_service,
+        outbound_message_service=outbound_message_service,
+        whatsapp_webhook_verification_service=whatsapp_webhook_verification_service,
     )
 
 

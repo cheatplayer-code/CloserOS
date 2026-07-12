@@ -55,14 +55,27 @@ from closeros.infrastructure.knowledge_repositories import (
     SqlAlchemyKnowledgeDocumentVersionRepository,
 )
 from closeros.infrastructure.metrics_repositories import SqlAlchemyMetricSnapshotRepository
+from closeros.infrastructure.outbound_repositories import (
+    SqlAlchemyOutboundDeliveryAttemptRepository,
+    SqlAlchemyOutboundMessageRepository,
+)
 from closeros.infrastructure.outbox_repositories import (
     SqlAlchemyOutboxJobAttemptRepository,
     SqlAlchemyOutboxJobRepository,
+)
+from closeros.infrastructure.provider_media_repositories import (
+    SqlAlchemyProviderMediaReferenceRepository,
+)
+from closeros.infrastructure.provider_template_repositories import (
+    SqlAlchemyProviderMessageTemplateRepository,
 )
 from closeros.infrastructure.tenant_repositories import (
     SqlAlchemyInvitationRepository,
     SqlAlchemyMembershipRepository,
     SqlAlchemyTenantRepository,
+)
+from closeros.infrastructure.whatsapp_repositories import (
+    SqlAlchemyWhatsAppCloudConnectionRepository,
 )
 
 
@@ -106,6 +119,11 @@ class SqlAlchemyIntegratedUnitOfWork:
         SqlAlchemyConversationFindingKnowledgeCitationRepository
     )
     follow_up_tasks: SqlAlchemyFollowUpTaskRepository
+    whatsapp_cloud_connections: SqlAlchemyWhatsAppCloudConnectionRepository
+    provider_message_templates: SqlAlchemyProviderMessageTemplateRepository
+    provider_media_references: SqlAlchemyProviderMediaReferenceRepository
+    outbound_messages: SqlAlchemyOutboundMessageRepository
+    outbound_delivery_attempts: SqlAlchemyOutboundDeliveryAttemptRepository
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -163,6 +181,11 @@ class SqlAlchemyIntegratedUnitOfWork:
             SqlAlchemyConversationFindingKnowledgeCitationRepository(session)
         )
         self.follow_up_tasks = SqlAlchemyFollowUpTaskRepository(session)
+        self.whatsapp_cloud_connections = SqlAlchemyWhatsAppCloudConnectionRepository(session)
+        self.provider_message_templates = SqlAlchemyProviderMessageTemplateRepository(session)
+        self.provider_media_references = SqlAlchemyProviderMediaReferenceRepository(session)
+        self.outbound_messages = SqlAlchemyOutboundMessageRepository(session)
+        self.outbound_delivery_attempts = SqlAlchemyOutboundDeliveryAttemptRepository(session)
         return self
 
     async def __aexit__(

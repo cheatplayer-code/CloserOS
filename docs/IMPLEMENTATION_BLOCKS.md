@@ -138,6 +138,22 @@ Verification (local):
 
 Next block: **VW** — design-partner/provider package and first official messaging provider.
 
+## Block VW scope (implemented locally; PR verification pending)
+
+- Meta WhatsApp Cloud as first official messaging provider (`ProviderKind.WHATSAPP_CLOUD`).
+- `WhatsAppCloudWebhookAdapter` with HMAC verification and canonical normalization.
+- GET hub verification route and tenant WhatsApp integration admin API.
+- Human-approved outbound messaging with `WhatsAppMessagingPolicy` v1 (24h window).
+- `provider.message.send` and `provider.templates.sync` outbox kinds.
+- Alembic revision `b3d7f1a4c8e6`; ADR-0016, `docs/WHATSAPP_CLOUD.md`,
+  `docs/WHATSAPP_SANDBOX_VERIFICATION.md`, `docs/DESIGN_PARTNER_PILOT.md`,
+  `docs/PROVIDER_CAPABILITY_MATRIX.md`.
+- Fabricated CI tests (`tests/vw_support.py` and VW pytest modules).
+- Graph API version **v21.0**; documentation review date **2026-07-12**.
+- Live Meta sandbox verification: **NOT completed**.
+
+Next block: **XY** — first CRM integration + production hardening.
+
 ## Rules
 
 - Each block builds on prior merged work; do not skip ahead without an ADR.

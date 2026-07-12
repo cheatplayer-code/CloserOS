@@ -1,4 +1,4 @@
-# Integration Strategy
+﻿# Integration Strategy
 
 Provider capabilities, permissions, review requirements, and pricing change. Before implementation, verify the current official documentation and record the verification date in an ADR.
 
@@ -35,23 +35,29 @@ It must not require the business to:
 
 CloserOS should distinguish customer, bot, manager, and system messages and analyze handoff quality.
 
-## 3. WhatsApp Business Platform
+## 3. WhatsApp Business Platform (WhatsApp Cloud вЂ” Block VW)
 
-Use only the official WhatsApp Business Platform / Cloud API path available to the customer.
+CloserOS implements the official **WhatsApp Cloud API** path (`ProviderKind.WHATSAPP_CLOUD`).
 
-Implementation areas:
-- Meta app and business setup;
-- test number;
-- webhook verification;
-- incoming message events;
-- delivery/read/failure statuses;
-- customer onboarding flow;
-- token and permission lifecycle;
-- supported history/backfill behavior;
-- 24-hour service window;
-- template requirements;
-- opt-in evidence;
-- pricing and rate limits.
+Documentation review date: **2026-07-12**
+Graph API version: **v21.0**
+Sandbox verification: **NOT completed**
+
+See `docs/WHATSAPP_CLOUD.md`, ADR-0016, and `docs/PROVIDER_CAPABILITY_MATRIX.md`.
+
+Implementation areas (VW delivered locally):
+
+- Meta app connection with credential **reference keys** only in PostgreSQL;
+- GET hub verification and POST HMAC webhook ingestion;
+- inbound text, interactive, reaction, status, and quarantined media references;
+- human-approved outbound with 24-hour service window policy;
+- `provider.message.send` outbox handler (no autonomous sending).
+
+Still required before design-partner production:
+
+- live sandbox verification (`docs/WHATSAPP_SANDBOX_VERIFICATION.md`);
+- production secrets manager adapter;
+- media download and malware scanning pipeline.
 
 Never assume:
 - all existing WhatsApp Business App numbers support identical onboarding;

@@ -5,6 +5,7 @@ from enum import StrEnum
 
 class ProviderKind(StrEnum):
     WHATSAPP = "whatsapp"
+    WHATSAPP_CLOUD = "whatsapp_cloud"
     INSTAGRAM = "instagram"
     TELEGRAM_BUSINESS = "telegram_business"
     SYNTHETIC = "synthetic"

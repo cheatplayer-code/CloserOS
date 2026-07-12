@@ -18,6 +18,12 @@ export const PRODUCT_WORKSPACE_SCHEMA_FILES = [
   "manager-scorecard.json",
 ] as const;
 
+export const WHATSAPP_PROVIDER_SCHEMA_FILES = [
+  "whatsapp-connection.json",
+  "outbound-message.json",
+  "provider-template.json",
+] as const;
+
 export type V1SchemaFile = (typeof V1_SCHEMA_FILES)[number];
 
 export const V1_SCHEMA_BASE_PATH = "schemas/v1";

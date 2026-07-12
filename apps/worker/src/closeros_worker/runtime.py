@@ -45,17 +45,25 @@ from closeros.application.outbox_processor import OutboxJobHandler, OutboxProces
 from closeros.application.outbox_publisher import OutboxPublisherService
 from closeros.application.outbox_reconciliation import OutboxReconciliationService
 from closeros.application.provider_adapter_registry import ProviderAdapterRegistry
+from closeros.application.provider_message_send_handler import ProviderMessageSendHandler
+from closeros.application.provider_templates_sync_handler import ProviderTemplatesSyncHandler
 from closeros.application.synthetic_ai_provider import SyntheticAiProvider
 from closeros.application.webhook_normalize_handler import WebhookNormalizeHandler
+from closeros.application.whatsapp_reconciliation_service import WhatsAppReconciliationService
 from closeros.domain.ai_analysis import AiProviderCode, AiPurpose
 from closeros.domain.audit import AuditActorType
 from closeros.domain.knowledge import KnowledgeRetrievalResult
 from closeros.domain.outbox import OutboxJobKind
+from closeros.domain.provider_credentials import SecretBytes
+from closeros.domain.whatsapp_messaging_policy import WhatsAppMessagingPolicy
 from closeros.infrastructure.aes_gcm_encryption import AesGcmContentCryptography
 from closeros.infrastructure.database import (
     create_authentication_engine,
     create_authentication_sessionmaker,
     normalize_database_url,
+)
+from closeros.infrastructure.env_whatsapp_credential_resolver import (
+    EnvWhatsAppCredentialResolver,
 )
 from closeros.infrastructure.integrated_unit_of_work import SqlAlchemyIntegratedUnitOfWork
 from closeros.infrastructure.redis_stream_queue import (
@@ -68,6 +76,7 @@ from closeros.infrastructure.static_key_provider import (
     require_production_key_provider,
 )
 from closeros.infrastructure.synthetic_hmac_adapter import SyntheticHmacWebhookAdapter
+from closeros.infrastructure.whatsapp_cloud_adapter import WhatsAppCloudWebhookAdapter
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -83,7 +92,14 @@ NOPQ_SUPPORTED_JOB_KINDS = frozenset(
         OutboxJobKind.MESSAGE_ANALYZE,
     }
 )
-LM_SUPPORTED_JOB_KINDS = NOPQ_SUPPORTED_JOB_KINDS
+VW_SUPPORTED_JOB_KINDS = frozenset(
+    {
+        *NOPQ_SUPPORTED_JOB_KINDS,
+        OutboxJobKind.PROVIDER_MESSAGE_SEND,
+        OutboxJobKind.PROVIDER_TEMPLATES_SYNC,
+    }
+)
+LM_SUPPORTED_JOB_KINDS = VW_SUPPORTED_JOB_KINDS
 
 _DEV_KEK_V1 = bytes(range(32))
 _DEV_KEY_VERSION = "dev-kek-v1"
@@ -187,6 +203,7 @@ class WorkerRuntime:
     publisher_service_factory: Callable[[], OutboxPublisherService]
     processor_service_factory: Callable[[], OutboxProcessorService]
     reconciliation_service_factory: Callable[[], OutboxReconciliationService]
+    whatsapp_reconciliation_service_factory: Callable[[], WhatsAppReconciliationService]
     handlers: dict[OutboxJobKind, OutboxJobHandler]
 
     async def dispose(self) -> None:
@@ -207,6 +224,48 @@ def _development_webhook_secret() -> bytes:
     if raw_value:
         return raw_value.encode("utf-8")
     return bytes(range(32))
+
+
+def _whatsapp_graph_api_version() -> str:
+    raw_value = os.environ.get("WHATSAPP_GRAPH_API_VERSION", "v21.0").strip()
+    return raw_value or "v21.0"
+
+
+def _build_development_adapter_registry(
+    *,
+    integrated_uow_factory: Callable[[], SqlAlchemyIntegratedUnitOfWork],
+    credential_resolver: EnvWhatsAppCredentialResolver,
+) -> ProviderAdapterRegistry:
+    adapters: list[object] = [
+        SyntheticHmacWebhookAdapter(secret=_development_webhook_secret()),
+    ]
+
+    async def resolve_app_secret_for_channel(
+        tenant_id: uuid.UUID,
+        channel_connection_id: uuid.UUID,
+    ) -> SecretBytes | None:
+        uow = integrated_uow_factory()
+        async with uow:
+            records = await uow.whatsapp_cloud_connections.list_by_tenant(tenant_id=tenant_id)
+        match = next(
+            (record for record in records if record.channel_connection_id == channel_connection_id),
+            None,
+        )
+        if match is None or match.app_secret_ref is None:
+            return None
+        return await credential_resolver.resolve_app_secret(
+            tenant_id=tenant_id,
+            whatsapp_connection_id=match.id,
+            reference_key=match.app_secret_ref,
+        )
+
+    adapters.append(
+        WhatsAppCloudWebhookAdapter(
+            resolve_app_secret_for_channel=resolve_app_secret_for_channel,
+            graph_api_version=_whatsapp_graph_api_version(),
+        )
+    )
+    return ProviderAdapterRegistry(adapters=tuple(adapters))  # type: ignore[arg-type]
 
 
 def _development_adapter_registry() -> ProviderAdapterRegistry:
@@ -239,15 +298,16 @@ def build_worker_runtime(
 ) -> WorkerRuntime:
     override_values = overrides or WorkerRuntimeOverrides()
 
+    adapter_registry: ProviderAdapterRegistry
+    pending_adapter_registry: ProviderAdapterRegistry | None = override_values.adapter_registry
     if settings.is_production:
         key_provider = cast(
             StaticKeyProvider,
             require_production_key_provider(override_values.key_provider),
         )
-        adapter_registry = require_production_provider_adapters(override_values.adapter_registry)
+        adapter_registry = require_production_provider_adapters(pending_adapter_registry)
     else:
         key_provider = override_values.key_provider or _development_key_provider()
-        adapter_registry = override_values.adapter_registry or _development_adapter_registry()
 
     engine = override_values.engine
     session_factory = override_values.session_factory
@@ -266,6 +326,22 @@ def build_worker_runtime(
         Callable[[], IntegratedUnitOfWork],
         integrated_uow_factory,
     )
+
+    whatsapp_credential_resolver = EnvWhatsAppCredentialResolver()
+
+    if not settings.is_production and pending_adapter_registry is None:
+        if os.environ.get("WHATSAPP_APP_SECRET_REF", "").strip():
+            adapter_registry = _build_development_adapter_registry(
+                integrated_uow_factory=integrated_uow_factory,
+                credential_resolver=whatsapp_credential_resolver,
+            )
+        else:
+            adapter_registry = _development_adapter_registry()
+    elif not settings.is_production:
+        assert pending_adapter_registry is not None
+        adapter_registry = pending_adapter_registry
+
+    messaging_policy = WhatsAppMessagingPolicy()
 
     content_encryption = ContentEncryptionService(
         data_key_cryptography=AesGcmContentCryptography(
@@ -368,6 +444,21 @@ def build_worker_runtime(
         uuid_factory=uuid.uuid4,
         clock=ai_clock.now,
     )
+    provider_message_send_handler = ProviderMessageSendHandler(
+        uow_factory=integrated_port_factory,
+        content_encryption=content_encryption,
+        credential_resolver=whatsapp_credential_resolver,
+        messaging_policy=messaging_policy,
+        service_actor_id=service_actor_id,
+        uuid_factory=uuid.uuid4,
+    )
+    provider_templates_sync_handler = ProviderTemplatesSyncHandler(
+        uow_factory=integrated_port_factory,
+        credential_resolver=whatsapp_credential_resolver,
+        service_actor_id=service_actor_id,
+        uuid_factory=uuid.uuid4,
+        clock=ai_clock.now,
+    )
     handlers: dict[OutboxJobKind, OutboxJobHandler] = {
         OutboxJobKind.WEBHOOK_NORMALIZE: webhook_handler,
         OutboxJobKind.CSV_IMPORT: csv_import_handler,
@@ -375,6 +466,8 @@ def build_worker_runtime(
         OutboxJobKind.METRICS_RECALCULATE: metrics_recalculate_handler,
         OutboxJobKind.KNOWLEDGE_INDEX: knowledge_index_handler,
         OutboxJobKind.MESSAGE_ANALYZE: message_analyze_handler,
+        OutboxJobKind.PROVIDER_MESSAGE_SEND: provider_message_send_handler,
+        OutboxJobKind.PROVIDER_TEMPLATES_SYNC: provider_templates_sync_handler,
     }
 
     redis = override_values.redis or Redis.from_url(settings.redis_url, decode_responses=False)
@@ -403,12 +496,20 @@ def build_worker_runtime(
             outbox_job_attempts=uow.outbox_job_attempts,
             handlers=handlers,
             worker_id=settings.worker_id,
-            supported_job_kinds=NOPQ_SUPPORTED_JOB_KINDS,
+            supported_job_kinds=VW_SUPPORTED_JOB_KINDS,
         )
 
     def reconciliation_service_factory() -> OutboxReconciliationService:
         uow = integrated_uow_factory()
         return OutboxReconciliationService(outbox_jobs=uow.outbox_jobs)
+
+    def whatsapp_reconciliation_service_factory() -> WhatsAppReconciliationService:
+        return WhatsAppReconciliationService(
+            uow_factory=integrated_port_factory,
+            uuid_factory=uuid.uuid4,
+            clock=ai_clock.now,
+            service_actor_id=service_actor_id,
+        )
 
     if engine is None:
         raise RuntimeError("worker engine is required")
@@ -423,5 +524,6 @@ def build_worker_runtime(
         publisher_service_factory=publisher_service_factory,
         processor_service_factory=processor_service_factory,
         reconciliation_service_factory=reconciliation_service_factory,
+        whatsapp_reconciliation_service_factory=whatsapp_reconciliation_service_factory,
         handlers=handlers,
     )
