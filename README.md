@@ -81,13 +81,22 @@ Run commands through the root `package.json` interface:
 - `corepack pnpm run infra:down` — stop services and preserve volumes;
 - `corepack pnpm run infra:reset` — destructively remove local data volumes;
 - `corepack pnpm run infra:clean-checkout` — run isolated reproducibility checks;
-- `corepack pnpm run dev:web` — Next.js development server;
+- `corepack pnpm run dev:web` — Next.js development server on
+  `http://localhost:3000`;
 - `corepack pnpm run dev:api` — FastAPI development server on
-  `http://127.0.0.1:8000`;
+  `http://localhost:8000` (match the frontend hostname family for browser auth);
 - `corepack pnpm run dev:worker` — safe no-op worker execution.
 
-The API scaffold exposes `GET /health`. The worker exits successfully without
-connecting to Redis or processing jobs.
+The API exposes `GET /health`, authentication routes at `/api/v1/auth/*`, and
+database readiness at `/ready`. The web app calls the API directly from the
+browser with cookie credentials. See `docs/AUTHENTICATION_API.md` and
+`docs/AUTHENTICATION_FRONTEND.md`.
+
+For local browser authentication testing:
+
+1. copy `.env.example` to `.env` and keep `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000`;
+2. set `AUTH_ALLOWED_ORIGINS=http://localhost:3000` (avoid mixing `127.0.0.1` and `localhost`);
+3. start PostgreSQL, run API migrations separately, then run `dev:api` and `dev:web`.
 
 ## Local infrastructure
 

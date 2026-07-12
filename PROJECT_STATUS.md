@@ -807,3 +807,61 @@ Architectural boundaries:
 
 Next recommended task after merge: Block D — Next.js authentication UI and
 production integration hardening.
+
+## CLS-011 Block D — authentication frontend
+
+Status: **Implemented locally; GitHub Pull Request verification pending. CLS-011
+as a whole remains incomplete.**
+
+Branch: `feat/d-auth-frontend`.
+
+Implemented:
+
+- typed browser authentication API client for every Block C route;
+- `AuthProvider` with loading, anonymous, pending-MFA, and authenticated phases;
+- App Router pages for sign-in, registration, email verification, forgot/reset
+  password, MFA, protected workspace shell, and security settings;
+- HttpOnly cookie integration via `credentials: "include"` without exposing raw
+  session tokens to JavaScript;
+- CSRF header usage on unsafe authenticated requests from in-memory auth state;
+- pending-MFA CSRF metadata in `sessionStorage` only (no passwords/tokens/cookies);
+- manual 43-character verification and reset token entry (no tokens in URLs);
+- accessible responsive auth and application shell styling with reusable form
+  components;
+- safe return-path handling, generic anti-enumeration messaging, rate-limit
+  feedback, and frontend security headers in Next.js config;
+- Vitest coverage for API URL validation, client behavior, auth-state
+  transitions, storage safety, validation, and component rendering;
+- optional integration smoke test gated by explicit environment variables.
+
+Verification (2026-07-12):
+
+- `@closeros/web` typecheck, test, and build: passed (44 Vitest, 1 skipped smoke);
+- repository `corepack pnpm run quality`: passed (664 pytest);
+
+Not implemented in Block D:
+
+- concrete email delivery and safe email-link token exchange;
+- WebAuthn ceremony UI and TOTP provisioning;
+- distributed Redis rate limiter;
+- audit events;
+- production CSP/deployment hardening;
+- product dashboards, messaging, or CRM modules.
+
+Architectural boundaries:
+
+- no localStorage authentication state;
+- no raw session token, password, or reset/verification token persistence in the
+  browser;
+- clients never send `mfa_required`;
+- protected pages rely on `GET /session` rather than client-only flags;
+- ADR-0010 remains authoritative;
+- CLS-011 must not be marked complete.
+
+Remaining CLS-011 work after Block D:
+
+- production email/outbox delivery;
+- WebAuthn/TOTP provider adapters;
+- distributed rate limiting;
+- audit subsystem;
+- production proxy and deployment configuration.
