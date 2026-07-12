@@ -17,7 +17,7 @@ from closeros.domain.audit import (
     AuditScope,
     AuditTargetType,
 )
-from closeros.infrastructure.authentication_orm import Base
+from closeros.infrastructure.orm_base import Base
 
 _ACTION_VALUES = tuple(action.value for action in AuditAction)
 _ACTOR_TYPE_VALUES = tuple(actor_type.value for actor_type in AuditActorType)

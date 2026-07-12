@@ -1,4 +1,4 @@
-"""Async SQLAlchemy database foundation for the authentication subsystem.
+"""Async SQLAlchemy database foundation for persistence subsystems.
 
 This module never opens a connection and never reads the environment at import
 time. Callers pass a database URL explicitly, or read it from the environment
@@ -18,7 +18,9 @@ from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
     async_sessionmaker,
-    create_async_engine,
+)
+from sqlalchemy.ext.asyncio import (
+    create_async_engine as sqlalchemy_create_async_engine,
 )
 
 _PSYCOPG_DRIVER = "postgresql+psycopg"
@@ -60,13 +62,13 @@ def database_url_from_env(variable_name: str = "DATABASE_URL") -> str:
     return normalize_database_url(raw_url)
 
 
-def create_authentication_engine(url: str) -> AsyncEngine:
-    """Create an async engine for authentication repositories."""
+def create_async_engine(url: str) -> AsyncEngine:
+    """Create an async engine for repository access."""
 
-    return create_async_engine(normalize_database_url(url), future=True)
+    return sqlalchemy_create_async_engine(normalize_database_url(url), future=True)
 
 
-def create_authentication_sessionmaker(
+def create_session_factory(
     engine: AsyncEngine,
 ) -> async_sessionmaker[AsyncSession]:
     """Create an async session factory bound to the given engine."""
@@ -76,6 +78,20 @@ def create_authentication_sessionmaker(
         expire_on_commit=False,
         autoflush=False,
     )
+
+
+def create_authentication_engine(url: str) -> AsyncEngine:
+    """Backward-compatible alias for :func:`create_async_engine`."""
+
+    return create_async_engine(url)
+
+
+def create_authentication_sessionmaker(
+    engine: AsyncEngine,
+) -> async_sessionmaker[AsyncSession]:
+    """Backward-compatible alias for :func:`create_session_factory`."""
+
+    return create_session_factory(engine)
 
 
 def create_migration_engine(url: str) -> Engine:

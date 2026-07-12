@@ -19,14 +19,13 @@ from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
     Index,
-    MetaData,
     String,
     Text,
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import BYTEA, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
 from closeros.domain.authentication import (
     AuthenticationAssuranceLevel,
@@ -34,14 +33,7 @@ from closeros.domain.authentication import (
     AuthenticationTokenPurpose,
 )
 from closeros.domain.identity import UserStatus
-
-NAMING_CONVENTION = {
-    "ix": "ix_%(table_name)s_%(column_0_N_name)s",
-    "uq": "uq_%(table_name)s_%(column_0_N_name)s",
-    "ck": "ck_%(table_name)s_%(constraint_name)s",
-    "fk": "fk_%(table_name)s_%(column_0_N_name)s_%(referred_table_name)s",
-    "pk": "pk_%(table_name)s",
-}
+from closeros.infrastructure.orm_base import Base
 
 TOKEN_HASH_BYTES = 32
 
@@ -67,10 +59,6 @@ _STAGE_ASSURANCE_MFA_CHECK = (
     "AND mfa_completed = true"
     ")"
 )
-
-
-class Base(DeclarativeBase):
-    metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
 class UserRow(Base):

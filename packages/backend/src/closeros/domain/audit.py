@@ -78,6 +78,15 @@ class AuditAction(StrEnum):
     AUTH_PASSWORD_CHANGED = "auth.password.changed"
     TENANT_ACCESS_GRANTED = "tenant.access.granted"
     TENANT_ACCESS_DENIED = "tenant.access.denied"
+    TENANT_STATUS_CHANGED = "tenant.status.changed"
+    MEMBERSHIP_CREATED = "membership.created"
+    MEMBERSHIP_STATUS_CHANGED = "membership.status.changed"
+    MEMBERSHIP_ROLES_CHANGED = "membership.roles.changed"
+    INVITATION_CREATED = "invitation.created"
+    INVITATION_REVOKED = "invitation.revoked"
+    CHANNEL_CONNECTION_CREATED = "channel_connection.created"
+    CHANNEL_CONNECTION_STATUS_CHANGED = "channel_connection.status.changed"
+    MANAGER_ASSIGNMENT_CHANGED = "manager_assignment.changed"
     AUDIT_LOG_VIEWED = "audit.log_viewed"
 
 
@@ -86,6 +95,10 @@ class AuditTargetType(StrEnum):
     CREDENTIAL = "credential"
     SESSION = "session"
     TENANT = "tenant"
+    MEMBERSHIP = "membership"
+    INVITATION = "invitation"
+    CHANNEL_CONNECTION = "channel_connection"
+    MANAGER_ASSIGNMENT = "manager_assignment"
     AUDIT_LOG = "audit_log"
     AUTHENTICATION = "authentication"
 

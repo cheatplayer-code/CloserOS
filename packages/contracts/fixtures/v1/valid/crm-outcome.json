@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "id": "20000000-0000-4000-8000-000000000010",
+  "tenant_id": "10000000-0000-4000-8000-000000000001",
+  "sales_case_id": "20000000-0000-4000-8000-000000000003",
+  "external_deal_id": "crm-deal-synthetic-001",
+  "outcome_type": "won",
+  "occurred_at": "2026-07-12T09:00:00.000Z",
+  "adapter_metadata": {
+    "pipeline_stage": "closed_won"
+  }
+}

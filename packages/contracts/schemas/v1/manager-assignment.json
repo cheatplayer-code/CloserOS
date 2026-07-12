@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closeros.ai/schemas/v1/manager-assignment.json",
+  "title": "ManagerAssignment",
+  "description": "Manager assignment to exactly one conversation thread or sales case. Version 1.0.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "tenant_id",
+    "manager_user_id",
+    "assigned_at"
+  ],
+  "properties": {
+    "schema_version": { "$ref": "#/$defs/schemaVersion" },
+    "id": { "$ref": "#/$defs/uuid" },
+    "tenant_id": { "$ref": "#/$defs/uuid" },
+    "manager_user_id": { "$ref": "#/$defs/uuid" },
+    "conversation_thread_id": {
+      "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }]
+    },
+    "sales_case_id": {
+      "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }]
+    },
+    "assigned_at": { "$ref": "#/$defs/timestamp" }
+  },
+  "oneOf": [
+    {
+      "required": ["conversation_thread_id"],
+      "properties": {
+        "conversation_thread_id": { "$ref": "#/$defs/uuid" },
+        "sales_case_id": { "type": "null" }
+      }
+    },
+    {
+      "required": ["sales_case_id"],
+      "properties": {
+        "sales_case_id": { "$ref": "#/$defs/uuid" },
+        "conversation_thread_id": { "type": "null" }
+      }
+    }
+  ],
+  "$defs": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": ".*(Z|[+-]\\d{2}:\\d{2})$"
+    }
+  }
+}

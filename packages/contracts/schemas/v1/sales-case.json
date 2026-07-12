@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closeros.ai/schemas/v1/sales-case.json",
+  "title": "SalesCase",
+  "description": "Provider-neutral sales case lifecycle record. Version 1.0.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "tenant_id",
+    "status",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": { "$ref": "#/$defs/schemaVersion" },
+    "id": { "$ref": "#/$defs/uuid" },
+    "tenant_id": { "$ref": "#/$defs/uuid" },
+    "status": { "$ref": "#/$defs/salesCaseStatus" },
+    "created_at": { "$ref": "#/$defs/timestamp" },
+    "updated_at": { "$ref": "#/$defs/timestamp" }
+  },
+  "$defs": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": ".*(Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "salesCaseStatus": {
+      "type": "string",
+      "enum": [
+        "new",
+        "awaiting_business",
+        "awaiting_customer",
+        "qualified",
+        "appointment_proposed",
+        "appointment_booked",
+        "won",
+        "lost",
+        "closed_unknown"
+      ]
+    }
+  }
+}

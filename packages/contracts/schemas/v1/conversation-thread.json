@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closeros.ai/schemas/v1/conversation-thread.json",
+  "title": "ConversationThread",
+  "description": "Provider-neutral conversation thread bound to one channel connection. Version 1.0.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "tenant_id",
+    "channel_connection_id",
+    "external_conversation_id",
+    "adapter_metadata",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": { "$ref": "#/$defs/schemaVersion" },
+    "id": { "$ref": "#/$defs/uuid" },
+    "tenant_id": { "$ref": "#/$defs/uuid" },
+    "channel_connection_id": { "$ref": "#/$defs/uuid" },
+    "external_conversation_id": { "$ref": "#/$defs/externalId" },
+    "sales_case_id": {
+      "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }]
+    },
+    "lifecycle_status": {
+      "oneOf": [{ "$ref": "#/$defs/salesCaseStatus" }, { "type": "null" }]
+    },
+    "adapter_metadata": { "$ref": "#/$defs/adapterMetadata" },
+    "created_at": { "$ref": "#/$defs/timestamp" },
+    "updated_at": { "$ref": "#/$defs/timestamp" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "sales_case_id": { "type": "string", "format": "uuid" }
+        },
+        "required": ["sales_case_id"]
+      },
+      "then": {
+        "properties": {
+          "lifecycle_status": { "type": "null" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": ".*(Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "externalId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "adapterMetadata": {
+      "type": "object",
+      "maxProperties": 32,
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string", "minLength": 1, "maxLength": 512 },
+          { "type": "integer" },
+          { "type": "boolean" },
+          { "type": "null" }
+        ]
+      },
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "not": {
+          "pattern": "(?i).*(body|text|message|content|token|secret|password|authorization|cookie|email|phone|payload).*"
+        }
+      }
+    },
+    "salesCaseStatus": {
+      "type": "string",
+      "enum": [
+        "new",
+        "awaiting_business",
+        "awaiting_customer",
+        "qualified",
+        "appointment_proposed",
+        "appointment_booked",
+        "won",
+        "lost",
+        "closed_unknown"
+      ]
+    }
+  }
+}

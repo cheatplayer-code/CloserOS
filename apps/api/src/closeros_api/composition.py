@@ -1,4 +1,4 @@
-"""Authentication API runtime composition and dependency container."""
+"""API runtime composition and dependency container."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast
 
+from closeros.application.audit_persistence import AuditUnitOfWork
+from closeros.application.audit_queries import TenantAuditQueryService
 from closeros.application.authentication_persistence import AuthenticationUnitOfWork
 from closeros.application.authentication_workflows import (
     AuthenticationWorkflowService,
@@ -13,6 +15,10 @@ from closeros.application.authentication_workflows import (
     MfaVerifier,
 )
 from closeros.application.password_hashing import PasswordHasher
+from closeros.application.platform_unit_of_work import PlatformUnitOfWork
+from closeros.application.tenant_context import TenantContextResolver, TenantListingService
+from closeros.application.tenant_persistence import TenantUnitOfWork
+from closeros.infrastructure.audit_unit_of_work import SqlAlchemyAuditUnitOfWork
 from closeros.infrastructure.authentication_unit_of_work import SqlAlchemyAuthenticationUnitOfWork
 from closeros.infrastructure.database import (
     create_authentication_engine,
@@ -20,6 +26,8 @@ from closeros.infrastructure.database import (
     normalize_database_url,
 )
 from closeros.infrastructure.password_hashing import Argon2idPasswordHasher
+from closeros.infrastructure.platform_unit_of_work import SqlAlchemyPlatformUnitOfWork
+from closeros.infrastructure.tenant_unit_of_work import SqlAlchemyTenantUnitOfWork
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from closeros_api.auth_ports import (
@@ -39,9 +47,15 @@ from closeros_api.settings import ApiSettings
 
 
 @dataclass
-class AuthRuntimeOverrides:
+class ApiRuntimeOverrides:
     workflow_service: AuthenticationWorkflowService | None = None
     uow_factory: Callable[[], AuthenticationUnitOfWork] | None = None
+    platform_uow_factory: Callable[[], PlatformUnitOfWork] | None = None
+    tenant_uow_factory: Callable[[], TenantUnitOfWork] | None = None
+    audit_uow_factory: Callable[[], AuditUnitOfWork] | None = None
+    tenant_context_resolver: TenantContextResolver | None = None
+    tenant_listing_service: TenantListingService | None = None
+    tenant_audit_query_service: TenantAuditQueryService | None = None
     password_hasher: PasswordHasher | None = None
     clock: Clock | None = None
     uuid_factory: UuidFactory | None = None
@@ -53,8 +67,11 @@ class AuthRuntimeOverrides:
     session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
+AuthRuntimeOverrides = ApiRuntimeOverrides
+
+
 @dataclass
-class AuthRuntime:
+class ApiRuntime:
     settings: ApiSettings
     workflows: AuthenticationWorkflowService
     password_hasher: PasswordHasher
@@ -67,17 +84,39 @@ class AuthRuntime:
     cookie_config: SessionCookieConfig
     engine: AsyncEngine | None
     session_factory: async_sessionmaker[AsyncSession] | None
+    platform_uow_factory: Callable[[], PlatformUnitOfWork] | None
+    tenant_context_resolver: TenantContextResolver
+    tenant_listing_service: TenantListingService
+    tenant_audit_query_service: TenantAuditQueryService
 
     async def dispose(self) -> None:
         if self.engine is not None:
             await self.engine.dispose()
 
 
-def build_auth_runtime(
+AuthRuntime = ApiRuntime
+
+
+class _UnconfiguredTenantContextResolver:
+    async def resolve(self, **kwargs: object) -> object:
+        raise RuntimeError("tenant context resolver is not configured")
+
+
+class _UnconfiguredTenantListingService:
+    async def list_tenants_for_user(self, **kwargs: object) -> tuple[tuple[object, object], ...]:
+        raise RuntimeError("tenant listing service is not configured")
+
+
+class _UnconfiguredTenantAuditQueryService:
+    async def query(self, **kwargs: object) -> object:
+        raise RuntimeError("tenant audit query service is not configured")
+
+
+def build_api_runtime(
     settings: ApiSettings,
-    overrides: AuthRuntimeOverrides | None = None,
-) -> AuthRuntime:
-    override_values = overrides or AuthRuntimeOverrides()
+    overrides: ApiRuntimeOverrides | None = None,
+) -> ApiRuntime:
+    override_values = overrides or ApiRuntimeOverrides()
     settings.validate_for_runtime()
 
     engine = override_values.engine
@@ -128,7 +167,71 @@ def build_auth_runtime(
     else:
         workflows = override_values.workflow_service
 
-    return AuthRuntime(
+    platform_uow_factory = override_values.platform_uow_factory
+    tenant_uow_factory = override_values.tenant_uow_factory
+    audit_uow_factory = override_values.audit_uow_factory
+
+    if session_factory is not None:
+        if platform_uow_factory is None:
+
+            def platform_uow_factory() -> PlatformUnitOfWork:
+                return cast(
+                    PlatformUnitOfWork,
+                    SqlAlchemyPlatformUnitOfWork(session_factory),
+                )
+
+        if tenant_uow_factory is None:
+
+            def tenant_uow_factory() -> TenantUnitOfWork:
+                return cast(
+                    TenantUnitOfWork,
+                    SqlAlchemyTenantUnitOfWork(session_factory),
+                )
+
+        if audit_uow_factory is None:
+
+            def audit_uow_factory() -> AuditUnitOfWork:
+                return cast(
+                    AuditUnitOfWork,
+                    SqlAlchemyAuditUnitOfWork(session_factory),
+                )
+
+    tenant_context_resolver = override_values.tenant_context_resolver
+    if tenant_context_resolver is None:
+        if platform_uow_factory is not None:
+            tenant_context_resolver = TenantContextResolver(
+                uow_factory=platform_uow_factory,
+                session_touch_interval=settings.session_touch_interval,
+            )
+        else:
+            tenant_context_resolver = cast(
+                TenantContextResolver,
+                _UnconfiguredTenantContextResolver(),
+            )
+
+    tenant_listing_service = override_values.tenant_listing_service
+    if tenant_listing_service is None:
+        if tenant_uow_factory is not None:
+            tenant_listing_service = TenantListingService(uow_factory=tenant_uow_factory)
+        else:
+            tenant_listing_service = cast(
+                TenantListingService,
+                _UnconfiguredTenantListingService(),
+            )
+
+    tenant_audit_query_service = override_values.tenant_audit_query_service
+    if tenant_audit_query_service is None:
+        if audit_uow_factory is not None:
+            tenant_audit_query_service = TenantAuditQueryService(
+                audit_uow_factory=audit_uow_factory,
+            )
+        else:
+            tenant_audit_query_service = cast(
+                TenantAuditQueryService,
+                _UnconfiguredTenantAuditQueryService(),
+            )
+
+    return ApiRuntime(
         settings=settings,
         workflows=workflows,
         password_hasher=password_hasher,
@@ -141,4 +244,15 @@ def build_auth_runtime(
         cookie_config=session_cookie_config(is_production=settings.is_production),
         engine=engine,
         session_factory=session_factory,
+        platform_uow_factory=platform_uow_factory,
+        tenant_context_resolver=tenant_context_resolver,
+        tenant_listing_service=tenant_listing_service,
+        tenant_audit_query_service=tenant_audit_query_service,
     )
+
+
+def build_auth_runtime(
+    settings: ApiSettings,
+    overrides: ApiRuntimeOverrides | None = None,
+) -> ApiRuntime:
+    return build_api_runtime(settings, overrides)

@@ -31,7 +31,7 @@
 - Git repository and reproducible pnpm/uv workspaces
 - Executable Next.js, FastAPI, and no-op worker scaffolds
 - Shared Python backend boundaries under `packages/backend`
-- Shared TypeScript UI package and documented contracts placeholder
+- Shared TypeScript UI package and versioned canonical contracts (`@closeros/contracts` v1)
 - Root formatting, linting, type-checking, test, build, and development commands
 - Python and TypeScript scaffold tests
 - Local-only PostgreSQL and Redis Docker Compose environment
@@ -904,11 +904,59 @@ Not implemented in Block E:
 - message or conversation auditing;
 - production database role separation for audit readers/writers.
 
-Remaining scope for Block F and beyond:
+## Block FG — shared persistence foundation and canonical conversation platform
 
-- tenant persistence/composition for authoritative browser tenant context;
-- audit query HTTP API once tenant context exists;
-- retention purge with dedicated controlled deletion mechanism;
-- export/SIEM integration;
-- continued CLS-011 production hardening (email/outbox, WebAuthn/TOTP, distributed
-  rate limiting).
+Status: **Implemented locally; GitHub Pull Request verification pending.**
+
+Branch: `feat/fg-persistence-canonical`.
+
+Implemented:
+
+- shared SQLAlchemy `Base`, engine/session factories, UTC validation, keyset cursor
+  pagination, integrity-error translation, and tenant-scoped repository helpers;
+- persistent tenants, memberships (normalized roles), and invitations with PostgreSQL
+  repositories and platform unit-of-work;
+- authoritative `TenantContextResolver` and `GET /api/v1/tenants` (active memberships
+  with roles);
+- `GET /api/v1/tenants/{tenant_id}/audit-events` (Owner/Compliance Admin, cursor
+  pagination, `audit.log_viewed` on success);
+- canonical conversation domain v1 (11 entities, bounded adapter metadata, immutable
+  messages, append-only events, deterministic `project_message`);
+- `@closeros/contracts` v1 JSON Schemas, TypeScript types, fixtures, and compatibility
+  tests;
+- Alembic revision `d4e8f1a2b3c5` (16 tables, composite tenant-safe foreign keys,
+  extended audit CHECK constraints);
+- canonical PostgreSQL repositories and unit-of-work;
+- extended audit actions for tenant/membership/invitation/channel/manager events;
+- `docs/IMPLEMENTATION_BLOCKS.md` canonical combined-block roadmap.
+
+Verification (2026-07-12):
+
+- full pytest: **804 passed**;
+- Vitest (`@closeros/web`): **43 passed**, **1 skipped**;
+- Vitest (`@closeros/contracts`): **49 passed**;
+- Ruff format/check: passed;
+- mypy (147 files): passed;
+- native `corepack pnpm run quality`: **passed**;
+- no dependency or lockfile changes;
+- no merged migration edited.
+
+Tenant isolation:
+
+- application-layer `tenant_id` required on all tenant-owned repository lookups;
+- composite `(tenant_id, id)` uniqueness and composite foreign keys on canonical
+  parent/child relationships;
+- cross-tenant reference tests at application and database levels.
+
+Not implemented in Block FG:
+
+- encrypted message bodies or raw provider payload storage (Block HI);
+- transactional outbox, workers, ingestion orchestration, CSV import;
+- PII detection, AI, dashboards, external provider integrations;
+- frontend tenant switcher or audit viewer.
+
+Remaining scope for Block HI:
+
+- encrypted `content_id` resolution and raw/sanitized content storage;
+- transactional outbox and job-claim foundation in PostgreSQL.
+

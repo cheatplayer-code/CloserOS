@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "id": "20000000-0000-4000-8000-000000000008",
+  "tenant_id": "10000000-0000-4000-8000-000000000001",
+  "message_id": "20000000-0000-4000-8000-000000000005",
+  "external_event_id": "delivery-event-synthetic-001",
+  "occurred_at": "2026-07-12T08:12:00.000Z",
+  "delivery_status": "delivered",
+  "adapter_metadata": {
+    "provider_code": "delivered"
+  }
+}

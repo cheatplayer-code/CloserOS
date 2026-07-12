@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "id": "20000000-0000-4000-8000-000000000005",
+  "tenant_id": "10000000-0000-4000-8000-000000000001",
+  "conversation_thread_id": "20000000-0000-4000-8000-000000000004",
+  "external_message_id": "message-synthetic-001",
+  "sender_type": "customer",
+  "direction": "inbound",
+  "sent_at": "2026-07-12T08:10:00.000Z",
+  "received_at": "2026-07-12T08:10:05.000Z",
+  "content_id": "30000000-0000-4000-8000-000000000001",
+  "adapter_metadata": {
+    "provider_type": "text"
+  }
+}

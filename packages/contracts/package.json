@@ -2,5 +2,15 @@
   "name": "@closeros/contracts",
   "version": "0.0.0",
   "private": true,
-  "description": "Reserved placeholder for future versioned cross-language contracts"
+  "type": "module",
+  "description": "Versioned canonical entity contracts for CloserOS",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schemas/v1/*": "./schemas/v1/*",
+    "./fixtures/v1/*": "./fixtures/v1/*"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts"
+  }
 }

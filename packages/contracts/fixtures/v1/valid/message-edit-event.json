@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "id": "20000000-0000-4000-8000-000000000006",
+  "tenant_id": "10000000-0000-4000-8000-000000000001",
+  "message_id": "20000000-0000-4000-8000-000000000005",
+  "external_event_id": "edit-event-synthetic-001",
+  "occurred_at": "2026-07-12T08:15:00.000Z",
+  "content_id": "30000000-0000-4000-8000-000000000002",
+  "adapter_metadata": {
+    "edit_sequence": 1
+  }
+}
