@@ -6,6 +6,8 @@ test module completes. The main ``closeros_local`` database and its volume are
 never modified.
 """
 
+# mypy: disable-error-code=import-untyped
+
 from __future__ import annotations
 
 import asyncio
@@ -22,8 +24,8 @@ from closeros.infrastructure.alembic_config import build_alembic_config
 from closeros.infrastructure.database import (
     create_authentication_engine,
     create_authentication_sessionmaker,
-    normalize_database_url,
 )
+from sqlalchemy import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 if sys.platform == "win32":
@@ -37,27 +39,53 @@ def pytest_configure(config: pytest.Config) -> None:
     )
 
 
+# Direct psycopg driver (no SQLAlchemy dialect suffix) for `psycopg.connect`.
+_DIRECT_DRIVER = "postgresql"
+# SQLAlchemy dialect driver used by engines and Alembic.
+_SQLALCHEMY_DRIVER = "postgresql+psycopg"
+_MAINTENANCE_DATABASE = "postgres"
+
 _DEFAULT_ADMIN_URL = (
     "postgresql://closeros_local:closeros_local_only_change_me@127.0.0.1:5432/postgres"
 )
 
 
+def _rebuild_database_url(url: str, *, database: str, sqlalchemy: bool) -> str:
+    """Return a PostgreSQL URL with a chosen database name and driver.
+
+    Parsing and rendering go through SQLAlchemy's ``URL`` so credentials, host,
+    port, and query parameters are preserved without fragile string surgery.
+    When ``sqlalchemy`` is ``True`` the SQLAlchemy ``postgresql+psycopg`` driver
+    is used; otherwise a direct ``postgresql`` URI suitable for
+    ``psycopg.connect`` is produced.
+    """
+
+    parsed = make_url(url)
+    if parsed.get_backend_name() != "postgresql":
+        raise ValueError("only PostgreSQL database URLs are supported")
+
+    drivername = _SQLALCHEMY_DRIVER if sqlalchemy else _DIRECT_DRIVER
+    rebuilt = parsed.set(drivername=drivername, database=database)
+    return rebuilt.render_as_string(hide_password=False)
+
+
 def _admin_database_url() -> str:
-    test_url = os.environ.get("TEST_DATABASE_URL")
-    if test_url:
-        normalized = normalize_database_url(test_url)
-        scheme, _, remainder = normalized.partition("://")
-        credentials_and_host, _, _database = remainder.rpartition("/")
-        return f"{scheme}://{credentials_and_host}/postgres"
+    """Return a direct psycopg admin URI targeting the maintenance database."""
 
-    database_url = os.environ.get("DATABASE_URL")
-    if database_url:
-        normalized = normalize_database_url(database_url)
-        scheme, _, remainder = normalized.partition("://")
-        credentials_and_host, _, _database = remainder.rpartition("/")
-        return f"{scheme}://{credentials_and_host}/postgres"
+    source_url = (
+        os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL") or _DEFAULT_ADMIN_URL
+    )
+    return _rebuild_database_url(
+        source_url,
+        database=_MAINTENANCE_DATABASE,
+        sqlalchemy=False,
+    )
 
-    return _DEFAULT_ADMIN_URL
+
+def _sqlalchemy_database_url(admin_url: str, database_name: str) -> str:
+    """Return a SQLAlchemy ``postgresql+psycopg`` URL for a temporary database."""
+
+    return _rebuild_database_url(admin_url, database=database_name, sqlalchemy=True)
 
 
 def _database_name_prefix() -> str:
@@ -104,9 +132,7 @@ def auth_test_database_url() -> Iterator[str]:
     database_name = f"{_database_name_prefix()}{uuid.uuid4().hex[:12]}"
     _create_database(admin_url, database_name)
 
-    scheme, _, remainder = normalize_database_url(admin_url).partition("://")
-    credentials_and_host, _, _ = remainder.rpartition("/")
-    database_url = f"{scheme}://{credentials_and_host}/{database_name}"
+    database_url = _sqlalchemy_database_url(admin_url, database_name)
 
     try:
         _run_migrations(database_url)

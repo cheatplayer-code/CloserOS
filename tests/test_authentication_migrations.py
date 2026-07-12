@@ -14,7 +14,13 @@ from closeros.infrastructure.alembic_config import build_alembic_config
 from closeros.infrastructure.database import create_migration_engine
 from sqlalchemy import inspect
 
-from tests.conftest import _admin_database_url, _create_database, _drop_database
+from tests.conftest import (
+    _admin_database_url,
+    _create_database,
+    _drop_database,
+    _rebuild_database_url,
+    _sqlalchemy_database_url,
+)
 
 
 def _create_isolated_database_url() -> tuple[str, str, str]:
@@ -22,10 +28,7 @@ def _create_isolated_database_url() -> tuple[str, str, str]:
     database_name = f"closeros_auth_migration_{uuid.uuid4().hex[:12]}"
     _create_database(admin_url, database_name)
 
-    normalized_admin = admin_url.replace("postgresql://", "postgresql+psycopg://")
-    scheme, _, remainder = normalized_admin.partition("://")
-    credentials_and_host, _, _ = remainder.rpartition("/")
-    database_url = f"{scheme}://{credentials_and_host}/{database_name}"
+    database_url = _sqlalchemy_database_url(admin_url, database_name)
     return admin_url, database_name, database_url
 
 
@@ -99,7 +102,12 @@ def test_session_database_constraint_rejects_invalid_stage_combination() -> None
 
         user_id = uuid.uuid4()
         session_id = uuid.uuid4()
-        with psycopg.connect(database_url.replace("+psycopg", "")) as connection:
+        direct_url = _rebuild_database_url(
+            database_url,
+            database=database_name,
+            sqlalchemy=False,
+        )
+        with psycopg.connect(direct_url) as connection:
             connection.execute(
                 "INSERT INTO users (id, status) VALUES (%s, %s)",
                 (user_id, "active"),
