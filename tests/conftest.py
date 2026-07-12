@@ -37,6 +37,35 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "auth_persistence: PostgreSQL authentication persistence integration tests",
     )
+    config.addinivalue_line(
+        "markers",
+        "platform_persistence: PostgreSQL platform and canonical persistence integration tests",
+    )
+
+
+_PLATFORM_TRUNCATE_TABLES = (
+    "webhook_events",
+    "crm_outcomes",
+    "manager_assignments",
+    "message_delivery_status_events",
+    "message_deletion_events",
+    "message_edit_events",
+    "messages",
+    "conversation_threads",
+    "sales_cases",
+    "leads",
+    "channel_connections",
+    "invitation_roles",
+    "invitations",
+    "membership_roles",
+    "memberships",
+    "tenants",
+    "audit_events",
+    "authentication_one_time_tokens",
+    "authentication_sessions",
+    "authentication_credentials",
+    "users",
+)
 
 
 # Direct psycopg driver (no SQLAlchemy dialect suffix) for `psycopg.connect`.
@@ -179,25 +208,57 @@ def auth_audit_uow_factory(auth_session_factory: Any) -> Any:
     return factory
 
 
+@pytest.fixture
+def platform_uow_factory(auth_session_factory: Any) -> Any:
+    from closeros.infrastructure.platform_unit_of_work import SqlAlchemyPlatformUnitOfWork
+
+    def factory() -> SqlAlchemyPlatformUnitOfWork:
+        return SqlAlchemyPlatformUnitOfWork(auth_session_factory)
+
+    return factory
+
+
+@pytest.fixture
+def tenant_uow_factory(auth_session_factory: Any) -> Any:
+    from closeros.infrastructure.tenant_unit_of_work import SqlAlchemyTenantUnitOfWork
+
+    def factory() -> SqlAlchemyTenantUnitOfWork:
+        return SqlAlchemyTenantUnitOfWork(auth_session_factory)
+
+    return factory
+
+
+@pytest.fixture
+def canonical_uow_factory(auth_session_factory: Any) -> Any:
+    from closeros.infrastructure.canonical_unit_of_work import SqlAlchemyCanonicalUnitOfWork
+
+    def factory() -> SqlAlchemyCanonicalUnitOfWork:
+        return SqlAlchemyCanonicalUnitOfWork(auth_session_factory)
+
+    return factory
+
+
+def _requires_persistence_reset(request: pytest.FixtureRequest) -> bool:
+    return (
+        request.node.get_closest_marker("auth_persistence") is not None
+        or request.node.get_closest_marker("platform_persistence") is not None
+    )
+
+
 @pytest.fixture(autouse=True)
 def _reset_auth_tables(request: pytest.FixtureRequest) -> Iterator[None]:
-    if request.node.get_closest_marker("auth_persistence") is None:
+    if not _requires_persistence_reset(request):
         yield
         return
 
     from sqlalchemy import text
 
     engine: AsyncEngine = request.getfixturevalue("auth_async_engine")
+    truncate_sql = f"TRUNCATE {', '.join(_PLATFORM_TRUNCATE_TABLES)} RESTART IDENTITY CASCADE"
 
     async def reset() -> None:
         async with engine.begin() as connection:
-            await connection.execute(
-                text(
-                    "TRUNCATE audit_events, authentication_one_time_tokens, "
-                    "authentication_sessions, authentication_credentials, "
-                    "users RESTART IDENTITY CASCADE"
-                )
-            )
+            await connection.execute(text(truncate_sql))
 
     asyncio.run(reset())
     yield

@@ -14,18 +14,19 @@ from sqlalchemy import text
 from closeros_api.auth_router import router as auth_router
 from closeros_api.auth_schemas import ErrorResponse, sanitize_validation_errors
 from closeros_api.auth_security import apply_security_headers
-from closeros_api.composition import AuthRuntimeOverrides, build_auth_runtime
+from closeros_api.composition import ApiRuntimeOverrides, build_api_runtime
 from closeros_api.request_correlation import RequestCorrelationMiddleware
 from closeros_api.settings import ApiSettings
+from closeros_api.tenants_router import router as tenants_router
 
 
 def create_app(
     *,
     settings: ApiSettings | None = None,
-    overrides: AuthRuntimeOverrides | None = None,
+    overrides: ApiRuntimeOverrides | None = None,
 ) -> FastAPI:
     resolved_settings = settings or ApiSettings.from_env()
-    runtime = build_auth_runtime(resolved_settings, overrides)
+    runtime = build_api_runtime(resolved_settings, overrides)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -47,7 +48,7 @@ def create_app(
         allow_origins=list(resolved_settings.auth_allowed_origins),
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS"],
-        allow_headers=["Content-Type", "X-CSRF-Token"],
+        allow_headers=["Content-Type", "X-CSRF-Token", "X-Tenant-ID"],
     )
     application.add_middleware(RequestCorrelationMiddleware)
 
@@ -103,6 +104,7 @@ def create_app(
         return response
 
     application.include_router(auth_router, prefix="/api/v1/auth")
+    application.include_router(tenants_router, prefix="/api/v1")
     return application
 
 

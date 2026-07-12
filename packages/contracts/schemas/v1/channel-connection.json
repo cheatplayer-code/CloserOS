@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closeros.ai/schemas/v1/channel-connection.json",
+  "title": "ChannelConnection",
+  "description": "Provider-neutral channel connection record. Version 1.0.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "tenant_id",
+    "provider",
+    "external_connection_id",
+    "status",
+    "adapter_metadata",
+    "created_at",
+    "updated_at"
+  ],
+  "properties": {
+    "schema_version": { "$ref": "#/$defs/schemaVersion" },
+    "id": { "$ref": "#/$defs/uuid" },
+    "tenant_id": { "$ref": "#/$defs/uuid" },
+    "provider": { "$ref": "#/$defs/providerKind" },
+    "external_connection_id": { "$ref": "#/$defs/externalId" },
+    "status": { "$ref": "#/$defs/channelConnectionStatus" },
+    "adapter_metadata": { "$ref": "#/$defs/adapterMetadata" },
+    "created_at": { "$ref": "#/$defs/timestamp" },
+    "updated_at": { "$ref": "#/$defs/timestamp" }
+  },
+  "$defs": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0",
+      "description": "Canonical contract version for this entity."
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "RFC 4122 UUID in canonical string form."
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": ".*(Z|[+-]\\d{2}:\\d{2})$",
+      "description": "ISO 8601 timestamp with explicit UTC (Z) or numeric timezone offset."
+    },
+    "externalId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Provider-scoped external identifier. Must be non-empty after trimming."
+    },
+    "adapterMetadata": {
+      "type": "object",
+      "description": "Bounded provider-specific scalar metadata. No message bodies or secrets.",
+      "maxProperties": 32,
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string", "minLength": 1, "maxLength": 512 },
+          { "type": "integer" },
+          { "type": "boolean" },
+          { "type": "null" }
+        ]
+      },
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "not": {
+          "pattern": "(?i).*(body|text|message|content|token|secret|password|authorization|cookie|email|phone|payload).*"
+        }
+      }
+    },
+    "providerKind": {
+      "type": "string",
+      "enum": ["whatsapp", "instagram", "telegram_business"]
+    },
+    "channelConnectionStatus": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "authorizing",
+        "active",
+        "degraded",
+        "reauthorization_required",
+        "revoked",
+        "disconnected"
+      ]
+    }
+  }
+}

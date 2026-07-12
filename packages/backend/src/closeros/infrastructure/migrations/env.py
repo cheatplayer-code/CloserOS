@@ -5,8 +5,12 @@ from __future__ import annotations
 from logging.config import fileConfig
 
 from alembic import context
-from closeros.infrastructure import audit_orm  # noqa: F401
-from closeros.infrastructure.authentication_orm import Base
+from closeros.infrastructure import (
+    audit_orm,  # noqa: F401
+    canonical_orm,  # noqa: F401
+    tenant_orm,  # noqa: F401
+)
+from closeros.infrastructure.orm_base import Base
 from sqlalchemy import engine_from_config, pool
 
 config = context.config

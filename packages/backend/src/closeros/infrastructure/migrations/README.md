@@ -16,6 +16,19 @@ Alembic migrations for the authentication persistence subsystem live under
 - **Table:** `audit_events` with append-only trigger, query indexes, and domain-aligned
   CHECK constraints
 
+## Platform persistence revision
+
+- **Revision ID:** `d4e8f1a2b3c5`
+- **Revises:** `8e4b1d0f6a23`
+- **Tables:** `tenants`, `memberships`, `membership_roles`, `invitations`,
+  `invitation_roles`, `channel_connections`, `leads`, `sales_cases`,
+  `conversation_threads`, `messages`, `message_edit_events`,
+  `message_deletion_events`, `message_delivery_status_events`,
+  `manager_assignments`, `crm_outcomes`, `webhook_events`
+- **Audit changes:** extends `audit_events` action and target_type CHECK constraints
+  for tenant, membership, invitation, channel connection, and manager assignment
+  lifecycle events
+
 Raw passwords and raw authentication tokens are never stored. Session and
 one-time-token tables store only 32-byte SHA-256 hashes.
 

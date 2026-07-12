@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closeros.ai/schemas/v1/message-deletion-event.json",
+  "title": "MessageDeletionEvent",
+  "description": "Immutable message deletion event. Version 1.0.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "id",
+    "tenant_id",
+    "message_id",
+    "external_event_id",
+    "occurred_at",
+    "adapter_metadata"
+  ],
+  "properties": {
+    "schema_version": { "$ref": "#/$defs/schemaVersion" },
+    "id": { "$ref": "#/$defs/uuid" },
+    "tenant_id": { "$ref": "#/$defs/uuid" },
+    "message_id": { "$ref": "#/$defs/uuid" },
+    "external_event_id": { "$ref": "#/$defs/externalId" },
+    "occurred_at": { "$ref": "#/$defs/timestamp" },
+    "adapter_metadata": { "$ref": "#/$defs/adapterMetadata" }
+  },
+  "$defs": {
+    "schemaVersion": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": ".*(Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "externalId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "adapterMetadata": {
+      "type": "object",
+      "maxProperties": 32,
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string", "minLength": 1, "maxLength": 512 },
+          { "type": "integer" },
+          { "type": "boolean" },
+          { "type": "null" }
+        ]
+      },
+      "propertyNames": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "not": {
+          "pattern": "(?i).*(body|text|message|content|token|secret|password|authorization|cookie|email|phone|payload).*"
+        }
+      }
+    }
+  }
+}
