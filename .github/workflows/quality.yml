@@ -45,13 +45,14 @@ jobs:
         image: redis:8.8.0-trixie
         ports:
           - 6379:6379
+        command: >-
+          redis-server
+          --requirepass closeros_ci_redis_only_not_production
         options: >-
           --health-cmd "redis-cli -a closeros_ci_redis_only_not_production ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-          --entrypoint redis-server
-          redis-server --requirepass closeros_ci_redis_only_not_production
 
     steps:
       - name: Check out repository
