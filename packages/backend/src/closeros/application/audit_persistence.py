@@ -48,7 +48,6 @@ class AuditEventAppendRepository(Protocol):
 
 
 class AuditEventRepository(AuditEventAppendRepository, Protocol):
-
     async def query_page(
         self,
         *,
