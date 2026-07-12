@@ -1,0 +1,194 @@
+"""Shared PostgreSQL fixtures for authentication persistence integration tests.
+
+These fixtures create an isolated temporary database on the existing local
+PostgreSQL instance, run Alembic migrations, and drop the database after the
+test module completes. The main ``closeros_local`` database and its volume are
+never modified.
+"""
+
+# mypy: disable-error-code=import-untyped
+
+from __future__ import annotations
+
+import asyncio
+import os
+import sys
+import uuid
+from collections.abc import Iterator
+from typing import Any
+
+import psycopg
+import pytest
+from alembic import command
+from closeros.infrastructure.alembic_config import build_alembic_config
+from closeros.infrastructure.database import (
+    create_authentication_engine,
+    create_authentication_sessionmaker,
+)
+from sqlalchemy import make_url
+from sqlalchemy.ext.asyncio import AsyncEngine
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.addinivalue_line(
+        "markers",
+        "auth_persistence: PostgreSQL authentication persistence integration tests",
+    )
+
+
+# Direct psycopg driver (no SQLAlchemy dialect suffix) for `psycopg.connect`.
+_DIRECT_DRIVER = "postgresql"
+# SQLAlchemy dialect driver used by engines and Alembic.
+_SQLALCHEMY_DRIVER = "postgresql+psycopg"
+_MAINTENANCE_DATABASE = "postgres"
+
+_DEFAULT_ADMIN_URL = (
+    "postgresql://closeros_local:closeros_local_only_change_me@127.0.0.1:5432/postgres"
+)
+
+
+def _rebuild_database_url(url: str, *, database: str, sqlalchemy: bool) -> str:
+    """Return a PostgreSQL URL with a chosen database name and driver.
+
+    Parsing and rendering go through SQLAlchemy's ``URL`` so credentials, host,
+    port, and query parameters are preserved without fragile string surgery.
+    When ``sqlalchemy`` is ``True`` the SQLAlchemy ``postgresql+psycopg`` driver
+    is used; otherwise a direct ``postgresql`` URI suitable for
+    ``psycopg.connect`` is produced.
+    """
+
+    parsed = make_url(url)
+    if parsed.get_backend_name() != "postgresql":
+        raise ValueError("only PostgreSQL database URLs are supported")
+
+    drivername = _SQLALCHEMY_DRIVER if sqlalchemy else _DIRECT_DRIVER
+    rebuilt = parsed.set(drivername=drivername, database=database)
+    return rebuilt.render_as_string(hide_password=False)
+
+
+def _admin_database_url() -> str:
+    """Return a direct psycopg admin URI targeting the maintenance database."""
+
+    source_url = (
+        os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL") or _DEFAULT_ADMIN_URL
+    )
+    return _rebuild_database_url(
+        source_url,
+        database=_MAINTENANCE_DATABASE,
+        sqlalchemy=False,
+    )
+
+
+def _sqlalchemy_database_url(admin_url: str, database_name: str) -> str:
+    """Return a SQLAlchemy ``postgresql+psycopg`` URL for a temporary database."""
+
+    return _rebuild_database_url(admin_url, database=database_name, sqlalchemy=True)
+
+
+def _database_name_prefix() -> str:
+    return "closeros_auth_test_"
+
+
+def _create_database(admin_url: str, database_name: str) -> None:
+    with psycopg.connect(admin_url, autocommit=True) as connection:
+        connection.execute(
+            psycopg.sql.SQL("CREATE DATABASE {}").format(psycopg.sql.Identifier(database_name))
+        )
+
+
+def _drop_database(admin_url: str, database_name: str) -> None:
+    with psycopg.connect(admin_url, autocommit=True) as connection:
+        connection.execute(
+            """
+            SELECT pg_terminate_backend(pid)
+            FROM pg_stat_activity
+            WHERE datname = %s AND pid <> pg_backend_pid()
+            """,
+            (database_name,),
+        )
+        connection.execute(
+            psycopg.sql.SQL("DROP DATABASE IF EXISTS {}").format(
+                psycopg.sql.Identifier(database_name)
+            )
+        )
+
+
+def _run_migrations(database_url: str) -> None:
+    config = build_alembic_config(database_url)
+    command.upgrade(config, "head")
+
+
+def _run_downgrade(database_url: str) -> None:
+    config = build_alembic_config(database_url)
+    command.downgrade(config, "base")
+
+
+@pytest.fixture(scope="module")
+def auth_test_database_url() -> Iterator[str]:
+    admin_url = _admin_database_url()
+    database_name = f"{_database_name_prefix()}{uuid.uuid4().hex[:12]}"
+    _create_database(admin_url, database_name)
+
+    database_url = _sqlalchemy_database_url(admin_url, database_name)
+
+    try:
+        _run_migrations(database_url)
+        yield database_url
+    finally:
+        _drop_database(admin_url, database_name)
+
+
+@pytest.fixture(scope="module")
+def auth_async_engine(auth_test_database_url: str) -> Iterator[AsyncEngine]:
+    engine = create_authentication_engine(auth_test_database_url)
+
+    async def dispose() -> None:
+        await engine.dispose()
+
+    yield engine
+    asyncio.run(dispose())
+
+
+@pytest.fixture
+def auth_session_factory(auth_async_engine: AsyncEngine) -> Any:
+    return create_authentication_sessionmaker(auth_async_engine)
+
+
+@pytest.fixture
+def auth_uow_factory(auth_session_factory: Any) -> Any:
+    from closeros.infrastructure.authentication_unit_of_work import (
+        SqlAlchemyAuthenticationUnitOfWork,
+    )
+
+    def factory() -> SqlAlchemyAuthenticationUnitOfWork:
+        return SqlAlchemyAuthenticationUnitOfWork(auth_session_factory)
+
+    return factory
+
+
+@pytest.fixture(autouse=True)
+def _reset_auth_tables(request: pytest.FixtureRequest) -> Iterator[None]:
+    if request.node.get_closest_marker("auth_persistence") is None:
+        yield
+        return
+
+    from sqlalchemy import text
+
+    engine: AsyncEngine = request.getfixturevalue("auth_async_engine")
+
+    async def reset() -> None:
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "TRUNCATE authentication_one_time_tokens, "
+                    "authentication_sessions, authentication_credentials, "
+                    "users RESTART IDENTITY CASCADE"
+                )
+            )
+
+    asyncio.run(reset())
+    yield
+    asyncio.run(reset())

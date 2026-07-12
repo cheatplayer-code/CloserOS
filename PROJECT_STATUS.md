@@ -606,3 +606,78 @@ beginning with repository interfaces and SQLAlchemy/Alembic planning.
 
 Next step: open a Pull Request from `feat/cls-011-auth-infrastructure` into
 `master` and verify GitHub CI.
+
+## CLS-011 Block A — authentication persistence and cryptography
+
+Status: **Implemented locally; GitHub Pull Request verification pending. CLS-011
+as a whole remains incomplete.**
+
+Branch: `feat/a-auth-persistence`.
+
+Implemented:
+
+- SQLAlchemy 2 async database foundation with `DATABASE_URL` normalization for
+  psycopg 3;
+- Alembic configuration and initial authentication migration revision
+  `7f3a9c2e1b04`;
+- PostgreSQL tables: `users`, `authentication_credentials`,
+  `authentication_sessions`, `authentication_one_time_tokens`;
+- database-level constraints for user status, token-hash length, session
+  stage/assurance/MFA combinations, and one-time-token purpose;
+- Argon2id password hashing adapter (`argon2-cffi`) with ADR-0010 parameters
+  (19 MiB, 2 iterations, parallelism 1), verification, and rehash detection;
+- application repository ports and safe persistence exceptions;
+- async PostgreSQL repository implementations for users, credentials, sessions,
+  and one-time tokens;
+- transactional async unit of work with explicit commit and rollback;
+- explicit ORM ↔ domain mapping without exposing ORM models outside
+  infrastructure;
+- PostgreSQL integration and migration tests against isolated temporary
+  databases;
+- GitHub Quality workflow PostgreSQL 18.4 service for CI integration tests.
+
+Dependencies added to `closeros-backend` (exact pins):
+
+- `sqlalchemy[asyncio]==2.0.51`;
+- `alembic==1.18.5`;
+- `psycopg[binary,pool]==3.3.4`;
+- `argon2-cffi==25.1.0`.
+
+Consolidated verification (2026-07-12):
+
+- new persistence and cryptography tests: 36 passed;
+- native `corepack pnpm run quality`: passed;
+- aggregate pytest: 567 passed;
+- GitHub CI with repository-pinned uv and PostgreSQL service remains the
+  authoritative PR verification.
+
+Not implemented in Block A:
+
+- credential registration;
+- login orchestration;
+- logout;
+- password change;
+- HTTP routes and cookies;
+- CSRF protection;
+- rate limiting;
+- email delivery;
+- generic anti-enumeration HTTP responses;
+- WebAuthn;
+- TOTP;
+- recovery codes;
+- audit events;
+- Redis session caching;
+- Next.js authentication UI.
+
+Architectural boundaries:
+
+- ADR-0010 remains authoritative;
+- PostgreSQL is the source of truth for sessions;
+- Redis must never become session authority;
+- raw passwords and raw authentication tokens are never persisted;
+- repositories never commit automatically; the unit of work owns transactions;
+- no import-time database connections or environment reads;
+- CLS-011 must not be marked complete.
+
+Next recommended task after merge: Block B — registration, login, logout, and
+password-change application workflows on top of the persistence layer.
