@@ -681,3 +681,71 @@ Architectural boundaries:
 
 Next recommended task after merge: Block B — registration, login, logout, and
 password-change application workflows on top of the persistence layer.
+
+## CLS-011 Block B — authentication application workflows
+
+Status: **Implemented locally; GitHub Pull Request verification pending. CLS-011
+as a whole remains incomplete.**
+
+Branch: `feat/b-auth-workflows`.
+
+Implemented:
+
+- framework-independent `AuthenticationWorkflowService` orchestrating all
+  authentication use cases through one unit-of-work transaction per workflow;
+- user registration with Argon2id hashing, unverified credential creation, and
+  email-verification token issuance;
+- generic email-verification request/resend with anti-enumeration behavior;
+- email-verification confirmation with token consumption and credential
+  verification timestamp update;
+- password login with verified-email requirement, Argon2 rehash-on-login,
+  single-factor authenticated sessions, and trusted server-side pending-MFA path;
+- `MfaVerifier` application port and persistence-aware MFA completion with session
+  rotation through the existing issuance service;
+- session resolution with configurable activity touch interval that never extends
+  absolute expiry;
+- idempotent logout, logout-all, password-reset request/confirm, and
+  authenticated password change with full session rotation;
+- safe application result types and generic denial messages without account
+  enumeration, secret leakage, or raw-token exposure in repr;
+- repository extensions for row locking (`SELECT FOR UPDATE`) and atomic
+  `consume_if_usable` one-time-token consumption.
+
+Repository changes:
+
+- `get_by_email_for_update`, `get_by_token_hash_for_update` on credential,
+  session, and one-time-token repositories;
+- `consume_if_usable` for concurrency-safe single-use token consumption;
+- no schema or migration changes.
+
+Verification (2026-07-12):
+
+- new workflow unit and PostgreSQL integration tests: 45 passed;
+- targeted Ruff format, Ruff lint, and mypy on workflow modules: passed;
+- native `corepack pnpm run quality`: passed (618 pytest);
+- GitHub CI remains the authoritative PR verification.
+
+Not implemented in Block B:
+
+- FastAPI authentication routes;
+- cookie creation and parsing;
+- CSRF protection;
+- rate limiting;
+- email-provider delivery;
+- concrete WebAuthn/TOTP adapters;
+- audit events;
+- Redis session caching;
+- generic anti-enumeration HTTP responses;
+- Next.js authentication UI.
+
+Architectural boundaries:
+
+- application layer imports no SQLAlchemy, psycopg, FastAPI, or infrastructure
+  implementations;
+- every multi-step workflow commits once through the unit of work;
+- disabled users are indistinguishable from invalid credentials at login;
+- raw passwords and raw tokens are never persisted or exposed in errors/repr;
+- CLS-011 must not be marked complete.
+
+Next recommended task after merge: Block C — HTTP routes, cookies, CSRF, and
+email delivery integration.

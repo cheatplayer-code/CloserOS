@@ -91,6 +91,11 @@ class CredentialRepository(Protocol):
         email: AuthenticationEmail,
     ) -> EmailPasswordCredential | None: ...
 
+    async def get_by_email_for_update(
+        self,
+        email: AuthenticationEmail,
+    ) -> EmailPasswordCredential | None: ...
+
     async def set_email_verified_at(
         self,
         *,
@@ -115,6 +120,11 @@ class SessionRepository(Protocol):
     ) -> AuthenticationSession | None: ...
 
     async def get_by_token_hash(
+        self,
+        token_hash: AuthenticationTokenHash,
+    ) -> AuthenticationSession | None: ...
+
+    async def get_by_token_hash_for_update(
         self,
         token_hash: AuthenticationTokenHash,
     ) -> AuthenticationSession | None: ...
@@ -156,12 +166,25 @@ class OneTimeTokenRepository(Protocol):
         token_hash: AuthenticationTokenHash,
     ) -> AuthenticationOneTimeToken | None: ...
 
+    async def get_by_token_hash_for_update(
+        self,
+        token_hash: AuthenticationTokenHash,
+    ) -> AuthenticationOneTimeToken | None: ...
+
     async def consume(
         self,
         *,
         token_id: UUID,
         consumed_at: datetime,
     ) -> None: ...
+
+    async def consume_if_usable(
+        self,
+        *,
+        token_id: UUID,
+        consumed_at: datetime,
+        now: datetime,
+    ) -> bool: ...
 
     async def revoke(
         self,

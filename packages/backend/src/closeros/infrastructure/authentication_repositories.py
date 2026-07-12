@@ -127,6 +127,17 @@ class SqlAlchemyCredentialRepository:
         ).scalar_one_or_none()
         return None if row is None else mappers.credential_to_domain(row)
 
+    async def get_by_email_for_update(
+        self,
+        email: AuthenticationEmail,
+    ) -> EmailPasswordCredential | None:
+        row = (
+            await self._session.execute(
+                select(CredentialRow).where(CredentialRow.email == email.value).with_for_update()
+            )
+        ).scalar_one_or_none()
+        return None if row is None else mappers.credential_to_domain(row)
+
     async def set_email_verified_at(
         self,
         *,
@@ -174,6 +185,19 @@ class SqlAlchemySessionRepository:
         row = (
             await self._session.execute(
                 select(SessionRow).where(SessionRow.token_hash == token_hash.digest)
+            )
+        ).scalar_one_or_none()
+        return None if row is None else mappers.session_to_domain(row)
+
+    async def get_by_token_hash_for_update(
+        self,
+        token_hash: AuthenticationTokenHash,
+    ) -> AuthenticationSession | None:
+        row = (
+            await self._session.execute(
+                select(SessionRow)
+                .where(SessionRow.token_hash == token_hash.digest)
+                .with_for_update()
             )
         ).scalar_one_or_none()
         return None if row is None else mappers.session_to_domain(row)
@@ -258,12 +282,46 @@ class SqlAlchemyOneTimeTokenRepository:
         ).scalar_one_or_none()
         return None if row is None else mappers.one_time_token_to_domain(row)
 
+    async def get_by_token_hash_for_update(
+        self,
+        token_hash: AuthenticationTokenHash,
+    ) -> AuthenticationOneTimeToken | None:
+        row = (
+            await self._session.execute(
+                select(OneTimeTokenRow)
+                .where(OneTimeTokenRow.token_hash == token_hash.digest)
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        return None if row is None else mappers.one_time_token_to_domain(row)
+
     async def consume(self, *, token_id: UUID, consumed_at: datetime) -> None:
         row = await self._session.get(OneTimeTokenRow, token_id)
         if row is None:
             raise AuthenticationRecordNotFoundError("one-time token not found")
         row.consumed_at = consumed_at
         await self._session.flush()
+
+    async def consume_if_usable(
+        self,
+        *,
+        token_id: UUID,
+        consumed_at: datetime,
+        now: datetime,
+    ) -> bool:
+        result = await self._session.execute(
+            update(OneTimeTokenRow)
+            .where(
+                OneTimeTokenRow.id == token_id,
+                OneTimeTokenRow.consumed_at.is_(None),
+                OneTimeTokenRow.revoked_at.is_(None),
+                OneTimeTokenRow.created_at <= now,
+                OneTimeTokenRow.expires_at > now,
+            )
+            .values(consumed_at=consumed_at)
+        )
+        rowcount = cast(Any, result).rowcount
+        return rowcount is not None and int(rowcount) > 0
 
     async def revoke(self, *, token_id: UUID, revoked_at: datetime) -> None:
         row = await self._session.get(OneTimeTokenRow, token_id)
