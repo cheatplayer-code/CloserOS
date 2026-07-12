@@ -126,6 +126,12 @@ class MfaVerifier(Protocol):
     ) -> bool: ...
 
 
+class MfaRequirementPolicy(Protocol):
+    """Trusted server-side policy for whether login requires MFA."""
+
+    async def requires_mfa_for_user(self, *, user_id: UUID) -> bool: ...
+
+
 def _validate_uuid(value: object, field_name: str) -> UUID:
     if not isinstance(value, UUID):
         raise TypeError(f"{field_name} must be a UUID")
@@ -445,7 +451,8 @@ class AuthenticationWorkflowService:
         plaintext_password: str,
         session_id: UUID,
         authenticated_at: datetime,
-        mfa_required: bool,
+        mfa_required: bool = False,
+        mfa_requirement_policy: MfaRequirementPolicy | None = None,
         raw_token_factory: _RawAuthenticationTokenFactory = (generate_raw_authentication_token),
     ) -> IssuedAuthenticationSession:
         validated_session_id = _validate_uuid(session_id, "session_id")
@@ -480,7 +487,13 @@ class AuthenticationWorkflowService:
                     password_hash=self.password_hasher.hash_password(plaintext_password),
                 )
 
-            if mfa_required:
+            effective_mfa_required = mfa_required
+            if mfa_requirement_policy is not None:
+                effective_mfa_required = await mfa_requirement_policy.requires_mfa_for_user(
+                    user_id=user.id
+                )
+
+            if effective_mfa_required:
                 issued = issue_pending_mfa_session(
                     session_id=validated_session_id,
                     user_id=user.id,
@@ -859,6 +872,7 @@ __all__ = [
     "AuthenticationRequestAccepted",
     "AuthenticationWorkflowService",
     "AuthenticationWorkflowUnavailableError",
+    "MfaRequirementPolicy",
     "MfaVerifier",
     "RegistrationResult",
     "RegistrationUnavailableError",

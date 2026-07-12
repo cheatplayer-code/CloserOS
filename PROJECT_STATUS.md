@@ -15,7 +15,7 @@
 
 ## Last updated
 
-2026-07-11
+2026-07-12
 
 ## What exists
 
@@ -749,3 +749,61 @@ Architectural boundaries:
 
 Next recommended task after merge: Block C — HTTP routes, cookies, CSRF, and
 email delivery integration.
+
+## CLS-011 Block C — authentication API and browser security
+
+Status: **Implemented locally; GitHub Pull Request verification pending. CLS-011
+as a whole remains incomplete.**
+
+Branch: `feat/c-auth-api`.
+
+Implemented:
+
+- FastAPI app factory (`create_app`) preserving `closeros_api.app:app`, `/health`,
+  and Uvicorn entry point; optional `/ready` database readiness probe;
+- versioned authentication routes under `/api/v1/auth` for registration,
+  email verification, login, MFA completion, session resolution, logout,
+  logout-all, password reset, and password change;
+- HttpOnly session cookies with production `__Host-closeros_session` and
+  development `closeros_dev_session`; cookie rotation on MFA completion and
+  password change; cookie clearing on logout, logout-all, and password reset;
+- session-bound CSRF tokens (HMAC-SHA-256) with Origin validation on unsafe
+  cookie-authenticated requests;
+- typed stdlib settings with production fail-closed validation for secrets,
+  HTTPS origins, MFA policy, notification dispatcher, and rate limiter;
+- ports for rate limiting, notification delivery, and trusted MFA requirement
+  policy with development/test in-memory adapters;
+- sanitized Pydantic request/response schemas, validation-error handling without
+  password/token leakage, and security/cache headers on authentication responses;
+- minimal Block B extension: server-side `MfaRequirementPolicy` on password login;
+- unit and PostgreSQL integration tests covering cookies, CSRF, CORS, rate
+  limits, anti-enumeration, and end-to-end flows.
+
+Verification (2026-07-12):
+
+- Block C auth API tests: 46 passed;
+- Block A/B authentication regression tests: passed;
+- targeted Ruff format, Ruff lint, and mypy on API modules: passed;
+- native `corepack pnpm run quality`: passed (664 pytest);
+
+Not implemented in Block C:
+
+- Next.js authentication UI;
+- concrete email provider and reliable outbox delivery;
+- distributed Redis rate limiter;
+- concrete WebAuthn/TOTP adapters;
+- audit events;
+- production proxy/deployment configuration;
+- automatic database migrations at application startup.
+
+Architectural boundaries:
+
+- raw session tokens exist only in HttpOnly cookies and server memory;
+- clients cannot supply `mfa_required`;
+- anti-enumeration endpoints always return generic `202 Accepted`;
+- production startup fails closed without explicit production adapters;
+- ADR-0010 remains authoritative;
+- CLS-011 must not be marked complete.
+
+Next recommended task after merge: Block D — Next.js authentication UI and
+production integration hardening.
