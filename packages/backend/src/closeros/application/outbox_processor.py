@@ -246,6 +246,8 @@ def _extract_typed_handler_error(
 ) -> _TypedHandlerFailure | None:
     from closeros.application.content_redact_handler import ContentRedactHandlerError
     from closeros.application.csv_import_processor import CsvImportHandlerError
+    from closeros.application.knowledge_index_handler import KnowledgeIndexHandlerError
+    from closeros.application.message_analyze_handler import MessageAnalyzeHandlerError
     from closeros.application.metrics_recalculate_handler import MetricsRecalculateHandlerError
     from closeros.application.webhook_normalize_handler import WebhookNormalizeHandlerError
 
@@ -256,6 +258,8 @@ def _extract_typed_handler_error(
             CsvImportHandlerError,
             ContentRedactHandlerError,
             MetricsRecalculateHandlerError,
+            KnowledgeIndexHandlerError,
+            MessageAnalyzeHandlerError,
         ),
     ):
         return _TypedHandlerFailure(

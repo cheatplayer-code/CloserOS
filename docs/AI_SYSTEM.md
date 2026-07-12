@@ -198,3 +198,24 @@ The UI must not present:
 - score as an employment verdict;
 - invented business facts;
 - unsupported policy claims.
+
+## 13. NOPQ implementation baseline
+
+Implemented in NOPQ application/infrastructure layers:
+
+- governed `AiGateway` orchestration with fail-closed `AiFailureCode` mapping;
+- mandatory `AiInputGate` checks (policy, eligibility, residual scan, limits, digest);
+- strict `AiOutputValidator` (taxonomy, evidence/citation integrity, chain-of-thought rejection, unsafe output blocking);
+- deterministic prompt builder with versioned prompt/rubric metadata;
+- integer microunit budget reservation/reconciliation service;
+- provider-neutral ports plus:
+  - OpenAI-compatible HTTP adapter with HTTPS and bounded response guards;
+  - deterministic synthetic provider for offline/CI;
+- tenant-isolated lexical knowledge chunk indexing and retrieval.
+
+Current phase constraints:
+
+- no live paid AI calls in default tests;
+- `AI_EXTERNAL_CALLS_ENABLED=false` in test/CI;
+- no public analysis/knowledge API routes yet;
+- `message.analyze` worker handler remains a subsequent phase item.

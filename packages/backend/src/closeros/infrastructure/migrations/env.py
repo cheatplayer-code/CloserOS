@@ -6,6 +6,8 @@ from logging.config import fileConfig
 
 from alembic import context
 from closeros.infrastructure import (
+    ai_policy_orm,  # noqa: F401
+    analysis_orm,  # noqa: F401
     audit_orm,  # noqa: F401
     canonical_orm,  # noqa: F401
     encrypted_content_orm,  # noqa: F401

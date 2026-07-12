@@ -55,11 +55,25 @@ def pytest_configure(config: pytest.Config) -> None:
     )
     config.addinivalue_line(
         "markers",
+        "nopq_persistence: PostgreSQL NOPQ AI and knowledge integration tests",
+    )
+    config.addinivalue_line(
+        "markers",
         "redis_integration: Redis stream queue integration tests",
     )
 
 
 _PLATFORM_TRUNCATE_TABLES = (
+    "conversation_finding_knowledge_citations",
+    "conversation_finding_evidence",
+    "conversation_findings",
+    "conversation_analysis_runs",
+    "knowledge_chunk_terms",
+    "knowledge_chunks",
+    "knowledge_document_versions",
+    "knowledge_documents",
+    "ai_usage_daily",
+    "tenant_ai_policies",
     "metric_values",
     "metric_snapshots",
     "content_sanitization_category_counts",
@@ -280,6 +294,7 @@ def _requires_persistence_reset(request: pytest.FixtureRequest) -> bool:
         or request.node.get_closest_marker("hi_persistence") is not None
         or request.node.get_closest_marker("jk_persistence") is not None
         or request.node.get_closest_marker("lm_persistence") is not None
+        or request.node.get_closest_marker("nopq_persistence") is not None
     )
 
 

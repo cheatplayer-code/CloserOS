@@ -197,6 +197,23 @@ reads canonical metadata inside half-open tenant-local windows, persists immutab
 `metrics.recalculate` jobs (including after eligible redaction). See
 `docs/PRIVACY_REDACTION.md`, `docs/METRICS.md`, and ADR-0014.
 
+### 7.4 Governed AI gateway and knowledge retrieval (Block NOPQ)
+
+NOPQ adds provider-neutral AI and tenant-isolated knowledge foundations:
+
+- `AiGateway` orchestrates sanitized transcript assembly, policy/input gating,
+  budget reservation, knowledge retrieval, provider call, and strict output validation.
+- Output is accepted only when schema, issue taxonomy, evidence IDs, and knowledge
+  citations are valid and no sensitive-data leakage is detected.
+- Knowledge indexing runs through `knowledge.index` outbox jobs:
+  approved encrypted documents are chunked, encrypted as `knowledge_chunk`, and
+  indexed with tenant-keyed lexical term digests.
+- Retrieval is tenant-scoped, ranked deterministically, and decrypts chunks with
+  `ContentAccessPurpose.KNOWLEDGE_RETRIEVAL`, including audit append.
+
+NOPQ does not yet expose public analysis/knowledge API routes and does not wire
+`message.analyze` as an active worker handler.
+
 ## 8. Consistency
 
 - PostgreSQL is the primary system of record.

@@ -1081,6 +1081,56 @@ Not implemented in Block LM:
 - owner dashboard UI or manager task queue;
 - official provider adapters, CRM integration, or autonomous outbound messaging.
 
-Next block: **NOPQ** — AI gateway, evidence-backed analysis, and tenant-isolated
-knowledge retrieval.
+## Block NOPQ — governed AI gateway, evidence-backed analysis, knowledge retrieval
+
+Status: **Implemented locally; PR verification pending.**
+
+Branch: `feat/nopq-ai-knowledge`
+
+Implemented:
+
+- provider-neutral AI domain types, ports, gateway, input gate, prompt builder,
+  strict output validator, budget reservation/reconciliation, and audit builders;
+- `OpenAICompatibleChatAdapter` (`httpx==0.28.1` only new runtime dependency) plus
+  deterministic synthetic provider for CI;
+- tenant AI policy persistence/API, daily usage accounting, and fail-closed
+  `AI_EXTERNAL_CALLS_ENABLED` gating;
+- encrypted knowledge ingestion/indexing with deterministic chunking and
+  tenant-bound HMAC lexical retrieval (`KNOWLEDGE_RETRIEVAL` decrypt audit);
+- real outbox handlers: `message.analyze`, `knowledge.index`;
+- analysis enqueue after successful sanitization when tenant AI policy enabled;
+- tenant-scoped knowledge and analysis HTTP APIs;
+- migration `e3b7c9d1f5a2` (AI policy/usage, analysis runs/findings, knowledge tables,
+  encrypted-content kinds `knowledge_document`/`knowledge_chunk`, NOPQ audit actions);
+- ADR-0015, `docs/AI_GATEWAY.md`, `docs/KNOWLEDGE_BASE.md`, `docs/AI_EVALUATION.md`;
+- worker registration for `message.analyze` and `knowledge.index`.
+
+Verification (2026-07-12):
+
+- full `corepack pnpm run quality`: **passed** (1279 pytest, contracts/web Vitest,
+  Ruff, mypy);
+- NOPQ-focused pytest modules: gateway/policy, input/output safety, knowledge
+  ingestion/index/retrieval, budget, worker handlers, migration upgrade/downgrade,
+  API authorization, evaluation harness (~136 new/updated tests in NOPQ modules).
+
+Security boundaries verified in tests:
+
+- only `SANITIZED_MESSAGE` decrypted for `AI_ANALYSIS`; raw content never sent;
+- no prompt or raw provider output persisted; chain-of-thought fields rejected;
+- findings require in-input evidence; citations require retrieved chunk IDs;
+- retrieval and term index are tenant-isolated; knowledge text remains encrypted;
+- `AI_EXTERNAL_CALLS_ENABLED=false` blocks live provider calls in CI.
+
+Not implemented in Block NOPQ:
+
+- dashboard UI, manager scorecards, follow-up task queue;
+- autonomous outbound replies;
+- official messaging-provider adapters, CRM integrations, vector search, web search.
+
+Next block: **RSTU** — owner dashboard, conversation review, manager scorecards,
+and follow-up tasks.
+
+## NOPQ knowledge application/infrastructure layer (superseded section)
+
+Status: **Merged into Block NOPQ section above.**
 

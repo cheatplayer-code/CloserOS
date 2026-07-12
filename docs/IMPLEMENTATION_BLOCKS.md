@@ -76,6 +76,32 @@ update to this file and `PROJECT_STATUS.md`.
 - No external AI gateway, `message.analyze` handler, name/address NER, or
   production DLP/scanner adapters yet.
 
+## Block NOPQ scope (implemented locally; PR verification pending)
+
+- Provider-neutral AI application ports with hidden-repr request/response payloads.
+- Governed `AiGateway` orchestration with fail-closed purpose, sanitization,
+  budget, and output-validation checks.
+- Deterministic conversation input assembler and versioned prompt/rubric builder.
+- Strict AI output validator:
+  - controlled issue/severity taxonomy;
+  - evidence-message integrity;
+  - knowledge-citation integrity;
+  - chain-of-thought key rejection;
+  - residual sensitive-data blocking on explanation/action text only.
+- OpenAI-compatible adapter with HTTPS-only base URL and bounded response
+  parsing; synthetic deterministic provider for local/CI.
+- Tenant AI policy/usage persistence, budget reservation, and policy HTTP API.
+- Knowledge domain persistence, SQLAlchemy repositories, and integrated unit-of-work
+  wiring for knowledge documents, versions, chunks, and lexical terms.
+- `knowledge.index` and `message.analyze` outbox handlers with idempotent flows.
+- Tenant-scoped knowledge ingestion/approval/revocation and analysis query/request APIs.
+- Worker runtime registration for `knowledge.index` and `message.analyze`.
+- Alembic revision `e3b7c9d1f5a2` for AI policy/usage, analysis runs/findings, and
+  knowledge retrieval schema.
+
+Next block: **RSTU** — owner dashboard, conversation review, manager scorecards,
+and follow-up task queue.
+
 ## Rules
 
 - Each block builds on prior merged work; do not skip ahead without an ADR.

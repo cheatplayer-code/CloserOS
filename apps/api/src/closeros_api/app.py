@@ -11,11 +11,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from closeros_api.ai_policy_router import router as ai_policy_router
+from closeros_api.analysis_router import router as analysis_router
 from closeros_api.auth_router import router as auth_router
 from closeros_api.auth_schemas import ErrorResponse, sanitize_validation_errors
 from closeros_api.auth_security import apply_security_headers
 from closeros_api.composition import ApiRuntimeOverrides, build_api_runtime
 from closeros_api.csv_imports_router import router as csv_imports_router
+from closeros_api.knowledge_router import router as knowledge_router
 from closeros_api.metrics_router import router as metrics_router
 from closeros_api.request_correlation import RequestCorrelationMiddleware
 from closeros_api.settings import ApiSettings
@@ -116,6 +119,9 @@ def create_app(
     application.include_router(webhooks_router, prefix="/api/v1")
     application.include_router(csv_imports_router, prefix="/api/v1")
     application.include_router(metrics_router, prefix="/api/v1")
+    application.include_router(knowledge_router, prefix="/api/v1")
+    application.include_router(analysis_router, prefix="/api/v1")
+    application.include_router(ai_policy_router, prefix="/api/v1")
     return application
 
 
