@@ -7,15 +7,15 @@ import asyncio
 import signal
 from datetime import UTC, datetime, timedelta
 
-from closeros_worker.runtime import NOPQ_SUPPORTED_JOB_KINDS, WorkerRuntime, build_worker_runtime
-from closeros_worker.settings import WorkerSettings
+from closeros_worker.runtime import VW_SUPPORTED_JOB_KINDS, WorkerRuntime, build_worker_runtime
+from closeros_worker.settings import WorkerConfigurationError, WorkerSettings
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="CloserOS background worker")
     parser.add_argument(
         "mode",
-        choices=("publisher", "processor", "reconcile-once", "all"),
+        choices=("publisher", "processor", "reconcile-once", "reconcile-whatsapp-once", "all"),
         help="worker execution mode",
     )
     return parser
@@ -30,7 +30,7 @@ async def _run_publisher(runtime: WorkerRuntime, *, stop_event: asyncio.Event) -
             await publisher.publish_batch(
                 now=now,
                 batch_size=runtime.settings.publish_batch_size,
-                allowed_job_kinds=NOPQ_SUPPORTED_JOB_KINDS,
+                allowed_job_kinds=VW_SUPPORTED_JOB_KINDS,
             )
             await uow.commit()
         try:
@@ -69,6 +69,24 @@ async def _run_reconcile_once(runtime: WorkerRuntime) -> None:
         await uow.commit()
 
 
+async def _run_reconcile_whatsapp_once(runtime: WorkerRuntime) -> None:
+    import os
+    from uuid import UUID
+
+    from closeros.application.audit_recording import AuditContext
+
+    tenant_raw = os.environ.get("WHATSAPP_RECONCILE_TENANT_ID", "").strip()
+    if not tenant_raw:
+        raise WorkerConfigurationError("WHATSAPP_RECONCILE_TENANT_ID is not set")
+
+    tenant_id = UUID(tenant_raw)
+    reconciliation = runtime.whatsapp_reconciliation_service_factory()
+    await reconciliation.reconcile_once(
+        tenant_id=tenant_id,
+        audit_context=AuditContext(correlation_id=tenant_id),
+    )
+
+
 async def _run_all(runtime: WorkerRuntime, *, stop_event: asyncio.Event) -> None:
     await asyncio.gather(
         _run_publisher(runtime, stop_event=stop_event),
@@ -95,6 +113,8 @@ async def _async_main(mode: str) -> int:
             await _run_processor(runtime, stop_event=stop_event)
         elif mode == "reconcile-once":
             await _run_reconcile_once(runtime)
+        elif mode == "reconcile-whatsapp-once":
+            await _run_reconcile_whatsapp_once(runtime)
         else:
             await _run_all(runtime, stop_event=stop_event)
     finally:

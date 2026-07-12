@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, cast
+from typing import Annotated, NoReturn, cast
 from uuid import UUID
 
 from closeros.application.audit_recording import AuditContext
@@ -10,8 +10,13 @@ from closeros.application.webhook_ingestion import (
     WEBHOOK_DENIED_RESPONSE,
     WebhookIngestionDeniedError,
 )
+from closeros.application.whatsapp_webhook_verification_service import (
+    WEBHOOK_VERIFICATION_DENIED,
+    WhatsAppWebhookVerificationError,
+)
 from closeros.domain.canonical_enums import ProviderKind
-from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi.responses import PlainTextResponse
 from starlette.exceptions import HTTPException
 
 from closeros_api.auth_security import apply_security_headers
@@ -50,8 +55,39 @@ def _provider_kind_from_path(value: str) -> ProviderKind | None:
         return None
 
 
-def _deny() -> None:
+def _deny() -> NoReturn:
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=WEBHOOK_DENIED_RESPONSE)
+
+
+@router.get("/webhooks/whatsapp_cloud/{webhook_public_key}")
+async def verify_whatsapp_cloud_webhook(
+    webhook_public_key: str,
+    request: Request,
+    response: Response,
+    runtime: RuntimeDep,
+    hub_mode: Annotated[str | None, Query(alias="hub.mode")] = None,
+    hub_verify_token: Annotated[str | None, Query(alias="hub.verify_token")] = None,
+    hub_challenge: Annotated[str | None, Query(alias="hub.challenge")] = None,
+) -> PlainTextResponse:
+    verification_service = runtime.whatsapp_webhook_verification_service
+    if verification_service is None:
+        _deny()
+
+    try:
+        challenge = await verification_service.verify_subscription(
+            webhook_public_key=webhook_public_key,
+            hub_mode=hub_mode,
+            hub_verify_token=hub_verify_token,
+            hub_challenge=hub_challenge,
+        )
+    except WhatsAppWebhookVerificationError:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=WEBHOOK_VERIFICATION_DENIED,
+        ) from None
+
+    apply_security_headers(response)
+    return PlainTextResponse(content=challenge)
 
 
 @router.post("/webhooks/{provider}/{connection_id}")
@@ -79,7 +115,7 @@ async def accept_provider_webhook(
 
     try:
         result = await runtime.webhook_ingestion.accept_provider_webhook(
-            provider_kind=provider_kind,  # type: ignore[arg-type]
+            provider_kind=provider_kind,
             connection_id=connection_id,
             raw_body=raw_body,
             headers=normalized_headers,

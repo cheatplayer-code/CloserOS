@@ -80,6 +80,16 @@ Alembic migrations for the authentication persistence subsystem live under
 - **Audit changes:** extends `audit_events` action and target-type CHECK
   constraints for AI policy, analysis, budget, and knowledge retrieval/indexing.
 
+## VW WhatsApp Cloud provider revision
+
+- **Revision ID:** `b3d7f1a4c8e6`
+- **Revises:** `f6a8c2e4b1d3`
+- **Tables:** `whatsapp_cloud_connections`, `provider_message_templates`,
+  `provider_media_references`, `outbound_messages`, `outbound_delivery_attempts`
+- **Schema changes:** provider enum `whatsapp_cloud`; encrypted-content kind
+  `outbound_message`; outbox kinds `provider.message.send`, `provider.templates.sync`
+- **Documentation:** ADR-0016, `docs/WHATSAPP_CLOUD.md`
+
 Raw passwords and raw authentication tokens are never stored. Session and
 one-time-token tables store only 32-byte SHA-256 hashes.
 

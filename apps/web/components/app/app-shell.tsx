@@ -36,6 +36,7 @@ export function AppHeader({
         <Link href="/app/conversations">Conversations</Link>
         <Link href="/app/managers">Managers</Link>
         <Link href="/app/tasks">Tasks</Link>
+        <Link href="/settings/integrations">Integrations</Link>
         <Link href="/settings/security">Security</Link>
       </nav>
       <div className="app-header__session">

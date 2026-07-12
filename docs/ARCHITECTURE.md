@@ -214,6 +214,24 @@ NOPQ adds provider-neutral AI and tenant-isolated knowledge foundations:
 NOPQ does not yet expose public analysis/knowledge API routes and does not wire
 `message.analyze` as an active worker handler.
 
+### 7.5 WhatsApp Cloud provider boundary (Block VW)
+
+Official Meta WhatsApp Cloud integration stays inside infrastructure adapters:
+
+- `WhatsAppCloudWebhookAdapter` verifies `X-Hub-Signature-256` and normalizes
+  webhook JSON to canonical operations;
+- `WhatsAppCloudApiClient` calls versioned Graph endpoints via `httpx` with
+  injectable transport (MockTransport in tests);
+- `WhatsAppCredentialResolver` resolves access token, app secret, and verify token
+  by reference key — secrets never persist in PostgreSQL or API responses;
+- inbound media stores placeholder text and `quarantined_pending_scan` metadata until
+  a scanner adapter exists;
+- outbound uses human-approved drafts, `WhatsAppMessagingPolicy` v1, and
+  `provider.message.send` handler with no blind resend.
+
+Provider SDK types and raw webhook JSON must not leak into domain packages.
+See `docs/WHATSAPP_CLOUD.md` and ADR-0016.
+
 ## 8. Consistency
 
 - PostgreSQL is the primary system of record.

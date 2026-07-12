@@ -23,11 +23,13 @@ from closeros_api.dashboard_router import router as dashboard_router
 from closeros_api.knowledge_router import router as knowledge_router
 from closeros_api.managers_router import router as managers_router
 from closeros_api.metrics_router import router as metrics_router
+from closeros_api.outbound_messages_router import router as outbound_messages_router
 from closeros_api.request_correlation import RequestCorrelationMiddleware
 from closeros_api.settings import ApiSettings
 from closeros_api.tasks_router import router as tasks_router
 from closeros_api.tenants_router import router as tenants_router
 from closeros_api.webhooks_router import router as webhooks_router
+from closeros_api.whatsapp_integrations_router import router as whatsapp_integrations_router
 
 
 def create_app(
@@ -130,6 +132,8 @@ def create_app(
     application.include_router(knowledge_router, prefix="/api/v1")
     application.include_router(analysis_router, prefix="/api/v1")
     application.include_router(ai_policy_router, prefix="/api/v1")
+    application.include_router(whatsapp_integrations_router, prefix="/api/v1")
+    application.include_router(outbound_messages_router, prefix="/api/v1")
     return application
 
 

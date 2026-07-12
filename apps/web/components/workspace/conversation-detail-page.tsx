@@ -1,11 +1,15 @@
 "use client";
 /* eslint-disable react-hooks/set-state-in-effect -- workspace pages reset fetch state when tenant context changes */
 
-import type { ConversationDetailResponseV1 } from "@closeros/contracts";
+import type {
+  ConversationDetailResponseV1,
+  OutboundMessageV1,
+} from "@closeros/contracts";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { productApiClient } from "../../lib/api/product-client";
+import { whatsappApiClient } from "../../lib/api/whatsapp-client";
 import type { ApiFailure } from "../../lib/auth/types";
 import { useTenant } from "../../lib/tenant/use-tenant";
 import { AppShell } from "../app/app-shell";
@@ -30,6 +34,13 @@ const CONVERSATION_ROLES = [
   "manager",
 ];
 const ANALYSIS_ROLES = ["owner", "sales_head", "compliance_admin"];
+const OUTBOUND_WRITE_ROLES = ["owner", "sales_head", "manager"];
+const OUTBOUND_READ_ROLES = [
+  "owner",
+  "sales_head",
+  "compliance_admin",
+  "manager",
+];
 
 interface ConversationDetailPageProps {
   conversationId: string;
@@ -62,6 +73,11 @@ function ConversationDetailContent({
   const [detail, setDetail] = useState<ConversationDetailResponseV1 | null>(
     null,
   );
+  const [draftText, setDraftText] = useState("");
+  const [outboundBusy, setOutboundBusy] = useState(false);
+  const [outboundNotice, setOutboundNotice] = useState<string | null>(null);
+  const [outboundMessage, setOutboundMessage] =
+    useState<OutboundMessageV1 | null>(null);
 
   useEffect(() => {
     if (!tenant.tenantId || permissionDenied) {
@@ -128,13 +144,113 @@ function ConversationDetailContent({
   }
 
   const canRequestAnalysis = hasAnyRole(tenant.roles, ANALYSIS_ROLES);
+  const canComposeOutbound = hasAnyRole(tenant.roles, OUTBOUND_WRITE_ROLES);
+  const canViewOutbound = hasAnyRole(tenant.roles, OUTBOUND_READ_ROLES);
+
+  async function handleCreateOutboundDraft() {
+    if (!tenant.tenantId || !session || !draftText.trim()) {
+      return;
+    }
+
+    setOutboundBusy(true);
+    setOutboundNotice(null);
+    setFailure(null);
+
+    const result = await whatsappApiClient.createOutboundDraft(
+      tenant.tenantId,
+      conversationId,
+      {
+        kind: "free_form_text",
+        body_text: draftText.trim(),
+      },
+      session.csrfToken,
+    );
+
+    setOutboundBusy(false);
+    if (!result.ok) {
+      setFailure(result);
+      return;
+    }
+
+    setOutboundMessage(result.data);
+    setOutboundNotice(
+      "Draft created. Review and explicitly approve before sending.",
+    );
+  }
+
+  async function handleApproveOutbound() {
+    if (!tenant.tenantId || !session || !outboundMessage) {
+      return;
+    }
+
+    setOutboundBusy(true);
+    setOutboundNotice(null);
+    setFailure(null);
+
+    const result = await whatsappApiClient.approveOutboundMessage(
+      tenant.tenantId,
+      outboundMessage.id,
+      { version: outboundMessage.version },
+      session.csrfToken,
+    );
+
+    setOutboundBusy(false);
+    if (!result.ok) {
+      setFailure(result);
+      return;
+    }
+
+    setOutboundMessage(result.data);
+    setOutboundNotice("Message approved and queued for human-confirmed send.");
+    setDraftText("");
+  }
+
+  async function handleCancelOutbound() {
+    if (!tenant.tenantId || !session || !outboundMessage) {
+      return;
+    }
+
+    setOutboundBusy(true);
+    setOutboundNotice(null);
+    setFailure(null);
+
+    const result = await whatsappApiClient.cancelOutboundMessage(
+      tenant.tenantId,
+      outboundMessage.id,
+      { version: outboundMessage.version },
+      session.csrfToken,
+    );
+
+    setOutboundBusy(false);
+    if (!result.ok) {
+      setFailure(result);
+      return;
+    }
+
+    setOutboundMessage(result.data);
+    setOutboundNotice("Outbound message cancelled.");
+  }
+
+  async function refreshOutboundStatus() {
+    if (!tenant.tenantId || !outboundMessage) {
+      return;
+    }
+
+    const result = await whatsappApiClient.getOutboundMessage(
+      tenant.tenantId,
+      outboundMessage.id,
+    );
+    if (result.ok) {
+      setOutboundMessage(result.data);
+    }
+  }
 
   return (
     <AppShell
       session={session}
       onLogout={onLogout}
       onLogoutAll={onLogoutAll}
-      busy={analysisBusy}
+      busy={analysisBusy || outboundBusy}
     >
       <section
         className="workspace-panel"
@@ -167,6 +283,9 @@ function ConversationDetailContent({
 
         {analysisNotice ? (
           <Alert tone="success" message={analysisNotice} />
+        ) : null}
+        {outboundNotice ? (
+          <Alert tone="success" message={outboundNotice} />
         ) : null}
 
         {showLoading ? (
@@ -206,7 +325,11 @@ function ConversationDetailContent({
                       <p>
                         {message.is_deleted
                           ? "[deleted]"
-                          : (message.sanitized_text ?? "[content unavailable]")}
+                          : message.sanitized_text ===
+                              "[media unavailable pending scan]"
+                            ? "[Media quarantined — unavailable pending security scan]"
+                            : (message.sanitized_text ??
+                              "[content unavailable]")}
                       </p>
                     </li>
                   ))}
@@ -251,6 +374,107 @@ function ConversationDetailContent({
                 </div>
               )}
             </section>
+
+            {canViewOutbound ? (
+              <section aria-labelledby="outbound-compose-title">
+                <h2 id="outbound-compose-title">
+                  Human-approved outbound reply
+                </h2>
+                <p className="workspace-meta">
+                  AI-generated suggestions never send automatically. Every
+                  outbound message requires explicit human approval.
+                </p>
+                {canComposeOutbound ? (
+                  <>
+                    <label className="auth-form">
+                      <span>Draft message</span>
+                      <textarea
+                        value={draftText}
+                        onChange={(event) => setDraftText(event.target.value)}
+                        rows={4}
+                        maxLength={4096}
+                        aria-describedby="outbound-draft-help"
+                      />
+                    </label>
+                    <p id="outbound-draft-help" className="workspace-meta">
+                      Draft text is not stored in the browser after you leave
+                      this page.
+                    </p>
+                    <div className="app-header__actions">
+                      <Button
+                        type="button"
+                        onClick={() => void handleCreateOutboundDraft()}
+                        disabled={outboundBusy || !draftText.trim()}
+                      >
+                        Save draft
+                      </Button>
+                      {outboundMessage &&
+                      ["draft", "pending_approval", "approved"].includes(
+                        outboundMessage.status,
+                      ) ? (
+                        <Button
+                          type="button"
+                          onClick={() => void handleApproveOutbound()}
+                          disabled={outboundBusy}
+                        >
+                          Approve and queue send
+                        </Button>
+                      ) : null}
+                      {outboundMessage &&
+                      !["cancelled", "failed", "delivered", "read"].includes(
+                        outboundMessage.status,
+                      ) ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => void handleCancelOutbound()}
+                          disabled={outboundBusy}
+                        >
+                          Cancel
+                        </Button>
+                      ) : null}
+                      {outboundMessage ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          onClick={() => void refreshOutboundStatus()}
+                          disabled={outboundBusy}
+                        >
+                          Refresh delivery status
+                        </Button>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <WorkspaceEmptyState
+                    title="Read-only outbound view"
+                    description="Compliance administrators can audit delivery status but cannot approve sends."
+                  />
+                )}
+                {outboundMessage ? (
+                  <dl className="workspace-meta-list">
+                    <div>
+                      <dt>Outbound status</dt>
+                      <dd>{outboundMessage.status}</dd>
+                    </div>
+                    <div>
+                      <dt>Kind</dt>
+                      <dd>{outboundMessage.kind}</dd>
+                    </div>
+                    {outboundMessage.failure_code ? (
+                      <div>
+                        <dt>Failure code</dt>
+                        <dd>{outboundMessage.failure_code}</dd>
+                      </div>
+                    ) : null}
+                    <div>
+                      <dt>Updated</dt>
+                      <dd>{formatTimestamp(outboundMessage.updated_at)}</dd>
+                    </div>
+                  </dl>
+                ) : null}
+              </section>
+            ) : null}
 
             <section aria-labelledby="conversation-tasks-title">
               <h2 id="conversation-tasks-title">Follow-up tasks</h2>

@@ -102,8 +102,19 @@ Requirements:
 - Never expose tokens to the frontend.
 - Never log Authorization headers.
 - Support rotation and revocation.
+- WhatsApp Cloud credentials resolve through reference keys on
+  `whatsapp_cloud_connections`; PostgreSQL stores keys, not secret values.
+- API integration responses must not include resolved access tokens or app secrets.
 - Use separate credentials per environment.
 - Production secrets must not live in `.env` files on developer laptops.
+
+### 7.1 Inbound media quarantine (WhatsApp Cloud)
+
+- Media webhook events persist provider media IDs and quarantine metadata only.
+- Placeholder text (`[media unavailable pending scan]`) may appear in encrypted raw
+  content until a malware scanner adapter approves download.
+- Binary media must not enter PostgreSQL plaintext tables or external LLM prompts
+  without scanner approval and legal review.
 
 ## 8. Encryption
 

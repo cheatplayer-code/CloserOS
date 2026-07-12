@@ -98,6 +98,13 @@ _PURPOSES_BY_KIND: dict[EncryptedContentKind, frozenset[ContentAccessPurpose]] =
             ContentAccessPurpose.RETENTION_DELETION,
         }
     ),
+    EncryptedContentKind.OUTBOUND_MESSAGE: frozenset(
+        {
+            ContentAccessPurpose.OUTBOUND_SEND,
+            ContentAccessPurpose.AUDIT_REVIEW,
+            ContentAccessPurpose.RETENTION_DELETION,
+        }
+    ),
 }
 
 

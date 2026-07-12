@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closeros.ai/schemas/v1/outbound-message.json",
+  "title": "OutboundMessageV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "conversation_thread_id",
+    "channel_connection_id",
+    "kind",
+    "status",
+    "created_by_user_id",
+    "created_at",
+    "updated_at",
+    "version"
+  ],
+  "properties": {
+    "id": { "$ref": "./enums.json#/$defs/uuid" },
+    "conversation_thread_id": { "$ref": "./enums.json#/$defs/uuid" },
+    "channel_connection_id": { "$ref": "./enums.json#/$defs/uuid" },
+    "kind": { "enum": ["free_form_text", "approved_template"] },
+    "status": {
+      "enum": [
+        "draft",
+        "pending_approval",
+        "approved",
+        "queued",
+        "sending",
+        "provider_accepted",
+        "delivery_unknown",
+        "delivered",
+        "read",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "provider_template_id": {
+      "oneOf": [{ "$ref": "./enums.json#/$defs/uuid" }, { "type": "null" }]
+    },
+    "created_by_user_id": { "$ref": "./enums.json#/$defs/uuid" },
+    "approved_by_user_id": {
+      "oneOf": [{ "$ref": "./enums.json#/$defs/uuid" }, { "type": "null" }]
+    },
+    "failure_code": { "type": ["string", "null"], "maxLength": 64 },
+    "created_at": { "$ref": "./enums.json#/$defs/timestamp" },
+    "approved_at": {
+      "oneOf": [{ "$ref": "./enums.json#/$defs/timestamp" }, { "type": "null" }]
+    },
+    "queued_at": {
+      "oneOf": [{ "$ref": "./enums.json#/$defs/timestamp" }, { "type": "null" }]
+    },
+    "sent_at": {
+      "oneOf": [{ "$ref": "./enums.json#/$defs/timestamp" }, { "type": "null" }]
+    },
+    "completed_at": {
+      "oneOf": [{ "$ref": "./enums.json#/$defs/timestamp" }, { "type": "null" }]
+    },
+    "updated_at": { "$ref": "./enums.json#/$defs/timestamp" },
+    "version": { "type": "integer", "minimum": 1 }
+  }
+}

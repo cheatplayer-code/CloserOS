@@ -35,7 +35,7 @@ def test_audit_migration_revision_is_head() -> None:
     config = build_alembic_config("postgresql+psycopg://local/local@127.0.0.1:5432/local")
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_current_head() == "f6a8c2e4b1d3"
+    assert script.get_current_head() == "b3d7f1a4c8e6"
 
 
 def test_audit_migration_upgrade_creates_audit_events_table() -> None:

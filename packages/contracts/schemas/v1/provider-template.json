@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closeros.ai/schemas/v1/provider-template.json",
+  "title": "ProviderTemplateV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "whatsapp_connection_id",
+    "provider_template_id",
+    "name",
+    "language_code",
+    "category",
+    "approval_status",
+    "component_shape",
+    "parameter_count",
+    "last_synced_at",
+    "version"
+  ],
+  "properties": {
+    "id": { "$ref": "./enums.json#/$defs/uuid" },
+    "whatsapp_connection_id": { "$ref": "./enums.json#/$defs/uuid" },
+    "provider_template_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "language_code": { "type": "string", "minLength": 2, "maxLength": 10 },
+    "category": { "type": "string", "minLength": 1, "maxLength": 32 },
+    "approval_status": {
+      "enum": ["approved", "pending", "rejected", "paused", "disabled"]
+    },
+    "component_shape": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "parameter_count": { "type": "integer", "minimum": 0 },
+    "last_synced_at": { "$ref": "./enums.json#/$defs/timestamp" },
+    "version": { "type": "integer", "minimum": 1 }
+  }
+}
