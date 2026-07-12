@@ -885,6 +885,17 @@ Implemented:
 - ADR-0011, `docs/AUDIT_LOG.md`, and migration/API documentation updates;
 - unit, PostgreSQL, migration, authorization, and API regression tests.
 
+Verification (2026-07-12):
+
+- audit-focused tests: 43 passed;
+- full pytest: 707 passed;
+- Vitest: 43 passed, 1 skipped;
+- Ruff: passed;
+- mypy: passed;
+- native `corepack pnpm run quality`: passed;
+- Windows CRLF mismatch fixed through root `.gitattributes`;
+- no existing web source file required a semantic or formatting commit.
+
 Not implemented in Block E:
 
 - HTTP audit-query route and frontend audit viewer;
