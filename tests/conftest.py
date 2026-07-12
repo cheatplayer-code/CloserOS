@@ -51,11 +51,19 @@ def pytest_configure(config: pytest.Config) -> None:
     )
     config.addinivalue_line(
         "markers",
+        "lm_persistence: PostgreSQL content redaction and metrics integration tests",
+    )
+    config.addinivalue_line(
+        "markers",
         "redis_integration: Redis stream queue integration tests",
     )
 
 
 _PLATFORM_TRUNCATE_TABLES = (
+    "metric_values",
+    "metric_snapshots",
+    "content_sanitization_category_counts",
+    "content_sanitizations",
     "csv_import_row_errors",
     "csv_import_batches",
     "webhook_events",
@@ -271,6 +279,7 @@ def _requires_persistence_reset(request: pytest.FixtureRequest) -> bool:
         or request.node.get_closest_marker("platform_persistence") is not None
         or request.node.get_closest_marker("hi_persistence") is not None
         or request.node.get_closest_marker("jk_persistence") is not None
+        or request.node.get_closest_marker("lm_persistence") is not None
     )
 
 

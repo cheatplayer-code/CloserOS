@@ -27,6 +27,9 @@ from closeros.infrastructure.canonical_repositories import (
     SqlAlchemySalesCaseRepository,
     SqlAlchemyWebhookEventRepository,
 )
+from closeros.infrastructure.content_sanitization_repositories import (
+    SqlAlchemyContentSanitizationRepository,
+)
 from closeros.infrastructure.csv_import_repositories import (
     SqlAlchemyCsvImportBatchRepository,
     SqlAlchemyCsvImportRowErrorRepository,
@@ -34,6 +37,7 @@ from closeros.infrastructure.csv_import_repositories import (
 from closeros.infrastructure.encrypted_content_repositories import (
     SqlAlchemyEncryptedContentRepository,
 )
+from closeros.infrastructure.metrics_repositories import SqlAlchemyMetricSnapshotRepository
 from closeros.infrastructure.outbox_repositories import (
     SqlAlchemyOutboxJobAttemptRepository,
     SqlAlchemyOutboxJobRepository,
@@ -70,10 +74,18 @@ class SqlAlchemyIntegratedUnitOfWork:
     audit_events: SqlAlchemyAuditEventRepository
     csv_import_batches: SqlAlchemyCsvImportBatchRepository
     csv_import_row_errors: SqlAlchemyCsvImportRowErrorRepository
+    content_sanitizations: SqlAlchemyContentSanitizationRepository
+    metric_snapshots: SqlAlchemyMetricSnapshotRepository
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
         self._session: AsyncSession | None = None
+
+    @property
+    def session(self) -> AsyncSession:
+        if self._session is None:
+            raise UnitOfWorkStateError("unit of work is not active")
+        return self._session
 
     async def __aenter__(self) -> SqlAlchemyIntegratedUnitOfWork:
         session = self._session_factory()
@@ -104,6 +116,8 @@ class SqlAlchemyIntegratedUnitOfWork:
         self.audit_events = SqlAlchemyAuditEventRepository(session)
         self.csv_import_batches = SqlAlchemyCsvImportBatchRepository(session)
         self.csv_import_row_errors = SqlAlchemyCsvImportRowErrorRepository(session)
+        self.content_sanitizations = SqlAlchemyContentSanitizationRepository(session)
+        self.metric_snapshots = SqlAlchemyMetricSnapshotRepository(session)
         return self
 
     async def __aexit__(

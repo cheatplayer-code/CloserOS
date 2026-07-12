@@ -23,6 +23,7 @@ from closeros.application.canonical_persistence import (
     DuplicateMessageError,
     DuplicateWebhookEventError,
 )
+from closeros.application.persistence_errors import TenantMismatchError
 from closeros.domain.canonical_enums import ProviderKind, WebhookProcessingStatus
 from closeros.domain.channel_connection import ChannelConnection
 from closeros.domain.conversation_thread import ConversationThread
@@ -329,6 +330,28 @@ class SqlAlchemyMessageRepository:
         )
         return None if row is None else mappers.message_to_domain(row)
 
+    async def get_for_update(
+        self,
+        *,
+        tenant_id: UUID,
+        message_id: UUID,
+    ) -> Message | None:
+        row = (
+            await self._session.execute(
+                select(MessageRow)
+                .where(
+                    MessageRow.tenant_id == tenant_id,
+                    MessageRow.id == message_id,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        if row.tenant_id != tenant_id:
+            raise TenantMismatchError("tenant scope mismatch")
+        return mappers.message_to_domain(row)
+
     async def get_by_external_message_id(
         self,
         *,
@@ -369,6 +392,28 @@ class SqlAlchemyMessageEditEventRepository:
             record_id=event_id,
         )
         return None if row is None else mappers.message_edit_event_to_domain(row)
+
+    async def get_for_update(
+        self,
+        *,
+        tenant_id: UUID,
+        event_id: UUID,
+    ) -> MessageEditEvent | None:
+        row = (
+            await self._session.execute(
+                select(MessageEditEventRow)
+                .where(
+                    MessageEditEventRow.tenant_id == tenant_id,
+                    MessageEditEventRow.id == event_id,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        if row.tenant_id != tenant_id:
+            raise TenantMismatchError("tenant scope mismatch")
+        return mappers.message_edit_event_to_domain(row)
 
 
 class SqlAlchemyMessageDeletionEventRepository:

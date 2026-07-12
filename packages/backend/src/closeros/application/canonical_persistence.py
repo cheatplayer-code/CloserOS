@@ -173,6 +173,13 @@ class MessageRepository(Protocol):
         message_id: UUID,
     ) -> Message | None: ...
 
+    async def get_for_update(
+        self,
+        *,
+        tenant_id: UUID,
+        message_id: UUID,
+    ) -> Message | None: ...
+
     async def get_by_external_message_id(
         self,
         *,
@@ -186,6 +193,13 @@ class MessageEditEventRepository(Protocol):
     async def append(self, event: MessageEditEvent) -> None: ...
 
     async def get_by_id(
+        self,
+        *,
+        tenant_id: UUID,
+        event_id: UUID,
+    ) -> MessageEditEvent | None: ...
+
+    async def get_for_update(
         self,
         *,
         tenant_id: UUID,

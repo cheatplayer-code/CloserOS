@@ -1,4 +1,4 @@
-"""PostgreSQL migration tests for CSV import ingestion schema."""
+"""PostgreSQL migration tests for LM redaction and metrics schema."""
 
 # mypy: disable-error-code=import-untyped
 
@@ -22,19 +22,19 @@ from tests.conftest import (
 
 def _create_isolated_database_url() -> tuple[str, str, str]:
     admin_url = _admin_database_url()
-    database_name = f"closeros_jk_migration_{uuid.uuid4().hex[:12]}"
+    database_name = f"closeros_lm_migration_{uuid.uuid4().hex[:12]}"
     _create_database(admin_url, database_name)
     database_url = _sqlalchemy_database_url(admin_url, database_name)
     return admin_url, database_name, database_url
 
 
-def test_jk_migration_revision_is_head() -> None:
+def test_lm_migration_revision_is_head() -> None:
     config = build_alembic_config("postgresql+psycopg://local/local@127.0.0.1:5432/local")
     script = ScriptDirectory.from_config(config)
     assert script.get_current_head() == "d1f3a5c7e9b2"
 
 
-def test_jk_migration_upgrade_creates_csv_tables() -> None:
+def test_lm_migration_upgrade_creates_lm_tables() -> None:
     admin_url, database_name, database_url = _create_isolated_database_url()
     config = build_alembic_config(database_url)
     try:
@@ -44,29 +44,36 @@ def test_jk_migration_upgrade_creates_csv_tables() -> None:
             table_names = set(inspect(engine).get_table_names())
         finally:
             engine.dispose()
-        assert {"csv_import_batches", "csv_import_row_errors"}.issubset(table_names)
+        assert {
+            "content_sanitizations",
+            "content_sanitization_category_counts",
+            "metric_snapshots",
+            "metric_values",
+        }.issubset(table_names)
     finally:
         _drop_database(admin_url, database_name)
 
 
-def test_jk_migration_downgrade_and_reupgrade() -> None:
+def test_lm_migration_downgrade_and_reupgrade() -> None:
     admin_url, database_name, database_url = _create_isolated_database_url()
     config = build_alembic_config(database_url)
     try:
         command.upgrade(config, "head")
-        command.downgrade(config, "e7a1c3d5f9b2")
+        command.downgrade(config, "f2a8c4e6b1d3")
         engine = create_migration_engine(database_url)
         try:
             table_names = set(inspect(engine).get_table_names())
         finally:
             engine.dispose()
-        assert "csv_import_batches" not in table_names
+        assert "content_sanitizations" not in table_names
+        assert "metric_snapshots" not in table_names
         command.upgrade(config, "head")
         engine = create_migration_engine(database_url)
         try:
             upgraded = set(inspect(engine).get_table_names())
         finally:
             engine.dispose()
-        assert "csv_import_batches" in upgraded
+        assert "content_sanitizations" in upgraded
+        assert "metric_values" in upgraded
     finally:
         _drop_database(admin_url, database_name)

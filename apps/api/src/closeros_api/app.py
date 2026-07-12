@@ -16,6 +16,7 @@ from closeros_api.auth_schemas import ErrorResponse, sanitize_validation_errors
 from closeros_api.auth_security import apply_security_headers
 from closeros_api.composition import ApiRuntimeOverrides, build_api_runtime
 from closeros_api.csv_imports_router import router as csv_imports_router
+from closeros_api.metrics_router import router as metrics_router
 from closeros_api.request_correlation import RequestCorrelationMiddleware
 from closeros_api.settings import ApiSettings
 from closeros_api.tenants_router import router as tenants_router
@@ -114,6 +115,7 @@ def create_app(
     application.include_router(tenants_router, prefix="/api/v1")
     application.include_router(webhooks_router, prefix="/api/v1")
     application.include_router(csv_imports_router, prefix="/api/v1")
+    application.include_router(metrics_router, prefix="/api/v1")
     return application
 
 

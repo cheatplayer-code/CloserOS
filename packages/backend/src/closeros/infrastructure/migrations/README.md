@@ -51,6 +51,21 @@ Alembic migrations for the authentication persistence subsystem live under
   adds `synthetic` provider kind to channel connections
 - **Audit changes:** extends `audit_events` for webhook and CSV import lifecycle actions
 
+## LM redaction and metrics revision
+
+- **Revision ID:** `d1f3a5c7e9b2`
+- **Revises:** `f2a8c4e6b1d3`
+- **Tables:** `content_sanitizations`, `content_sanitization_category_counts`,
+  `metric_snapshots`, `metric_values`
+- **Schema changes:** tenant-scoped composite foreign keys from sanitization rows
+  to `encrypted_contents`; unique `(tenant_id, source_content_id, policy_version)`
+  on sanitizations; unique snapshot identity on
+  `(tenant_id, scope, manager_user_id, window_start, window_end, formula_version)`
+- **Outbox changes:** extends `outbox_jobs` kind CHECK for `metrics.recalculate`
+- **Audit changes:** extends `audit_events` for content sanitization, metrics
+  recalculation, snapshot completion, and metrics view actions; adds target types
+  `content_sanitization` and `metric_snapshot`
+
 Raw passwords and raw authentication tokens are never stored. Session and
 one-time-token tables store only 32-byte SHA-256 hashes.
 
