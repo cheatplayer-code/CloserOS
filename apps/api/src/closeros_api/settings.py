@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import os
+import uuid
 from dataclasses import dataclass
 from datetime import timedelta
 from urllib.parse import urlparse
+from uuid import UUID
 
 _MIN_SECRET_LENGTH = 32
 _DEVELOPMENT = "development"
@@ -25,6 +27,9 @@ class ApiSettings:
     auth_rate_limit_secret: bytes
     session_touch_interval: timedelta
     trust_forwarded_client_ip: bool
+    webhook_max_body_bytes: int
+    csv_max_body_bytes: int
+    ingestion_service_id: UUID
 
     @property
     def is_production(self) -> bool:
@@ -78,6 +83,16 @@ class ApiSettings:
         if trust_forwarded not in {"true", "false"}:
             raise ApiConfigurationError("AUTH_TRUST_FORWARDED_CLIENT_IP must be true or false")
 
+        webhook_max_body_bytes = _positive_int_from_env(
+            variable_name="WEBHOOK_MAX_BODY_BYTES",
+            default=1_048_576,
+        )
+        csv_max_body_bytes = _positive_int_from_env(
+            variable_name="CSV_MAX_BODY_BYTES",
+            default=10_485_760,
+        )
+        ingestion_service_id = _ingestion_service_id_from_env(app_env=app_env)
+
         return cls(
             app_env=app_env,
             database_url=database_url,
@@ -86,6 +101,9 @@ class ApiSettings:
             auth_rate_limit_secret=rate_limit_secret,
             session_touch_interval=timedelta(minutes=touch_value),
             trust_forwarded_client_ip=trust_forwarded == "true",
+            webhook_max_body_bytes=webhook_max_body_bytes,
+            csv_max_body_bytes=csv_max_body_bytes,
+            ingestion_service_id=ingestion_service_id,
         )
 
     def validate_for_runtime(self) -> None:
@@ -125,3 +143,28 @@ def _secret_from_env(
     if app_env == _PRODUCTION and len(encoded) < _MIN_SECRET_LENGTH:
         raise ApiConfigurationError(f"{variable_name} is too weak for production")
     return encoded
+
+
+def _positive_int_from_env(*, variable_name: str, default: int) -> int:
+    raw_value = os.environ.get(variable_name, "").strip()
+    if not raw_value:
+        return default
+    try:
+        parsed = int(raw_value)
+    except ValueError as error:
+        raise ApiConfigurationError(f"{variable_name} must be an integer") from error
+    if parsed <= 0:
+        raise ApiConfigurationError(f"{variable_name} must be positive")
+    return parsed
+
+
+def _ingestion_service_id_from_env(*, app_env: str) -> UUID:
+    raw_value = os.environ.get("INGESTION_SERVICE_ID", "").strip()
+    if raw_value:
+        try:
+            return UUID(raw_value)
+        except ValueError as error:
+            raise ApiConfigurationError("INGESTION_SERVICE_ID must be a UUID") from error
+    if app_env == _DEVELOPMENT:
+        return uuid.uuid4()
+    raise ApiConfigurationError("INGESTION_SERVICE_ID is not set")

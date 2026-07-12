@@ -22,6 +22,7 @@ from closeros.domain.outbox import (
     OutboxErrorCode,
     OutboxJob,
     OutboxJobAttempt,
+    OutboxJobKind,
     OutboxJobPhase,
     OutboxJobState,
     OutboxTransitionError,
@@ -134,6 +135,7 @@ class SqlAlchemyOutboxJobRepository:
         worker_id: str,
         now: datetime,
         batch_size: int,
+        allowed_job_kinds: frozenset[OutboxJobKind] | None = None,
     ) -> tuple[OutboxJob, ...]:
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
@@ -157,6 +159,10 @@ class SqlAlchemyOutboxJobRepository:
             .limit(batch_size)
             .with_for_update(skip_locked=True)
         )
+        if allowed_job_kinds is not None:
+            statement = statement.where(
+                OutboxJobRow.job_kind.in_(tuple(kind.value for kind in allowed_job_kinds))
+            )
         rows = (await self._session.execute(statement)).scalars().all()
         claimed_jobs: list[OutboxJob] = []
         for row in rows:
@@ -274,6 +280,7 @@ class SqlAlchemyOutboxJobRepository:
         job_id: UUID,
         worker_id: str,
         now: datetime,
+        allowed_job_kinds: frozenset[OutboxJobKind] | None = None,
     ) -> OutboxJob | None:
         statement = (
             select(OutboxJobRow)
@@ -284,6 +291,10 @@ class SqlAlchemyOutboxJobRepository:
             )
             .with_for_update(skip_locked=True)
         )
+        if allowed_job_kinds is not None:
+            statement = statement.where(
+                OutboxJobRow.job_kind.in_(tuple(kind.value for kind in allowed_job_kinds))
+            )
         row = (await self._session.execute(statement)).scalar_one_or_none()
         if row is None:
             return None

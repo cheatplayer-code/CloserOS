@@ -12,6 +12,7 @@ DATA_ENCRYPTION_KEY_SIZE_BYTES = 32
 CONTENT_AAD_VERSION = 1
 RAW_OR_SANITIZED_MAX_PLAINTEXT_BYTES = 256 * 1024
 PROVIDER_PAYLOAD_MAX_PLAINTEXT_BYTES = 1024 * 1024
+CSV_IMPORT_MAX_PLAINTEXT_BYTES = 10 * 1024 * 1024
 MAX_KEY_VERSION_LENGTH = 64
 
 
@@ -19,6 +20,7 @@ class EncryptedContentKind(StrEnum):
     RAW_MESSAGE = "raw_message"
     SANITIZED_MESSAGE = "sanitized_message"
     PROVIDER_PAYLOAD = "provider_payload"
+    CSV_IMPORT = "csv_import"
 
 
 class ContentEncoding(StrEnum):
@@ -38,6 +40,7 @@ class ContentAccessPurpose(StrEnum):
     RETENTION_DELETION = "retention_deletion"
     AUDIT_REVIEW = "audit_review"
     KEY_REWRAP = "key_rewrap"
+    CSV_IMPORT_PROCESSING = "csv_import_processing"
 
 
 class EncryptedContentError(ValueError):
@@ -139,6 +142,9 @@ def max_plaintext_bytes_for_kind(kind: EncryptedContentKind) -> int:
 
     if kind is EncryptedContentKind.PROVIDER_PAYLOAD:
         return PROVIDER_PAYLOAD_MAX_PLAINTEXT_BYTES
+
+    if kind is EncryptedContentKind.CSV_IMPORT:
+        return CSV_IMPORT_MAX_PLAINTEXT_BYTES
 
     return RAW_OR_SANITIZED_MAX_PLAINTEXT_BYTES
 

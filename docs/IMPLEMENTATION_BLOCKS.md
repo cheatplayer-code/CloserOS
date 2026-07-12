@@ -46,11 +46,24 @@ and `PROJECT_STATUS.md`.
 - No provider ingestion orchestration, production KMS adapter, or concrete queue
   worker wiring yet.
 
-## Block JK scope (next)
+## Block JK scope (completed locally)
 
-- Generic ingestion pipeline and controlled CSV import.
-- Concrete queue adapter and worker entry points consuming outbox jobs.
-- `webhook.normalize` and downstream handler implementations.
+- Provider-neutral adapter ports, registry, and synthetic HMAC adapter (dev/test only).
+- Secure webhook HTTP endpoint with atomic encrypted-payload acceptance.
+- Real `webhook.normalize` and `csv.import` outbox handlers.
+- Redis Streams queue adapter (job UUID only) and worker CLI entry points.
+- Controlled encrypted CSV import API with lawful-source confirmation.
+- Resumable 250-row CSV processing with safe row-error codes.
+- Alembic revision `f2a8c4e6b1d3`; ADR-0013, `docs/INGESTION.md`, and
+  `docs/CSV_IMPORT.md`.
+- No official messaging provider integration, PII redaction, or production KMS/scanner
+  adapters yet.
+
+## Block LM scope (next)
+
+- PII/restricted-content detector.
+- Deterministic metrics engine.
+- Real `content.redact` handler implementation.
 
 ## Rules
 

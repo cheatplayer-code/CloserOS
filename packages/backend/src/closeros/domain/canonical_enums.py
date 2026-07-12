@@ -7,6 +7,7 @@ class ProviderKind(StrEnum):
     WHATSAPP = "whatsapp"
     INSTAGRAM = "instagram"
     TELEGRAM_BUSINESS = "telegram_business"
+    SYNTHETIC = "synthetic"
 
 
 class ChannelConnectionStatus(StrEnum):

@@ -1016,8 +1016,40 @@ Not implemented in Block HI:
 - retention deletion worker and bulk key-rotation scheduler;
 - provider ingestion orchestration and CSV import (Block JK).
 
-Remaining scope for Block JK:
+Block JK implemented locally (2026-07-12):
 
-- generic ingestion pipeline and controlled CSV import;
-- queue adapter wiring and worker consumption of outbox jobs.
+Branch: `feat/jk-ingestion-csv`.
+
+Implemented:
+
+- provider-neutral adapter ports, registry, and synthetic HMAC adapter (dev/test only);
+- `POST /api/v1/webhooks/{provider}/{connection_id}` with atomic encrypted acceptance;
+- real `webhook.normalize` and `csv.import` handlers;
+- Redis Streams queue adapter publishing job UUIDs only;
+- worker CLI (`publisher`, `processor`, `reconcile-once`, `all`);
+- controlled CSV import API with encrypted source storage and resumable chunks;
+- migration `f2a8c4e6b1d3` (`csv_import_batches`, `csv_import_row_errors`);
+- ADR-0013, `docs/INGESTION.md`, `docs/CSV_IMPORT.md`.
+
+Verification (2026-07-12):
+
+- JK pytest suite: **93 tests** across webhook, CSV, Redis, migration, and API modules;
+- full repository pytest: **1024 passed**, 3 skipped (Redis integration without local `TEST_REDIS_URL`);
+- Vitest (`@closeros/contracts`): **49 passed**;
+- Vitest (`@closeros/web`): **43 passed**, 1 skipped;
+- Ruff format/check: **passed**;
+- mypy: **passed** (214 source files);
+- native `corepack pnpm run quality`: **passed**.
+
+Not implemented in Block JK:
+
+- official WhatsApp, Instagram, or Telegram adapters;
+- production KMS/HSM key provider, malware scanner, or webhook rate-limiter adapters;
+- PII redaction (`content.redact` handler) — Block LM.
+
+Remaining scope for Block LM:
+
+- PII/restricted-content detector;
+- deterministic metrics engine;
+- real `content.redact` handler.
 

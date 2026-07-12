@@ -51,6 +51,9 @@ _ALLOWED_METADATA_KEYS: frozenset[str] = frozenset(
         "key_version_code",
         "job_kind",
         "outcome_code",
+        "provider_code",
+        "operation_count",
+        "source_type",
     }
 )
 
@@ -98,6 +101,14 @@ class AuditAction(StrEnum):
     ENCRYPTED_CONTENT_KEY_REWRAPPED = "encrypted_content.key_rewrapped"
     OUTBOX_JOB_DEAD_LETTERED = "outbox.job.dead_lettered"
     OUTBOX_RECONCILIATION_COMPLETED = "outbox.reconciliation.completed"
+    WEBHOOK_ACCEPTED = "webhook.accepted"
+    WEBHOOK_DUPLICATE_ACCEPTED = "webhook.duplicate_accepted"
+    WEBHOOK_NORMALIZED = "webhook.normalized"
+    WEBHOOK_NORMALIZATION_FAILED = "webhook.normalization_failed"
+    CSV_IMPORT_UPLOADED = "csv_import.uploaded"
+    CSV_IMPORT_STARTED = "csv_import.started"
+    CSV_IMPORT_COMPLETED = "csv_import.completed"
+    CSV_IMPORT_CANCELLED = "csv_import.cancelled"
     AUDIT_LOG_VIEWED = "audit.log_viewed"
 
 
@@ -113,6 +124,8 @@ class AuditTargetType(StrEnum):
     ENCRYPTED_CONTENT = "encrypted_content"
     OUTBOX_JOB = "outbox_job"
     OUTBOX_RECONCILIATION = "outbox_reconciliation"
+    WEBHOOK_EVENT = "webhook_event"
+    CSV_IMPORT_BATCH = "csv_import_batch"
     AUDIT_LOG = "audit_log"
     AUTHENTICATION = "authentication"
 

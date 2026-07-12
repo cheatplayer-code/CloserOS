@@ -57,6 +57,9 @@ def test_production_settings_reject_http_origins() -> None:
         auth_rate_limit_secret=TEST_RATE_SECRET,
         session_touch_interval=timedelta(minutes=5),
         trust_forwarded_client_ip=False,
+        webhook_max_body_bytes=1_048_576,
+        csv_max_body_bytes=10_485_760,
+        ingestion_service_id=UUID("00000000-0000-0000-0000-00000000e001"),
     )
 
     with pytest.raises(ApiConfigurationError):
@@ -247,6 +250,12 @@ def test_production_login_sets_secure_host_cookie() -> None:
             )
             return IssuedAuthenticationSession(session=session, raw_token=raw)
 
+    from closeros.application.provider_adapter_registry import ProviderAdapterRegistry
+    from closeros.infrastructure.in_memory_webhook_rate_limiter import InMemoryWebhookRateLimiter
+    from closeros.infrastructure.noop_import_content_scanner import NoOpImportContentScanner
+
+    from tests.encryption_support import build_test_key_provider
+
     app = create_app(
         settings=settings,
         overrides=AuthRuntimeOverrides(
@@ -254,6 +263,12 @@ def test_production_login_sets_secure_host_cookie() -> None:
             notification_dispatcher=CaptureNotificationDispatcher(),
             rate_limiter=InMemoryRateLimiter(),
             mfa_requirement_policy=_AlwaysFalseMfaPolicy(),
+            key_provider=build_test_key_provider(),
+            adapter_registry=ProviderAdapterRegistry(),
+            webhook_rate_limiter=InMemoryWebhookRateLimiter(),
+            content_scanner=NoOpImportContentScanner(),
+            engine=None,
+            session_factory=None,
         ),
     )
 
@@ -707,6 +722,9 @@ def test_development_settings_reject_weak_production_secrets() -> None:
         auth_rate_limit_secret=TEST_RATE_SECRET,
         session_touch_interval=timedelta(minutes=5),
         trust_forwarded_client_ip=False,
+        webhook_max_body_bytes=1_048_576,
+        csv_max_body_bytes=10_485_760,
+        ingestion_service_id=UUID("00000000-0000-0000-0000-00000000e001"),
     )
 
     with pytest.raises(ApiConfigurationError, match="CSRF"):

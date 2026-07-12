@@ -58,17 +58,20 @@ class OutboxProcessorService:
         outbox_job_attempts: OutboxJobAttemptRepository,
         handlers: dict[OutboxJobKind, OutboxJobHandler],
         worker_id: str,
+        supported_job_kinds: frozenset[OutboxJobKind] | None = None,
     ) -> None:
         self._outbox_jobs = outbox_jobs
         self._outbox_job_attempts = outbox_job_attempts
         self._handlers = handlers
         self._worker_id = worker_id
+        self._supported_job_kinds = supported_job_kinds
 
     async def process_job(self, *, job_id: UUID, now: datetime) -> OutboxProcessorResult:
         claimed = await self._outbox_jobs.claim_for_processing(
             job_id=job_id,
             worker_id=self._worker_id,
             now=now,
+            allowed_job_kinds=self._supported_job_kinds,
         )
         if claimed is None:
             return OutboxProcessorResult(job_id=job_id, outcome="not_claimed")
@@ -85,7 +88,22 @@ class OutboxProcessorService:
 
         try:
             await handler.handle(job=claimed)
-        except Exception:
+        except Exception as error:
+            handler_error = _extract_typed_handler_error(error)
+            if handler_error is not None:
+                if handler_error.permanent:
+                    return await self._handle_permanent_failure(
+                        job=claimed,
+                        started_at=started_at,
+                        now=now,
+                        error_code=handler_error.error_code,
+                    )
+                return await self._handle_failure(
+                    job=claimed,
+                    started_at=started_at,
+                    now=now,
+                    error_code=handler_error.error_code,
+                )
             return await self._handle_failure(
                 job=claimed,
                 started_at=started_at,
@@ -118,6 +136,33 @@ class OutboxProcessorService:
             error_code=None,
         )
         return OutboxProcessorResult(job_id=job_id, outcome="succeeded")
+
+    async def _handle_permanent_failure(
+        self,
+        *,
+        job: OutboxJob,
+        started_at: datetime,
+        now: datetime,
+        error_code: OutboxErrorCode,
+    ) -> OutboxProcessorResult:
+        await self._append_attempt(
+            job=job,
+            started_at=started_at,
+            finished_at=now,
+            outcome=OutboxAttemptOutcome.FAILED,
+            error_code=error_code,
+        )
+        try:
+            await self._outbox_jobs.mark_dead_letter(
+                job_id=job.id,
+                claim_token=job.claim_token,  # type: ignore[arg-type]
+                error_code=error_code.value,
+                now=now,
+                expected_version=job.version,
+            )
+        except OutboxClaimMismatchError as error:
+            raise OutboxProcessorError("outbox dead-letter finalization failed") from error
+        return OutboxProcessorResult(job_id=job.id, outcome="dead_lettered")
 
     async def _handle_failure(
         self,
@@ -194,6 +239,26 @@ class OutboxProcessorService:
             error_code=error_code,
         )
         await self._outbox_job_attempts.append(attempt)
+
+
+def _extract_typed_handler_error(
+    error: Exception,
+) -> _TypedHandlerFailure | None:
+    from closeros.application.csv_import_processor import CsvImportHandlerError
+    from closeros.application.webhook_normalize_handler import WebhookNormalizeHandlerError
+
+    if isinstance(error, (WebhookNormalizeHandlerError, CsvImportHandlerError)):
+        return _TypedHandlerFailure(
+            error_code=error.error_code,
+            permanent=error.permanent,
+        )
+    return None
+
+
+@dataclass(frozen=True, slots=True)
+class _TypedHandlerFailure:
+    error_code: OutboxErrorCode
+    permanent: bool
 
 
 def build_noop_handlers() -> dict[OutboxJobKind, OutboxJobHandler]:

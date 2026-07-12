@@ -41,6 +41,16 @@ Alembic migrations for the authentication persistence subsystem live under
 - **Audit changes:** extends `audit_events` action and target_type CHECK constraints
   for encrypted-content access/storage and outbox reconciliation events
 
+## CSV import and ingestion revision
+
+- **Revision ID:** `f2a8c4e6b1d3`
+- **Revises:** `e7a1c3d5f9b2`
+- **Tables:** `csv_import_batches`, `csv_import_row_errors`
+- **Schema changes:** extends `encrypted_contents` kind CHECK for `csv_import`;
+  extends `outbox_jobs` kind CHECK for `csv.import`; extends outbox error codes;
+  adds `synthetic` provider kind to channel connections
+- **Audit changes:** extends `audit_events` for webhook and CSV import lifecycle actions
+
 Raw passwords and raw authentication tokens are never stored. Session and
 one-time-token tables store only 32-byte SHA-256 hashes.
 
