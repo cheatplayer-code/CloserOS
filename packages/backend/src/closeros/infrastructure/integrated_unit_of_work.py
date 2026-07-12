@@ -6,6 +6,16 @@ from types import TracebackType
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from closeros.infrastructure.ai_policy_repositories import (
+    SqlAlchemyAiUsageDailyRepository,
+    SqlAlchemyTenantAiPolicyRepository,
+)
+from closeros.infrastructure.analysis_repositories import (
+    SqlAlchemyConversationAnalysisRunRepository,
+    SqlAlchemyConversationFindingEvidenceRepository,
+    SqlAlchemyConversationFindingKnowledgeCitationRepository,
+    SqlAlchemyConversationFindingRepository,
+)
 from closeros.infrastructure.audit_repositories import SqlAlchemyAuditEventRepository
 from closeros.infrastructure.authentication_repositories import (
     SqlAlchemyCredentialRepository,
@@ -36,6 +46,12 @@ from closeros.infrastructure.csv_import_repositories import (
 )
 from closeros.infrastructure.encrypted_content_repositories import (
     SqlAlchemyEncryptedContentRepository,
+)
+from closeros.infrastructure.knowledge_repositories import (
+    SqlAlchemyKnowledgeChunkRepository,
+    SqlAlchemyKnowledgeChunkTermRepository,
+    SqlAlchemyKnowledgeDocumentRepository,
+    SqlAlchemyKnowledgeDocumentVersionRepository,
 )
 from closeros.infrastructure.metrics_repositories import SqlAlchemyMetricSnapshotRepository
 from closeros.infrastructure.outbox_repositories import (
@@ -76,6 +92,18 @@ class SqlAlchemyIntegratedUnitOfWork:
     csv_import_row_errors: SqlAlchemyCsvImportRowErrorRepository
     content_sanitizations: SqlAlchemyContentSanitizationRepository
     metric_snapshots: SqlAlchemyMetricSnapshotRepository
+    knowledge_documents: SqlAlchemyKnowledgeDocumentRepository
+    knowledge_document_versions: SqlAlchemyKnowledgeDocumentVersionRepository
+    knowledge_chunks: SqlAlchemyKnowledgeChunkRepository
+    knowledge_chunk_terms: SqlAlchemyKnowledgeChunkTermRepository
+    tenant_ai_policies: SqlAlchemyTenantAiPolicyRepository
+    ai_usage_daily: SqlAlchemyAiUsageDailyRepository
+    conversation_analysis_runs: SqlAlchemyConversationAnalysisRunRepository
+    conversation_findings: SqlAlchemyConversationFindingRepository
+    conversation_finding_evidence: SqlAlchemyConversationFindingEvidenceRepository
+    conversation_finding_knowledge_citations: (
+        SqlAlchemyConversationFindingKnowledgeCitationRepository
+    )
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -118,6 +146,20 @@ class SqlAlchemyIntegratedUnitOfWork:
         self.csv_import_row_errors = SqlAlchemyCsvImportRowErrorRepository(session)
         self.content_sanitizations = SqlAlchemyContentSanitizationRepository(session)
         self.metric_snapshots = SqlAlchemyMetricSnapshotRepository(session)
+        self.knowledge_documents = SqlAlchemyKnowledgeDocumentRepository(session)
+        self.knowledge_document_versions = SqlAlchemyKnowledgeDocumentVersionRepository(session)
+        self.knowledge_chunks = SqlAlchemyKnowledgeChunkRepository(session)
+        self.knowledge_chunk_terms = SqlAlchemyKnowledgeChunkTermRepository(session)
+        self.tenant_ai_policies = SqlAlchemyTenantAiPolicyRepository(session)
+        self.ai_usage_daily = SqlAlchemyAiUsageDailyRepository(session)
+        self.conversation_analysis_runs = SqlAlchemyConversationAnalysisRunRepository(session)
+        self.conversation_findings = SqlAlchemyConversationFindingRepository(session)
+        self.conversation_finding_evidence = SqlAlchemyConversationFindingEvidenceRepository(
+            session
+        )
+        self.conversation_finding_knowledge_citations = (
+            SqlAlchemyConversationFindingKnowledgeCitationRepository(session)
+        )
         return self
 
     async def __aexit__(

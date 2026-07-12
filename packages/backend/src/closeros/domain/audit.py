@@ -64,6 +64,15 @@ _ALLOWED_METADATA_KEYS: frozenset[str] = frozenset(
         "formula_version",
         "window_code",
         "sanitization_status",
+        "purpose_code",
+        "rubric_version",
+        "issue_count",
+        "citation_count",
+        "token_count",
+        "latency_bucket",
+        "budget_status",
+        "knowledge_source_kind",
+        "version_number",
     }
 )
 
@@ -125,6 +134,18 @@ class AuditAction(StrEnum):
     METRICS_RECALCULATION_REQUESTED = "metrics.recalculation.requested"
     METRICS_SNAPSHOT_COMPLETED = "metrics.snapshot.completed"
     METRICS_VIEWED = "metrics.viewed"
+    AI_POLICY_CHANGED = "ai.policy.changed"
+    KNOWLEDGE_DOCUMENT_UPLOADED = "knowledge.document.uploaded"
+    KNOWLEDGE_VERSION_APPROVED = "knowledge.version.approved"
+    KNOWLEDGE_VERSION_INDEXED = "knowledge.version.indexed"
+    KNOWLEDGE_VERSION_REVOKED = "knowledge.version.revoked"
+    KNOWLEDGE_RETRIEVAL_COMPLETED = "knowledge.retrieval.completed"
+    ANALYSIS_REQUESTED = "analysis.requested"
+    ANALYSIS_COMPLETED = "analysis.completed"
+    ANALYSIS_BLOCKED = "analysis.blocked"
+    ANALYSIS_FAILED = "analysis.failed"
+    ANALYSIS_FINDINGS_VIEWED = "analysis.findings.viewed"
+    AI_BUDGET_EXCEEDED = "ai.budget.exceeded"
 
 
 class AuditTargetType(StrEnum):
@@ -145,6 +166,10 @@ class AuditTargetType(StrEnum):
     AUTHENTICATION = "authentication"
     CONTENT_SANITIZATION = "content_sanitization"
     METRIC_SNAPSHOT = "metric_snapshot"
+    TENANT_AI_POLICY = "tenant_ai_policy"
+    KNOWLEDGE_DOCUMENT = "knowledge_document"
+    KNOWLEDGE_DOCUMENT_VERSION = "knowledge_document_version"
+    CONVERSATION_ANALYSIS_RUN = "conversation_analysis_run"
 
 
 class AuditMetadataError(ValueError):

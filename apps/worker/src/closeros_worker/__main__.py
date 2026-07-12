@@ -7,7 +7,7 @@ import asyncio
 import signal
 from datetime import UTC, datetime, timedelta
 
-from closeros_worker.runtime import LM_SUPPORTED_JOB_KINDS, WorkerRuntime, build_worker_runtime
+from closeros_worker.runtime import NOPQ_SUPPORTED_JOB_KINDS, WorkerRuntime, build_worker_runtime
 from closeros_worker.settings import WorkerSettings
 
 
@@ -30,7 +30,7 @@ async def _run_publisher(runtime: WorkerRuntime, *, stop_event: asyncio.Event) -
             await publisher.publish_batch(
                 now=now,
                 batch_size=runtime.settings.publish_batch_size,
-                allowed_job_kinds=LM_SUPPORTED_JOB_KINDS,
+                allowed_job_kinds=NOPQ_SUPPORTED_JOB_KINDS,
             )
             await uow.commit()
         try:

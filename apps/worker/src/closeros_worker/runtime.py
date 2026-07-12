@@ -6,22 +6,50 @@ import os
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import cast
 
+from closeros.application.ai_budget_service import AiBudgetService
+from closeros.application.ai_gateway import AiGateway as NopqAiGateway
+from closeros.application.ai_gateway import KnowledgeRetrievalPort
+from closeros.application.ai_input_gate import AiInputGate
+from closeros.application.ai_output_validator import AiOutputValidator
+from closeros.application.ai_ports import (
+    AiClock,
+    AiCredentialResolver,
+    AiProvider,
+    AiProviderRegistry,
+)
+from closeros.application.ai_prompt_builder import AiPromptBuilder
+from closeros.application.analysis_enqueue_service import AnalysisEnqueueService
 from closeros.application.atomic_content_commands import AtomicContentCommandService
+from closeros.application.audit_recording import AuditContext
 from closeros.application.content_encryption_service import ContentEncryptionService
 from closeros.application.content_redact_handler import ContentRedactHandler
+from closeros.application.conversation_input_assembler import ConversationInputAssembler
 from closeros.application.csv_import_processor import CsvImportProcessor
 from closeros.application.encryption_ports import RetentionExpiryCalculator
 from closeros.application.integrated_unit_of_work import IntegratedUnitOfWork
+from closeros.application.knowledge_index_handler import KnowledgeIndexHandler
+from closeros.application.knowledge_retrieval import (
+    KnowledgeRetrievalRequest,
+    KnowledgeRetrievalService,
+)
+from closeros.application.knowledge_search_key import DevKnowledgeSearchKeyProvider
+from closeros.application.message_analyze_handler import MessageAnalyzeHandler
 from closeros.application.metrics_engine import MetricsEngine
 from closeros.application.metrics_enqueue_service import MetricsEnqueueService
 from closeros.application.metrics_recalculate_handler import MetricsRecalculateHandler
+from closeros.application.openai_compatible_adapter import OpenAICompatibleChatAdapter
 from closeros.application.outbox_processor import OutboxJobHandler, OutboxProcessorService
 from closeros.application.outbox_publisher import OutboxPublisherService
 from closeros.application.outbox_reconciliation import OutboxReconciliationService
 from closeros.application.provider_adapter_registry import ProviderAdapterRegistry
+from closeros.application.synthetic_ai_provider import SyntheticAiProvider
 from closeros.application.webhook_normalize_handler import WebhookNormalizeHandler
+from closeros.domain.ai_analysis import AiProviderCode, AiPurpose
+from closeros.domain.audit import AuditActorType
+from closeros.domain.knowledge import KnowledgeRetrievalResult
 from closeros.domain.outbox import OutboxJobKind
 from closeros.infrastructure.aes_gcm_encryption import AesGcmContentCryptography
 from closeros.infrastructure.database import (
@@ -45,14 +73,17 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from closeros_worker.settings import WorkerConfigurationError, WorkerSettings
 
-LM_SUPPORTED_JOB_KINDS = frozenset(
+NOPQ_SUPPORTED_JOB_KINDS = frozenset(
     {
         OutboxJobKind.WEBHOOK_NORMALIZE,
         OutboxJobKind.CSV_IMPORT,
         OutboxJobKind.CONTENT_REDACT,
         OutboxJobKind.METRICS_RECALCULATE,
+        OutboxJobKind.KNOWLEDGE_INDEX,
+        OutboxJobKind.MESSAGE_ANALYZE,
     }
 )
+LM_SUPPORTED_JOB_KINDS = NOPQ_SUPPORTED_JOB_KINDS
 
 _DEV_KEK_V1 = bytes(range(32))
 _DEV_KEY_VERSION = "dev-kek-v1"
@@ -60,6 +91,68 @@ _DEV_KEY_VERSION = "dev-kek-v1"
 
 class ProductionProviderAdaptersRequiredError(RuntimeError):
     """Raised when production worker composition lacks explicit provider adapters."""
+
+
+class _WorkerAiClock(AiClock):
+    def now(self) -> datetime:
+        return datetime.now(tz=UTC)
+
+
+@dataclass(frozen=True, slots=True)
+class _WorkerAiProviderRegistry(AiProviderRegistry):
+    providers: dict[AiProviderCode, AiProvider]
+
+    def get_provider(self, *, provider_code: AiProviderCode) -> AiProvider:
+        provider = self.providers.get(provider_code)
+        if provider is None:
+            raise RuntimeError("provider not configured")
+        return provider
+
+
+class _WorkerAiCredentialResolver(AiCredentialResolver):
+    async def resolve_bearer_key(
+        self,
+        *,
+        tenant_id: uuid.UUID,
+        provider_code: AiProviderCode,
+    ) -> str | None:
+        _ = tenant_id
+        if provider_code is AiProviderCode.SYNTHETIC:
+            return "synthetic-local-key"
+        raw = os.environ.get("DEEPSEEK_API_KEY", "").strip()
+        return raw or None
+
+
+@dataclass(frozen=True, slots=True)
+class _GatewayKnowledgeRetrievalAdapter(KnowledgeRetrievalPort):
+    retrieval_service: KnowledgeRetrievalService
+    service_actor_id: uuid.UUID
+    uuid_factory: Callable[[], uuid.UUID]
+    clock: _WorkerAiClock
+
+    async def retrieve_for_conversation(
+        self,
+        *,
+        tenant_id: uuid.UUID,
+        purpose: AiPurpose,
+        query_text: str,
+        max_chunks: int,
+    ) -> tuple[KnowledgeRetrievalResult, ...]:
+        if purpose is not AiPurpose.CONVERSATION_ANALYSIS:
+            return ()
+        result = await self.retrieval_service.retrieve(
+            KnowledgeRetrievalRequest(
+                tenant_id=tenant_id,
+                query_text=query_text,
+                analysis_target_id=self.uuid_factory(),
+                occurred_at=self.clock.now(),
+                audit_context=AuditContext(correlation_id=self.uuid_factory()),
+                actor_type=AuditActorType.SERVICE,
+                actor_id=self.service_actor_id,
+                limit=max_chunks,
+            )
+        )
+        return tuple(result)
 
 
 def require_production_provider_adapters(
@@ -120,6 +213,13 @@ def _development_adapter_registry() -> ProviderAdapterRegistry:
     return ProviderAdapterRegistry(
         adapters=(SyntheticHmacWebhookAdapter(secret=_development_webhook_secret()),),
     )
+
+
+def _bool_env(name: str, *, default: bool = False) -> bool:
+    raw = os.environ.get(name, "").strip().lower()
+    if not raw:
+        return default
+    return raw in {"1", "true", "yes", "on"}
 
 
 def _ingestion_service_id(settings: WorkerSettings, override: uuid.UUID | None) -> uuid.UUID:
@@ -200,10 +300,15 @@ def build_worker_runtime(
         uuid_factory=uuid.uuid4,
         service_actor_id=service_actor_id,
     )
+    analysis_enqueue = AnalysisEnqueueService(
+        uow_factory=integrated_port_factory,
+        uuid_factory=uuid.uuid4,
+    )
     content_redact_handler = ContentRedactHandler(
         uow_factory=integrated_port_factory,
         content_encryption=content_encryption,
         metrics_enqueue=metrics_enqueue,
+        analysis_enqueue=analysis_enqueue,
         service_actor_id=service_actor_id,
         uuid_factory=uuid.uuid4,
     )
@@ -213,11 +318,63 @@ def build_worker_runtime(
         service_actor_id=service_actor_id,
         uuid_factory=uuid.uuid4,
     )
+    knowledge_index_handler = KnowledgeIndexHandler(
+        uow_factory=integrated_port_factory,
+        content_encryption=content_encryption,
+        key_provider=DevKnowledgeSearchKeyProvider(),
+        service_actor_id=service_actor_id,
+        uuid_factory=uuid.uuid4,
+    )
+    ai_clock = _WorkerAiClock()
+    retrieval_service = KnowledgeRetrievalService(
+        uow_factory=integrated_port_factory,
+        key_provider=DevKnowledgeSearchKeyProvider(),
+        content_encryption=content_encryption,
+        uuid_factory=uuid.uuid4,
+    )
+    ai_gateway = NopqAiGateway(
+        external_calls_enabled=_bool_env("AI_EXTERNAL_CALLS_ENABLED", default=False),
+        clock=ai_clock,
+        input_gate=AiInputGate(),
+        assembler=ConversationInputAssembler(),
+        prompt_builder=AiPromptBuilder(),
+        output_validator=AiOutputValidator(),
+        budget_service=AiBudgetService(),
+        provider_registry=_WorkerAiProviderRegistry(
+            providers={
+                AiProviderCode.SYNTHETIC: SyntheticAiProvider(),
+                AiProviderCode.OPENAI_COMPATIBLE: OpenAICompatibleChatAdapter(
+                    base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com/"),
+                    provider_code=AiProviderCode.OPENAI_COMPATIBLE,
+                ),
+            }
+        ),
+        credential_resolver=_WorkerAiCredentialResolver(),
+        knowledge_retrieval=_GatewayKnowledgeRetrievalAdapter(
+            retrieval_service=retrieval_service,
+            service_actor_id=service_actor_id,
+            uuid_factory=uuid.uuid4,
+            clock=ai_clock,
+        ),
+    )
+    message_analyze_handler = MessageAnalyzeHandler(
+        uow_factory=integrated_port_factory,
+        content_encryption=content_encryption,
+        ai_gateway=ai_gateway,
+        service_actor_id=service_actor_id,
+        provider_code=AiProviderCode.SYNTHETIC
+        if settings.is_development
+        else AiProviderCode.OPENAI_COMPATIBLE,
+        uuid_factory=uuid.uuid4,
+        clock=ai_clock.now,
+    )
     handlers: dict[OutboxJobKind, OutboxJobHandler] = {
         OutboxJobKind.WEBHOOK_NORMALIZE: webhook_handler,
         OutboxJobKind.CSV_IMPORT: csv_import_handler,
         OutboxJobKind.CONTENT_REDACT: content_redact_handler,
         OutboxJobKind.METRICS_RECALCULATE: metrics_recalculate_handler,
+        OutboxJobKind.KNOWLEDGE_INDEX: knowledge_index_handler,
+        OutboxJobKind.MESSAGE_ANALYZE: message_analyze_handler,
     }
 
     redis = override_values.redis or Redis.from_url(settings.redis_url, decode_responses=False)
@@ -246,7 +403,7 @@ def build_worker_runtime(
             outbox_job_attempts=uow.outbox_job_attempts,
             handlers=handlers,
             worker_id=settings.worker_id,
-            supported_job_kinds=LM_SUPPORTED_JOB_KINDS,
+            supported_job_kinds=NOPQ_SUPPORTED_JOB_KINDS,
         )
 
     def reconciliation_service_factory() -> OutboxReconciliationService:

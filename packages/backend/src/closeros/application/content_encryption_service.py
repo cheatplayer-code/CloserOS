@@ -57,7 +57,6 @@ _PURPOSES_BY_KIND: dict[EncryptedContentKind, frozenset[ContentAccessPurpose]] =
     EncryptedContentKind.RAW_MESSAGE: frozenset(
         {
             ContentAccessPurpose.REDACTION,
-            ContentAccessPurpose.AI_ANALYSIS,
             ContentAccessPurpose.AUDIT_REVIEW,
             ContentAccessPurpose.RETENTION_DELETION,
         }
@@ -79,6 +78,21 @@ _PURPOSES_BY_KIND: dict[EncryptedContentKind, frozenset[ContentAccessPurpose]] =
     EncryptedContentKind.CSV_IMPORT: frozenset(
         {
             ContentAccessPurpose.CSV_IMPORT_PROCESSING,
+            ContentAccessPurpose.AUDIT_REVIEW,
+            ContentAccessPurpose.RETENTION_DELETION,
+        }
+    ),
+    EncryptedContentKind.KNOWLEDGE_DOCUMENT: frozenset(
+        {
+            ContentAccessPurpose.KNOWLEDGE_RETRIEVAL,
+            ContentAccessPurpose.AUDIT_REVIEW,
+            ContentAccessPurpose.RETENTION_DELETION,
+        }
+    ),
+    EncryptedContentKind.KNOWLEDGE_CHUNK: frozenset(
+        {
+            ContentAccessPurpose.KNOWLEDGE_RETRIEVAL,
+            ContentAccessPurpose.AI_ANALYSIS,
             ContentAccessPurpose.AUDIT_REVIEW,
             ContentAccessPurpose.RETENTION_DELETION,
         }

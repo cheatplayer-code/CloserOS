@@ -1,4 +1,4 @@
-# Authentication database migrations
+# Backend database migrations
 
 Alembic migrations for the authentication persistence subsystem live under
 `packages/backend/src/closeros/infrastructure/migrations`.
@@ -65,6 +65,20 @@ Alembic migrations for the authentication persistence subsystem live under
 - **Audit changes:** extends `audit_events` for content sanitization, metrics
   recalculation, snapshot completion, and metrics view actions; adds target types
   `content_sanitization` and `metric_snapshot`
+
+## NOPQ AI and knowledge revision
+
+- **Revision ID:** `e3b7c9d1f5a2`
+- **Revises:** `d1f3a5c7e9b2`
+- **Tables:** `tenant_ai_policies`, `ai_usage_daily`, `knowledge_documents`,
+  `knowledge_document_versions`, `knowledge_chunks`, `knowledge_chunk_terms`,
+  `conversation_analysis_runs`, `conversation_findings`,
+  `conversation_finding_evidence`, `conversation_finding_knowledge_citations`
+- **Schema changes:** extends `encrypted_contents` kind and size constraints for
+  `knowledge_document` and `knowledge_chunk`; extends outbox/audit compatibility
+  for NOPQ analysis and knowledge lifecycle actions.
+- **Audit changes:** extends `audit_events` action and target-type CHECK
+  constraints for AI policy, analysis, budget, and knowledge retrieval/indexing.
 
 Raw passwords and raw authentication tokens are never stored. Session and
 one-time-token tables store only 32-byte SHA-256 hashes.

@@ -127,3 +127,10 @@ Status: accepted
 File: `docs/adr/ADR-0014-deterministic-redaction-and-metrics.md`
 
 Stdlib-only detector and placeholder sanitizer with fail-closed post-scan, encrypted sanitized persistence, idempotent `content.redact` handling, and metadata-only deterministic metrics (`lm-metrics-v1`) with versioned snapshots and `metrics.recalculate` jobs.
+
+### ADR-0015 — Governed AI gateway and tenant-isolated knowledge retrieval
+
+Status: accepted
+File: `docs/adr/ADR-0015-governed-ai-gateway-and-knowledge-retrieval.md`
+
+NOPQ introduces a fail-closed AI gateway with strict input/output governance, synthetic-first provider testing, tenant-scoped lexical knowledge indexing/retrieval, and migration baseline `e3b7c9d1f5a2` for AI policy/analysis/knowledge persistence.

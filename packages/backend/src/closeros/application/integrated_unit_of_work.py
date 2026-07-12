@@ -5,6 +5,16 @@ from __future__ import annotations
 from types import TracebackType
 from typing import Protocol
 
+from closeros.application.ai_policy_persistence import (
+    AiUsageDailyRepository,
+    TenantAiPolicyRepository,
+)
+from closeros.application.analysis_persistence import (
+    ConversationAnalysisRunRepository,
+    ConversationFindingEvidenceRepository,
+    ConversationFindingKnowledgeCitationRepository,
+    ConversationFindingRepository,
+)
 from closeros.application.audit_persistence import AuditEventAppendRepository
 from closeros.application.authentication_persistence import (
     CredentialRepository,
@@ -31,6 +41,12 @@ from closeros.application.csv_import_persistence import (
     CsvImportRowErrorRepository,
 )
 from closeros.application.encrypted_content_persistence import EncryptedContentRepository
+from closeros.application.knowledge_persistence import (
+    KnowledgeChunkRepository,
+    KnowledgeChunkTermRepository,
+    KnowledgeDocumentRepository,
+    KnowledgeDocumentVersionRepository,
+)
 from closeros.application.metrics_persistence import MetricSnapshotRepository
 from closeros.application.outbox_persistence import (
     OutboxJobAttemptRepository,
@@ -70,6 +86,16 @@ class IntegratedUnitOfWork(Protocol):
     csv_import_row_errors: CsvImportRowErrorRepository
     content_sanitizations: ContentSanitizationRepository
     metric_snapshots: MetricSnapshotRepository
+    knowledge_documents: KnowledgeDocumentRepository
+    knowledge_document_versions: KnowledgeDocumentVersionRepository
+    knowledge_chunks: KnowledgeChunkRepository
+    knowledge_chunk_terms: KnowledgeChunkTermRepository
+    tenant_ai_policies: TenantAiPolicyRepository
+    ai_usage_daily: AiUsageDailyRepository
+    conversation_analysis_runs: ConversationAnalysisRunRepository
+    conversation_findings: ConversationFindingRepository
+    conversation_finding_evidence: ConversationFindingEvidenceRepository
+    conversation_finding_knowledge_citations: ConversationFindingKnowledgeCitationRepository
 
     async def __aenter__(self) -> IntegratedUnitOfWork: ...
 

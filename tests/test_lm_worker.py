@@ -111,14 +111,14 @@ def test_lm_processor_leaves_unsupported_job_kind_unclaimed(integrated_uow_facto
                 build_outbox_job(
                     job_id=UNSUPPORTED_JOB_ID,
                     tenant_id=TENANT_A,
-                    job_kind=OutboxJobKind.MESSAGE_ANALYZE,
+                    job_kind=OutboxJobKind.NOTIFICATION_DELIVER,
                     reference=OutboxJobReference(
                         tenant_id=TENANT_A,
                         resource_type="message",
                         resource_id=RESOURCE_ID,
                         schema_version=1,
                     ),
-                    deduplication_key="message_analyze_unsupported_test",
+                    deduplication_key="notification_deliver_unsupported_test",
                     created_at=NOW,
                 )
             )

@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from closeros.application.analysis_enqueue_service import AnalysisEnqueueService
 from closeros.application.audit_persistence import AuditQueryFilter
 from closeros.application.audit_recording import AuditContext
 from closeros.application.content_redact_handler import ContentRedactHandler
@@ -80,6 +81,10 @@ def _build_handler(integrated_uow_factory: Any) -> ContentRedactHandler:
             uow_factory=integrated_uow_factory,
             uuid_factory=uuid4,
             service_actor_id=SERVICE_ID,
+        ),
+        analysis_enqueue=AnalysisEnqueueService(
+            uow_factory=integrated_uow_factory,
+            uuid_factory=uuid4,
         ),
         service_actor_id=SERVICE_ID,
         uuid_factory=_uuid_factory(),

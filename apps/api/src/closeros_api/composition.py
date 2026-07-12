@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast
 
+from closeros.application.analysis_query_service import AnalysisQueryService
 from closeros.application.atomic_content_commands import AtomicContentCommandService
 from closeros.application.audit_persistence import AuditUnitOfWork
 from closeros.application.audit_queries import TenantAuditQueryService
@@ -20,6 +21,7 @@ from closeros.application.content_encryption_service import ContentEncryptionSer
 from closeros.application.csv_import_service import CsvImportService
 from closeros.application.encryption_ports import RetentionExpiryCalculator
 from closeros.application.integrated_unit_of_work import IntegratedUnitOfWork
+from closeros.application.knowledge_service import KnowledgeService
 from closeros.application.metrics_enqueue_service import MetricsEnqueueService
 from closeros.application.metrics_query_service import MetricsQueryService
 from closeros.application.password_hashing import PasswordHasher
@@ -155,6 +157,8 @@ class ApiRuntimeOverrides:
     csv_import_service: CsvImportService | None = None
     metrics_query_service: MetricsQueryService | None = None
     metrics_enqueue_service: MetricsEnqueueService | None = None
+    analysis_query_service: AnalysisQueryService | None = None
+    knowledge_service: KnowledgeService | None = None
     engine: AsyncEngine | None = None
     session_factory: async_sessionmaker[AsyncSession] | None = None
 
@@ -188,6 +192,8 @@ class ApiRuntime:
     csv_import_service: CsvImportService
     metrics_query_service: MetricsQueryService
     metrics_enqueue_service: MetricsEnqueueService
+    analysis_query_service: AnalysisQueryService | None
+    knowledge_service: KnowledgeService | None
 
     async def dispose(self) -> None:
         if self.engine is not None:
@@ -239,6 +245,25 @@ class _UnconfiguredMetricsQueryService:
 class _UnconfiguredMetricsEnqueueService:
     async def enqueue_tenant_recalculation(self, **kwargs: object) -> object:
         raise RuntimeError("metrics enqueue service is not configured")
+
+
+class _UnconfiguredAnalysisQueryService:
+    async def list_runs(self, **kwargs: object) -> object:
+        raise RuntimeError("analysis query service is not configured")
+
+
+class _UnconfiguredKnowledgeService:
+    async def upload_document(self, **kwargs: object) -> object:
+        raise RuntimeError("knowledge service is not configured")
+
+    async def approve_version(self, **kwargs: object) -> object:
+        raise RuntimeError("knowledge service is not configured")
+
+    async def revoke_version(self, **kwargs: object) -> object:
+        raise RuntimeError("knowledge service is not configured")
+
+    async def list_documents(self, **kwargs: object) -> object:
+        raise RuntimeError("knowledge service is not configured")
 
 
 class _UnconfiguredContentEncryption:
@@ -403,6 +428,14 @@ def build_api_runtime(
             uuid_factory=uuid_factory,
             service_actor_id=settings.ingestion_service_id,
         )
+        analysis_query_service = override_values.analysis_query_service or AnalysisQueryService(
+            uow_factory=integrated_port_factory
+        )
+        knowledge_service = override_values.knowledge_service or KnowledgeService(
+            uow_factory=integrated_port_factory,
+            content_encryption=content_encryption,
+            uuid_factory=uuid_factory,
+        )
     else:
         content_encryption = cast(
             ContentEncryptionService,
@@ -427,6 +460,14 @@ def build_api_runtime(
         metrics_enqueue_service = cast(
             MetricsEnqueueService,
             override_values.metrics_enqueue_service or _UnconfiguredMetricsEnqueueService(),
+        )
+        analysis_query_service = cast(
+            AnalysisQueryService,
+            override_values.analysis_query_service or _UnconfiguredAnalysisQueryService(),
+        )
+        knowledge_service = cast(
+            KnowledgeService,
+            override_values.knowledge_service or _UnconfiguredKnowledgeService(),
         )
 
     tenant_context_resolver = override_values.tenant_context_resolver
@@ -489,6 +530,8 @@ def build_api_runtime(
         csv_import_service=csv_import_service,
         metrics_query_service=metrics_query_service,
         metrics_enqueue_service=metrics_enqueue_service,
+        analysis_query_service=analysis_query_service,
+        knowledge_service=knowledge_service,
     )
 
 

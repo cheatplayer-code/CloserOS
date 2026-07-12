@@ -7,6 +7,7 @@ from collections.abc import Callable
 from datetime import datetime
 from uuid import UUID
 
+from closeros.application.analysis_enqueue_service import AnalysisEnqueueService
 from closeros.application.audit_recording import AuditContext, append_required_audit_event
 from closeros.application.content_encryption_service import (
     ContentEncryptionService,
@@ -58,12 +59,14 @@ class ContentRedactHandler:
         uow_factory: _UnitOfWorkFactory,
         content_encryption: ContentEncryptionService,
         metrics_enqueue: MetricsEnqueueService,
+        analysis_enqueue: AnalysisEnqueueService,
         service_actor_id: UUID,
         uuid_factory: _UuidFactory,
     ) -> None:
         self._uow_factory = uow_factory
         self._content_encryption = content_encryption
         self._metrics_enqueue = metrics_enqueue
+        self._analysis_enqueue = analysis_enqueue
         self._service_actor_id = service_actor_id
         self._uuid_factory = uuid_factory
 
@@ -244,6 +247,12 @@ class ContentRedactHandler:
                     actor_type=AuditActorType.SERVICE,
                     actor_id=self._service_actor_id,
                 )
+            await self._analysis_enqueue.enqueue_after_sanitization(
+                tenant_id=job.tenant_id,
+                source_resource_type=reference.resource_type,
+                source_resource_id=reference.resource_id,
+                requested_at=occurred_at,
+            )
 
     async def _persist_blocked(
         self,

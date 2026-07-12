@@ -13,6 +13,8 @@ CONTENT_AAD_VERSION = 1
 RAW_OR_SANITIZED_MAX_PLAINTEXT_BYTES = 256 * 1024
 PROVIDER_PAYLOAD_MAX_PLAINTEXT_BYTES = 1024 * 1024
 CSV_IMPORT_MAX_PLAINTEXT_BYTES = 10 * 1024 * 1024
+KNOWLEDGE_DOCUMENT_MAX_PLAINTEXT_BYTES = 5 * 1024 * 1024
+KNOWLEDGE_CHUNK_MAX_PLAINTEXT_BYTES = 32 * 1024
 MAX_KEY_VERSION_LENGTH = 64
 
 
@@ -21,6 +23,8 @@ class EncryptedContentKind(StrEnum):
     SANITIZED_MESSAGE = "sanitized_message"
     PROVIDER_PAYLOAD = "provider_payload"
     CSV_IMPORT = "csv_import"
+    KNOWLEDGE_DOCUMENT = "knowledge_document"
+    KNOWLEDGE_CHUNK = "knowledge_chunk"
 
 
 class ContentEncoding(StrEnum):
@@ -41,6 +45,7 @@ class ContentAccessPurpose(StrEnum):
     AUDIT_REVIEW = "audit_review"
     KEY_REWRAP = "key_rewrap"
     CSV_IMPORT_PROCESSING = "csv_import_processing"
+    KNOWLEDGE_RETRIEVAL = "knowledge_retrieval"
 
 
 class EncryptedContentError(ValueError):
@@ -145,6 +150,12 @@ def max_plaintext_bytes_for_kind(kind: EncryptedContentKind) -> int:
 
     if kind is EncryptedContentKind.CSV_IMPORT:
         return CSV_IMPORT_MAX_PLAINTEXT_BYTES
+
+    if kind is EncryptedContentKind.KNOWLEDGE_DOCUMENT:
+        return KNOWLEDGE_DOCUMENT_MAX_PLAINTEXT_BYTES
+
+    if kind is EncryptedContentKind.KNOWLEDGE_CHUNK:
+        return KNOWLEDGE_CHUNK_MAX_PLAINTEXT_BYTES
 
     return RAW_OR_SANITIZED_MAX_PLAINTEXT_BYTES
 
