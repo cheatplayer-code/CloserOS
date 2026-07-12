@@ -11,13 +11,16 @@ and `PROJECT_STATUS.md`.
 2. **HI** — encrypted message storage + transactional outbox/job foundation
 3. **JK** — generic ingestion pipeline + controlled CSV import
 4. **LM** — PII/restricted-content detector + deterministic metrics engine
-5. **NO** — AI provider gateway + evidence-backed conversation analysis
-6. **PQ** — knowledge-base ingestion + tenant-isolated retrieval
-7. **RS** — owner dashboard + conversation review
-8. **TU** — manager scorecards + follow-up task queue
-9. **VW** — design-partner/provider decision package + first official messaging provider
-10. **XY** — first CRM integration + production hardening
-11. **Z** — compliance, security release gate and paid production pilot
+5. **NOPQ** — AI gateway + evidence-backed analysis + knowledge-base ingestion and retrieval
+6. **RSTU** — owner dashboard + conversation review + manager scorecards + follow-up task queue
+7. **VW** — design-partner/provider decision package + first official messaging provider
+8. **XY** — first CRM integration + production hardening
+9. **Z** — compliance, security release gate and paid production pilot
+
+**Roadmap consolidation (accepted):** future execution order after LM is
+**LM → NOPQ → RSTU → VW → XY → Z**. Blocks NO/PQ and RS/TU are merged into NOPQ
+and RSTU respectively; do not split or reorder them without an explicit accepted
+update to this file and `PROJECT_STATUS.md`.
 
 ## Block FG scope (completed locally)
 
@@ -59,11 +62,19 @@ and `PROJECT_STATUS.md`.
 - No official messaging provider integration, PII redaction, or production KMS/scanner
   adapters yet.
 
-## Block LM scope (next)
+## Block LM scope (completed locally)
 
-- PII/restricted-content detector.
-- Deterministic metrics engine.
-- Real `content.redact` handler implementation.
+- Stdlib-only deterministic detector (`lm-detector-v1`) and sanitizer
+  (`lm-policy-v1`) with fail-closed post-redaction scan.
+- Real `content.redact` handler for `message` and `message_edit_event` with
+  encrypted sanitized persistence and audit events.
+- Content-independent `MetricsEngine` (`lm-metrics-v1`), snapshot persistence,
+  `metrics.recalculate` handler, and privileged metrics HTTP routes.
+- Alembic revision `d1f3a5c7e9b2`; ADR-0014, `docs/PRIVACY_REDACTION.md`, and
+  `docs/METRICS.md`.
+- Worker job kinds extended: `content.redact`, `metrics.recalculate`.
+- No external AI gateway, `message.analyze` handler, name/address NER, or
+  production DLP/scanner adapters yet.
 
 ## Rules
 

@@ -20,6 +20,8 @@ from closeros.application.content_encryption_service import ContentEncryptionSer
 from closeros.application.csv_import_service import CsvImportService
 from closeros.application.encryption_ports import RetentionExpiryCalculator
 from closeros.application.integrated_unit_of_work import IntegratedUnitOfWork
+from closeros.application.metrics_enqueue_service import MetricsEnqueueService
+from closeros.application.metrics_query_service import MetricsQueryService
 from closeros.application.password_hashing import PasswordHasher
 from closeros.application.platform_unit_of_work import PlatformUnitOfWork
 from closeros.application.provider_adapter_registry import ProviderAdapterRegistry
@@ -151,6 +153,8 @@ class ApiRuntimeOverrides:
     atomic_content_commands: AtomicContentCommandService | None = None
     webhook_ingestion: WebhookIngestionService | None = None
     csv_import_service: CsvImportService | None = None
+    metrics_query_service: MetricsQueryService | None = None
+    metrics_enqueue_service: MetricsEnqueueService | None = None
     engine: AsyncEngine | None = None
     session_factory: async_sessionmaker[AsyncSession] | None = None
 
@@ -182,6 +186,8 @@ class ApiRuntime:
     adapter_registry: ProviderAdapterRegistry
     webhook_ingestion: WebhookIngestionService
     csv_import_service: CsvImportService
+    metrics_query_service: MetricsQueryService
+    metrics_enqueue_service: MetricsEnqueueService
 
     async def dispose(self) -> None:
         if self.engine is not None:
@@ -223,6 +229,16 @@ class _UnconfiguredCsvImportService:
 
     async def get_status(self, **kwargs: object) -> object:
         raise RuntimeError("csv import service is not configured")
+
+
+class _UnconfiguredMetricsQueryService:
+    async def list_snapshots(self, **kwargs: object) -> object:
+        raise RuntimeError("metrics query service is not configured")
+
+
+class _UnconfiguredMetricsEnqueueService:
+    async def enqueue_tenant_recalculation(self, **kwargs: object) -> object:
+        raise RuntimeError("metrics enqueue service is not configured")
 
 
 class _UnconfiguredContentEncryption:
@@ -379,6 +395,14 @@ def build_api_runtime(
             content_scanner=content_scanner,
             uuid_factory=uuid_factory,
         )
+        metrics_query_service = override_values.metrics_query_service or MetricsQueryService(
+            uow_factory=integrated_port_factory
+        )
+        metrics_enqueue_service = override_values.metrics_enqueue_service or MetricsEnqueueService(
+            uow_factory=integrated_port_factory,
+            uuid_factory=uuid_factory,
+            service_actor_id=settings.ingestion_service_id,
+        )
     else:
         content_encryption = cast(
             ContentEncryptionService,
@@ -395,6 +419,14 @@ def build_api_runtime(
         csv_import_service = cast(
             CsvImportService,
             override_values.csv_import_service or _UnconfiguredCsvImportService(),
+        )
+        metrics_query_service = cast(
+            MetricsQueryService,
+            override_values.metrics_query_service or _UnconfiguredMetricsQueryService(),
+        )
+        metrics_enqueue_service = cast(
+            MetricsEnqueueService,
+            override_values.metrics_enqueue_service or _UnconfiguredMetricsEnqueueService(),
         )
 
     tenant_context_resolver = override_values.tenant_context_resolver
@@ -455,6 +487,8 @@ def build_api_runtime(
         adapter_registry=adapter_registry,
         webhook_ingestion=webhook_ingestion,
         csv_import_service=csv_import_service,
+        metrics_query_service=metrics_query_service,
+        metrics_enqueue_service=metrics_enqueue_service,
     )
 
 

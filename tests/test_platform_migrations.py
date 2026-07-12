@@ -36,7 +36,7 @@ def test_platform_migration_revision_is_head() -> None:
     config = build_alembic_config("postgresql+psycopg://local/local@127.0.0.1:5432/local")
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_current_head() == "f2a8c4e6b1d3"
+    assert script.get_current_head() == "d1f3a5c7e9b2"
 
 
 def test_platform_migration_upgrade_creates_platform_tables() -> None:

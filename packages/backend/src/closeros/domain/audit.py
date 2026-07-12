@@ -54,6 +54,16 @@ _ALLOWED_METADATA_KEYS: frozenset[str] = frozenset(
         "provider_code",
         "operation_count",
         "source_type",
+        "finding_count",
+        "critical_finding_count",
+        "category_code",
+        "eligibility_code",
+        "policy_version",
+        "detector_version",
+        "metric_scope",
+        "formula_version",
+        "window_code",
+        "sanitization_status",
     }
 )
 
@@ -110,6 +120,11 @@ class AuditAction(StrEnum):
     CSV_IMPORT_COMPLETED = "csv_import.completed"
     CSV_IMPORT_CANCELLED = "csv_import.cancelled"
     AUDIT_LOG_VIEWED = "audit.log_viewed"
+    CONTENT_SANITIZATION_COMPLETED = "content.sanitization.completed"
+    CONTENT_SANITIZATION_BLOCKED = "content.sanitization.blocked"
+    METRICS_RECALCULATION_REQUESTED = "metrics.recalculation.requested"
+    METRICS_SNAPSHOT_COMPLETED = "metrics.snapshot.completed"
+    METRICS_VIEWED = "metrics.viewed"
 
 
 class AuditTargetType(StrEnum):
@@ -128,6 +143,8 @@ class AuditTargetType(StrEnum):
     CSV_IMPORT_BATCH = "csv_import_batch"
     AUDIT_LOG = "audit_log"
     AUTHENTICATION = "authentication"
+    CONTENT_SANITIZATION = "content_sanitization"
+    METRIC_SNAPSHOT = "metric_snapshot"
 
 
 class AuditMetadataError(ValueError):

@@ -25,11 +25,13 @@ from closeros.application.canonical_persistence import (
     SalesCaseRepository,
     WebhookEventRepository,
 )
+from closeros.application.content_sanitization_persistence import ContentSanitizationRepository
 from closeros.application.csv_import_persistence import (
     CsvImportBatchRepository,
     CsvImportRowErrorRepository,
 )
 from closeros.application.encrypted_content_persistence import EncryptedContentRepository
+from closeros.application.metrics_persistence import MetricSnapshotRepository
 from closeros.application.outbox_persistence import (
     OutboxJobAttemptRepository,
     OutboxJobRepository,
@@ -66,6 +68,8 @@ class IntegratedUnitOfWork(Protocol):
     audit_events: AuditEventAppendRepository
     csv_import_batches: CsvImportBatchRepository
     csv_import_row_errors: CsvImportRowErrorRepository
+    content_sanitizations: ContentSanitizationRepository
+    metric_snapshots: MetricSnapshotRepository
 
     async def __aenter__(self) -> IntegratedUnitOfWork: ...
 

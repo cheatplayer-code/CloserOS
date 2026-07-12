@@ -414,10 +414,10 @@ def test_production_api_settings_require_ingestion_service_id(
 
 def test_jk_supported_job_kinds_include_ingestion() -> None:
     from closeros.domain.outbox import OutboxJobKind
-    from closeros_worker.runtime import JK_SUPPORTED_JOB_KINDS
+    from closeros_worker.runtime import LM_SUPPORTED_JOB_KINDS
 
-    assert OutboxJobKind.WEBHOOK_NORMALIZE in JK_SUPPORTED_JOB_KINDS
-    assert OutboxJobKind.CSV_IMPORT in JK_SUPPORTED_JOB_KINDS
+    assert OutboxJobKind.WEBHOOK_NORMALIZE in LM_SUPPORTED_JOB_KINDS
+    assert OutboxJobKind.CSV_IMPORT in LM_SUPPORTED_JOB_KINDS
 
 
 def test_csv_import_schemas_forbid_extra_fields() -> None:

@@ -179,6 +179,24 @@ Accepted state changes that require asynchronous work enqueue rows in `outbox_jo
 in the same PostgreSQL transaction. Publishers emit job UUIDs only; consumers
 reload authorized state from PostgreSQL. See `docs/OUTBOX.md`.
 
+### 7.3 Privacy redaction and deterministic metrics (Block LM)
+
+After canonical message storage, ingestion enqueues `content.redact`. The worker
+decrypts raw UTF-8 message bodies locally, runs deterministic detection
+(`lm-detector-v1`), replaces structured findings with stable placeholders, and
+re-scans to fail closed on residual matches. Eligible output is encrypted as
+`sanitized_message` and linked from `content_sanitizations`; blocked content never
+writes sanitized ciphertext.
+
+External AI (`message.analyze`) consumes sanitized ciphertext only when eligibility
+and ADR-0005 gates allow. Block LM does not call external LLM providers.
+
+Operational metrics are computed separately from message bodies. `MetricsEngine`
+reads canonical metadata inside half-open tenant-local windows, persists immutable
+`metric_snapshots` keyed by `formula_version`, and is triggered by
+`metrics.recalculate` jobs (including after eligible redaction). See
+`docs/PRIVACY_REDACTION.md`, `docs/METRICS.md`, and ADR-0014.
+
 ## 8. Consistency
 
 - PostgreSQL is the primary system of record.

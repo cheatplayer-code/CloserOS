@@ -1047,9 +1047,40 @@ Not implemented in Block JK:
 - production KMS/HSM key provider, malware scanner, or webhook rate-limiter adapters;
 - PII redaction (`content.redact` handler) — Block LM.
 
-Remaining scope for Block LM:
+Block LM implemented locally (2026-07-12):
 
-- PII/restricted-content detector;
-- deterministic metrics engine;
-- real `content.redact` handler.
+Branch: `feat/lm-redaction-metrics`.
+
+Implemented:
+
+- stdlib-only deterministic PII/restricted-content detector (`lm-detector-v1`) and
+  sanitizer (`lm-policy-v1`) with fail-closed post-redaction scan;
+- real `content.redact` handler for `message` and `message_edit_event` with encrypted
+  `SANITIZED_MESSAGE` persistence, category counts, and audit events;
+- content-independent `MetricsEngine` (`lm-metrics-v1`), snapshot persistence,
+  `metrics.recalculate` handler, and privileged metrics HTTP routes;
+- migration `d1f3a5c7e9b2` (`content_sanitizations`,
+  `content_sanitization_category_counts`, `metric_snapshots`, `metric_values`);
+- ADR-0014, `docs/PRIVACY_REDACTION.md`, and `docs/METRICS.md`;
+- worker job kinds extended: `content.redact`, `metrics.recalculate`;
+- accepted roadmap consolidation: **LM → NOPQ → RSTU → VW → XY → Z**.
+
+Verification (2026-07-12):
+
+- LM pytest suite: **108 tests** across detector, sanitizer, redaction handler,
+  metrics engine/windows, migration, worker, and API modules;
+- Ruff format/check: **passed**;
+- mypy: **passed** (141 source files);
+- full `corepack pnpm run quality`: **passed** (1143 pytest, 49+43 Vitest, mypy 248 files).
+
+Not implemented in Block LM:
+
+- external AI gateway or `message.analyze` handler;
+- semantic/name/address recognition through AI;
+- knowledge-base retrieval;
+- owner dashboard UI or manager task queue;
+- official provider adapters, CRM integration, or autonomous outbound messaging.
+
+Next block: **NOPQ** — AI gateway, evidence-backed analysis, and tenant-isolated
+knowledge retrieval.
 

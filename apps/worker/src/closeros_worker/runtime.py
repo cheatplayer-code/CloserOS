@@ -10,9 +10,13 @@ from typing import cast
 
 from closeros.application.atomic_content_commands import AtomicContentCommandService
 from closeros.application.content_encryption_service import ContentEncryptionService
+from closeros.application.content_redact_handler import ContentRedactHandler
 from closeros.application.csv_import_processor import CsvImportProcessor
 from closeros.application.encryption_ports import RetentionExpiryCalculator
 from closeros.application.integrated_unit_of_work import IntegratedUnitOfWork
+from closeros.application.metrics_engine import MetricsEngine
+from closeros.application.metrics_enqueue_service import MetricsEnqueueService
+from closeros.application.metrics_recalculate_handler import MetricsRecalculateHandler
 from closeros.application.outbox_processor import OutboxJobHandler, OutboxProcessorService
 from closeros.application.outbox_publisher import OutboxPublisherService
 from closeros.application.outbox_reconciliation import OutboxReconciliationService
@@ -41,10 +45,12 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from closeros_worker.settings import WorkerConfigurationError, WorkerSettings
 
-JK_SUPPORTED_JOB_KINDS = frozenset(
+LM_SUPPORTED_JOB_KINDS = frozenset(
     {
         OutboxJobKind.WEBHOOK_NORMALIZE,
         OutboxJobKind.CSV_IMPORT,
+        OutboxJobKind.CONTENT_REDACT,
+        OutboxJobKind.METRICS_RECALCULATE,
     }
 )
 
@@ -189,9 +195,29 @@ def build_worker_runtime(
         service_actor_id=service_actor_id,
         uuid_factory=uuid.uuid4,
     )
+    metrics_enqueue = MetricsEnqueueService(
+        uow_factory=integrated_port_factory,
+        uuid_factory=uuid.uuid4,
+        service_actor_id=service_actor_id,
+    )
+    content_redact_handler = ContentRedactHandler(
+        uow_factory=integrated_port_factory,
+        content_encryption=content_encryption,
+        metrics_enqueue=metrics_enqueue,
+        service_actor_id=service_actor_id,
+        uuid_factory=uuid.uuid4,
+    )
+    metrics_recalculate_handler = MetricsRecalculateHandler(
+        uow_factory=integrated_port_factory,
+        metrics_engine=MetricsEngine(),
+        service_actor_id=service_actor_id,
+        uuid_factory=uuid.uuid4,
+    )
     handlers: dict[OutboxJobKind, OutboxJobHandler] = {
         OutboxJobKind.WEBHOOK_NORMALIZE: webhook_handler,
         OutboxJobKind.CSV_IMPORT: csv_import_handler,
+        OutboxJobKind.CONTENT_REDACT: content_redact_handler,
+        OutboxJobKind.METRICS_RECALCULATE: metrics_recalculate_handler,
     }
 
     redis = override_values.redis or Redis.from_url(settings.redis_url, decode_responses=False)
@@ -220,7 +246,7 @@ def build_worker_runtime(
             outbox_job_attempts=uow.outbox_job_attempts,
             handlers=handlers,
             worker_id=settings.worker_id,
-            supported_job_kinds=JK_SUPPORTED_JOB_KINDS,
+            supported_job_kinds=LM_SUPPORTED_JOB_KINDS,
         )
 
     def reconciliation_service_factory() -> OutboxReconciliationService:

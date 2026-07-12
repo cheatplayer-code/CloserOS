@@ -244,10 +244,20 @@ class OutboxProcessorService:
 def _extract_typed_handler_error(
     error: Exception,
 ) -> _TypedHandlerFailure | None:
+    from closeros.application.content_redact_handler import ContentRedactHandlerError
     from closeros.application.csv_import_processor import CsvImportHandlerError
+    from closeros.application.metrics_recalculate_handler import MetricsRecalculateHandlerError
     from closeros.application.webhook_normalize_handler import WebhookNormalizeHandlerError
 
-    if isinstance(error, (WebhookNormalizeHandlerError, CsvImportHandlerError)):
+    if isinstance(
+        error,
+        (
+            WebhookNormalizeHandlerError,
+            CsvImportHandlerError,
+            ContentRedactHandlerError,
+            MetricsRecalculateHandlerError,
+        ),
+    ):
         return _TypedHandlerFailure(
             error_code=error.error_code,
             permanent=error.permanent,

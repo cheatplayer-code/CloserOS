@@ -120,3 +120,10 @@ Status: accepted
 File: `docs/adr/ADR-0013-ingestion-pipeline-and-csv-import.md`
 
 Provider-neutral webhook acceptance with encrypted payload persistence, Redis Streams delivery of outbox job UUIDs only, asynchronous normalization via `webhook.normalize`, and controlled encrypted CSV import with resumable row processing and lawful-source confirmation.
+
+### ADR-0014 — Deterministic local redaction and content-independent metrics
+
+Status: accepted
+File: `docs/adr/ADR-0014-deterministic-redaction-and-metrics.md`
+
+Stdlib-only detector and placeholder sanitizer with fail-closed post-scan, encrypted sanitized persistence, idempotent `content.redact` handling, and metadata-only deterministic metrics (`lm-metrics-v1`) with versioned snapshots and `metrics.recalculate` jobs.

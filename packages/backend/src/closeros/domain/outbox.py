@@ -36,6 +36,7 @@ class OutboxJobKind(StrEnum):
     KNOWLEDGE_INDEX = "knowledge.index"
     RECONCILIATION_RUN = "reconciliation.run"
     CSV_IMPORT = "csv.import"
+    METRICS_RECALCULATE = "metrics.recalculate"
 
 
 class OutboxJobState(StrEnum):
