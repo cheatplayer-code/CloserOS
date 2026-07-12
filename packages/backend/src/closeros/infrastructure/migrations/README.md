@@ -29,8 +29,25 @@ Alembic migrations for the authentication persistence subsystem live under
   for tenant, membership, invitation, channel connection, and manager assignment
   lifecycle events
 
+## Encrypted content and outbox revision
+
+- **Revision ID:** `e7a1c3d5f9b2`
+- **Revises:** `d4e8f1a2b3c5`
+- **Tables:** `encrypted_contents`, `outbox_jobs`, `outbox_job_attempts`
+- **Schema changes:** composite foreign keys from `messages.content_id`,
+  `message_edit_events.content_id`, and `webhook_events.encrypted_payload_content_id`
+  to `encrypted_contents (tenant_id, id)`; adds optional
+  `webhook_events.encrypted_payload_content_id`
+- **Audit changes:** extends `audit_events` action and target_type CHECK constraints
+  for encrypted-content access/storage and outbox reconciliation events
+
 Raw passwords and raw authentication tokens are never stored. Session and
 one-time-token tables store only 32-byte SHA-256 hashes.
+
+Plaintext message bodies, sanitized text, and provider payloads are never stored
+in PostgreSQL. `encrypted_contents` holds ciphertext, nonces, wrapped DEKs, and
+metadata only. Outbox tables store job state and resource references, not queue
+payloads or customer content.
 
 ## Running migrations locally
 

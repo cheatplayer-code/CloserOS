@@ -226,6 +226,7 @@ def test_webhook_event_rejects_processed_at_before_received_at() -> None:
             processing_status=WebhookProcessingStatus.PROCESSED,
             received_at=LATER,
             processed_at=NOW,
+            encrypted_payload_content_id=None,
             adapter_metadata=synthetic_adapter_metadata(),
         )
 

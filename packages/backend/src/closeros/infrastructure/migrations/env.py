@@ -8,6 +8,8 @@ from alembic import context
 from closeros.infrastructure import (
     audit_orm,  # noqa: F401
     canonical_orm,  # noqa: F401
+    encrypted_content_orm,  # noqa: F401
+    outbox_orm,  # noqa: F401
     tenant_orm,  # noqa: F401
 )
 from closeros.infrastructure.orm_base import Base

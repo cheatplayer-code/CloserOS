@@ -950,13 +950,74 @@ Tenant isolation:
 
 Not implemented in Block FG:
 
-- encrypted message bodies or raw provider payload storage (Block HI);
+- encrypted message bodies or raw provider payload storage (delivered in Block HI);
 - transactional outbox, workers, ingestion orchestration, CSV import;
 - PII detection, AI, dashboards, external provider integrations;
 - frontend tenant switcher or audit viewer.
 
-Remaining scope for Block HI:
+## Block HI — encrypted content storage and transactional outbox foundation
 
-- encrypted `content_id` resolution and raw/sanitized content storage;
-- transactional outbox and job-claim foundation in PostgreSQL.
+Status: **Implemented locally; GitHub Pull Request verification pending.**
+
+Branch: `feat/hi-encrypted-content-outbox`.
+
+Implemented:
+
+- framework-independent encrypted-content domain (`EncryptedContent`, kinds,
+  encodings, access purposes, AAD version constants);
+- AES-256-GCM envelope encryption via `DataKeyCryptography` and `KeyProvider`
+  ports; `AesGcmContentCryptography` and development-only `StaticKeyProvider`;
+- `encrypted_contents` PostgreSQL persistence with tenant-scoped composite foreign
+  keys from `messages`, `message_edit_events`, and `webhook_events`;
+- `ContentEncryptionService` (encrypt, audited purpose-gated decrypt, rewrap);
+- atomic commands combining encrypted content, canonical writes, outbox enqueue,
+  and audit append in one transaction;
+- transactional outbox domain with explicit state machine, leases, retry backoff,
+  and dead-letter transitions;
+- `outbox_jobs` and `outbox_job_attempts` persistence with optimistic versioning
+  and deduplication keys;
+- `OutboxPublisherService`, `OutboxProcessorService`, `OutboxReconciliationService`,
+  and `QueuePublisher` port (job UUID only);
+- integrated unit-of-work composing platform, canonical, encrypted-content, outbox,
+  and audit repositories;
+- Alembic revision `e7a1c3d5f9b2` chained from `d4e8f1a2b3c5`;
+- ADR-0012, `docs/ENCRYPTED_CONTENT.md`, `docs/OUTBOX.md`, and related index
+  updates.
+
+Verification (2026-07-12):
+
+- Block HI pytest suite: **130 tests passed** (`tests/test_encrypted_content_domain.py`,
+  `tests/test_aes_gcm_encryption.py`, `tests/test_outbox_domain.py`,
+  `tests/test_encrypted_content_repositories.py`, `tests/test_outbox_repositories.py`,
+  `tests/test_outbox_publisher_processor.py`, `tests/test_content_encryption_service.py`,
+  `tests/test_atomic_content_commands.py`, `tests/test_hi_migrations.py`,
+  `tests/test_outbox_reconciliation.py`; PostgreSQL integration via `@pytest.mark.hi_persistence`);
+- full repository pytest: **934 passed**;
+- Vitest (`@closeros/web`): **43 passed**, 1 skipped;
+- Vitest (`@closeros/contracts`): **49 passed**;
+- Ruff format/check: **passed**;
+- mypy: **passed** (181 source files);
+- native `corepack pnpm run quality`: **passed**.
+
+Tenant isolation:
+
+- `tenant_id` required on all encrypted-content and tenant-scoped outbox
+  repository lookups;
+- composite `(tenant_id, id)` uniqueness on `encrypted_contents` and composite
+  foreign keys on canonical content references;
+- AAD binds tenant, content ID, kind, and encoding into ciphertext context.
+
+Not implemented in Block HI:
+
+- production KMS/HSM `KeyProvider` adapter;
+- concrete Redis or production queue adapter and worker scheduler entry points;
+- real handlers for `webhook.normalize`, `content.redact`, `message.analyze`, and
+  other job kinds beyond test no-op dispatch;
+- retention deletion worker and bulk key-rotation scheduler;
+- provider ingestion orchestration and CSV import (Block JK).
+
+Remaining scope for Block JK:
+
+- generic ingestion pipeline and controlled CSV import;
+- queue adapter wiring and worker consumption of outbox jobs.
 

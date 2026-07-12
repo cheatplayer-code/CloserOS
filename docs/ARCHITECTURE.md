@@ -166,6 +166,19 @@ An original Message is immutable. Provider-reported edits, deletes, and delivery
 
 A `ConversationThread` belongs to exactly one provider connection and external conversation. An optional `SalesCase` groups related threads, resolved identities, and CRM deals without merging their source histories. Identity-resolution and grouping provenance are retained and reviewable.
 
+### 7.1 Encrypted content storage (Block HI)
+
+Raw message bodies, sanitized bodies, and optional provider webhook payloads are
+stored in `encrypted_contents` as AES-256-GCM ciphertext with per-content DEKs.
+Canonical tables keep `content_id` references only. See `docs/ENCRYPTED_CONTENT.md`
+and ADR-0012.
+
+### 7.2 Transactional outbox tables (Block HI)
+
+Accepted state changes that require asynchronous work enqueue rows in `outbox_jobs`
+in the same PostgreSQL transaction. Publishers emit job UUIDs only; consumers
+reload authorized state from PostgreSQL. See `docs/OUTBOX.md`.
+
 ## 8. Consistency
 
 - PostgreSQL is the primary system of record.

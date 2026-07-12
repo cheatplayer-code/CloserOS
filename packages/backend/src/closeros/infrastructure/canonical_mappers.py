@@ -362,6 +362,7 @@ def webhook_event_to_row(event: WebhookEvent) -> WebhookEventRow:
         processing_status=event.processing_status.value,
         received_at=event.received_at,
         processed_at=event.processed_at,
+        encrypted_payload_content_id=event.encrypted_payload_content_id,
         adapter_metadata=adapter_metadata_to_json(event.adapter_metadata),
     )
 
@@ -375,5 +376,6 @@ def webhook_event_to_domain(row: WebhookEventRow) -> WebhookEvent:
         processing_status=WebhookProcessingStatus(row.processing_status),
         received_at=row.received_at,
         processed_at=row.processed_at,
+        encrypted_payload_content_id=row.encrypted_payload_content_id,
         adapter_metadata=adapter_metadata_from_json(row.adapter_metadata),
     )

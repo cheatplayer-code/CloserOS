@@ -106,3 +106,10 @@ Status: accepted
 File: `docs/adr/ADR-0011-immutable-audit-log-subsystem.md`
 
 Security-sensitive actions append immutable, tenant-aware audit events with allowlisted metadata, database-level update/delete protection, and server-generated request correlation IDs.
+
+### ADR-0012 — Envelope encryption and transactional outbox foundation
+
+Status: accepted
+File: `docs/adr/ADR-0012-envelope-encryption-and-transactional-outbox.md`
+
+AES-256-GCM envelope encryption with per-content DEKs, AAD binding, and a `KeyProvider` KMS boundary stores ciphertext in PostgreSQL. The transactional outbox publishes job UUIDs only with at-least-once semantics, lease-based claims, retry/dead-letter handling, and PostgreSQL as the source of truth.

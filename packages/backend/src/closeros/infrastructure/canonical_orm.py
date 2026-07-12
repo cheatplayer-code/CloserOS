@@ -232,6 +232,10 @@ class MessageRow(Base):
             ["tenant_id", "reply_to_message_id"],
             ["messages.tenant_id", "messages.id"],
         ),
+        ForeignKeyConstraint(
+            ["tenant_id", "content_id"],
+            ["encrypted_contents.tenant_id", "encrypted_contents.id"],
+        ),
         UniqueConstraint(
             "tenant_id",
             "conversation_thread_id",
@@ -274,6 +278,10 @@ class MessageEditEventRow(Base):
         ForeignKeyConstraint(
             ["tenant_id", "message_id"],
             ["messages.tenant_id", "messages.id"],
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "content_id"],
+            ["encrypted_contents.tenant_id", "encrypted_contents.id"],
         ),
         UniqueConstraint("tenant_id", "external_event_id"),
         _adapter_metadata_object_check(),
@@ -434,12 +442,20 @@ class WebhookEventRow(Base):
         TIMESTAMP(timezone=True),
         nullable=True,
     )
+    encrypted_payload_content_id: Mapped[uuid.UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True),
+        nullable=True,
+    )
     adapter_metadata: Mapped[dict[str, object]] = mapped_column(JSONB, nullable=False)
 
     __table_args__ = (
         ForeignKeyConstraint(
             ["tenant_id", "channel_connection_id"],
             ["channel_connections.tenant_id", "channel_connections.id"],
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "encrypted_payload_content_id"],
+            ["encrypted_contents.tenant_id", "encrypted_contents.id"],
         ),
         UniqueConstraint(
             "tenant_id",
