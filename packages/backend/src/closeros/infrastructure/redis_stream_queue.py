@@ -69,7 +69,7 @@ class RedisStreamJobConsumer:
                 "0-0",
                 count=self.read_count,
             )
-            messages = _extract_messages(autoclaimed)
+            messages = _extract_xautoclaim_messages(autoclaimed)
             if messages:
                 return messages
 
@@ -80,7 +80,7 @@ class RedisStreamJobConsumer:
                 count=self.read_count,
                 block=self.block_ms,
             )
-            return _extract_messages(response)
+            return _extract_xreadgroup_messages(response)
         except RedisError as error:
             raise RedisStreamQueueError("redis stream read failed") from error
 
@@ -97,42 +97,78 @@ class RedisStreamJobConsumer:
             raise RedisStreamQueueError("redis connection close failed") from error
 
 
-def _extract_messages(response: object) -> tuple[tuple[str, UUID], ...]:
-    if not response:
+def _extract_xautoclaim_messages(response: object) -> tuple[tuple[str, UUID], ...]:
+    """Parse XAUTOCLAIM responses: (next_start_id, claimed_entries, deleted_ids)."""
+    if response is None:
         return ()
 
-    entries: list[tuple[str, UUID]] = []
+    if not isinstance(response, (list, tuple)) or len(response) != 3:
+        return ()
 
-    if isinstance(response, tuple) and len(response) == 3:
-        claimed_entries = response[1]
-        if isinstance(claimed_entries, list):
-            for message_id, fields in claimed_entries:
-                job_id = _parse_job_id(fields)
-                if job_id is not None:
-                    normalized_message_id = (
-                        message_id.decode("utf-8")
-                        if isinstance(message_id, bytes)
-                        else str(message_id)
-                    )
-                    entries.append((normalized_message_id, job_id))
-        return tuple(entries)
+    claimed_entries = response[1]
+    if not isinstance(claimed_entries, list):
+        return ()
+
+    return _entries_from_message_list(claimed_entries)
+
+
+def _extract_xreadgroup_messages(response: object) -> tuple[tuple[str, UUID], ...]:
+    """Parse XREADGROUP responses: [(stream_name, [(message_id, fields), ...]), ...]."""
+    if response is None:
+        return ()
 
     if not isinstance(response, list):
         return ()
 
-    for stream_name, stream_messages in response:
-        _ = stream_name
-        if not isinstance(stream_messages, list):
+    entries: list[tuple[str, UUID]] = []
+    for stream_container in response:
+        stream_messages = _stream_messages_from_container(stream_container)
+        if stream_messages is None:
             continue
-        for message_id, fields in stream_messages:
-            job_id = _parse_job_id(fields)
-            if job_id is not None:
-                normalized_message_id = (
-                    message_id.decode("utf-8") if isinstance(message_id, bytes) else str(message_id)
-                )
-                entries.append((normalized_message_id, job_id))
+        entries.extend(_entries_from_message_list(stream_messages))
 
     return tuple(entries)
+
+
+def _stream_messages_from_container(stream_container: object) -> list[object] | None:
+    if not isinstance(stream_container, (list, tuple)) or len(stream_container) != 2:
+        return None
+
+    stream_messages = stream_container[1]
+    if not isinstance(stream_messages, list):
+        return None
+
+    return stream_messages
+
+
+def _entries_from_message_list(
+    message_list: list[object],
+) -> tuple[tuple[str, UUID], ...]:
+    entries: list[tuple[str, UUID]] = []
+    for message_entry in message_list:
+        parsed = _entry_from_message(message_entry)
+        if parsed is not None:
+            entries.append(parsed)
+
+    return tuple(entries)
+
+
+def _entry_from_message(message_entry: object) -> tuple[str, UUID] | None:
+    if not isinstance(message_entry, (list, tuple)) or len(message_entry) != 2:
+        return None
+
+    message_id, fields = message_entry[0], message_entry[1]
+    job_id = _parse_job_id(fields)
+    if job_id is None:
+        return None
+
+    if isinstance(message_id, bytes):
+        return message_id.decode("utf-8"), job_id
+
+    if isinstance(message_id, str):
+        return message_id, job_id
+
+    return None
 
 
 def _parse_job_id(fields: object) -> UUID | None:

@@ -13,6 +13,9 @@ import pytest
 from closeros.infrastructure.redis_stream_queue import (
     RedisStreamJobConsumer,
     RedisStreamQueuePublisher,
+    _extract_xautoclaim_messages,
+    _extract_xreadgroup_messages,
+    _parse_job_id,
 )
 from redis.asyncio import Redis
 
@@ -119,3 +122,115 @@ def test_redis_consumer_group_creation_is_idempotent(redis_url: str) -> None:
             await redis.aclose()
 
     asyncio.run(exercise())
+
+
+def test_xautoclaim_empty_list_response_returns_empty_tuple() -> None:
+    assert _extract_xautoclaim_messages([b"0-0", [], []]) == ()
+
+
+def test_xautoclaim_list_response_with_one_valid_job() -> None:
+    job_id = uuid.uuid4()
+    response = [
+        b"0-0",
+        [
+            [b"1712345678901-0", {b"job_id": str(job_id).encode("ascii")}],
+        ],
+        [],
+    ]
+    assert _extract_xautoclaim_messages(response) == (("1712345678901-0", job_id),)
+
+
+def test_xautoclaim_tuple_response_with_one_valid_job() -> None:
+    job_id = uuid.uuid4()
+    response: tuple[object, list[object], list[object]] = (
+        b"0-0",
+        [
+            (b"1712345678902-0", {b"job_id": str(job_id).encode("ascii")}),
+        ],
+        [],
+    )
+    assert _extract_xautoclaim_messages(response) == (("1712345678902-0", job_id),)
+
+
+def test_xreadgroup_response_with_one_stream_and_one_message() -> None:
+    job_id = uuid.uuid4()
+    response = [
+        [
+            b"stream-name",
+            [
+                [b"1712345678903-0", {b"job_id": str(job_id).encode("ascii")}],
+            ],
+        ],
+    ]
+    assert _extract_xreadgroup_messages(response) == (("1712345678903-0", job_id),)
+
+
+def test_xreadgroup_response_with_multiple_messages() -> None:
+    job_id_one = uuid.uuid4()
+    job_id_two = uuid.uuid4()
+    response = [
+        [
+            b"stream-name",
+            [
+                [b"1712345678904-0", {b"job_id": str(job_id_one).encode("ascii")}],
+                [b"1712345678905-0", {b"job_id": str(job_id_two).encode("ascii")}],
+            ],
+        ],
+    ]
+    assert _extract_xreadgroup_messages(response) == (
+        ("1712345678904-0", job_id_one),
+        ("1712345678905-0", job_id_two),
+    )
+
+
+def test_parsers_support_decoded_string_responses() -> None:
+    job_id = uuid.uuid4()
+    autoclaim = [
+        "0-0",
+        [
+            ["1712345678906-0", {"job_id": str(job_id)}],
+        ],
+        [],
+    ]
+    xreadgroup = [
+        [
+            "stream-name",
+            [
+                ["1712345678907-0", {"job_id": str(job_id)}],
+            ],
+        ],
+    ]
+    assert _extract_xautoclaim_messages(autoclaim) == (("1712345678906-0", job_id),)
+    assert _extract_xreadgroup_messages(xreadgroup) == (("1712345678907-0", job_id),)
+
+
+def test_malformed_response_elements_do_not_raise() -> None:
+    assert _extract_xautoclaim_messages([b"0-0"]) == ()
+    assert _extract_xautoclaim_messages("not-a-response") == ()
+    assert _extract_xautoclaim_messages([b"0-0", "not-a-list", []]) == ()
+    assert _extract_xautoclaim_messages([b"0-0", [[b"1-0"]], []]) == ()
+    assert _extract_xreadgroup_messages(None) == ()
+    assert _extract_xreadgroup_messages([["stream-only"]]) == ()
+    assert _extract_xreadgroup_messages([[b"stream", "not-a-list"]]) == ()
+    assert _extract_xreadgroup_messages([[b"stream", [[b"1-0"]]]]) == ()
+
+
+def test_invalid_uuid_values_are_skipped() -> None:
+    autoclaim = [
+        b"0-0",
+        [
+            [b"1712345678908-0", {b"job_id": b"not-a-uuid"}],
+        ],
+        [],
+    ]
+    xreadgroup = [
+        [
+            b"stream-name",
+            [
+                [b"1712345678909-0", {b"job_id": b"still-not-a-uuid"}],
+            ],
+        ],
+    ]
+    assert _extract_xautoclaim_messages(autoclaim) == ()
+    assert _extract_xreadgroup_messages(xreadgroup) == ()
+    assert _parse_job_id({b"job_id": b"not-a-uuid"}) is None

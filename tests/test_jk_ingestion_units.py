@@ -16,7 +16,11 @@ from closeros.application.provider_adapter_registry import (
 )
 from closeros.domain.canonical_enums import ProviderKind
 from closeros.domain.csv_import import CsvColumnMapping, CsvDelimiter, CsvSourceEncoding
-from closeros.infrastructure.redis_stream_queue import _extract_messages, _parse_job_id
+from closeros.infrastructure.redis_stream_queue import (
+    _extract_xautoclaim_messages,
+    _extract_xreadgroup_messages,
+    _parse_job_id,
+)
 from closeros.infrastructure.synthetic_hmac_adapter import (
     SyntheticHmacWebhookAdapter,
     build_synthetic_signature,
@@ -174,9 +178,9 @@ def test_parse_job_id_rejects_invalid_uuid() -> None:
 
 
 def test_extract_messages_empty_response() -> None:
-    assert _extract_messages(None) == ()
-    assert _extract_messages([]) == ()
-    assert _extract_messages(()) == ()
+    assert _extract_xautoclaim_messages(None) == ()
+    assert _extract_xreadgroup_messages([]) == ()
+    assert _extract_xreadgroup_messages(()) == ()
 
 
 def test_extract_messages_from_xreadgroup_shape() -> None:
@@ -189,7 +193,7 @@ def test_extract_messages_from_xreadgroup_shape() -> None:
             ],
         ]
     ]
-    messages = _extract_messages(response)
+    messages = _extract_xreadgroup_messages(response)
     assert messages == (("1700000000000-0", job_id),)
 
 
@@ -348,11 +352,11 @@ def test_parse_job_id_rejects_invalid_payloads(payload: object) -> None:
 def test_extract_messages_from_autoclaim_shape() -> None:
     job_id = UUID("00000000-0000-0000-0000-000000000002")
     response = (
-        b"stream",
+        b"0-0",
         [(b"1700000000001-0", {b"job_id": str(job_id).encode("ascii")})],
         [],
     )
-    messages = _extract_messages(response)
+    messages = _extract_xautoclaim_messages(response)
     assert messages == (("1700000000001-0", job_id),)
 
 
