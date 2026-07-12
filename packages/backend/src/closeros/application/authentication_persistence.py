@@ -15,6 +15,7 @@ from types import TracebackType
 from typing import Protocol
 from uuid import UUID
 
+from closeros.application.audit_persistence import AuditEventAppendRepository
 from closeros.domain.authentication import (
     AuthenticationEmail,
     AuthenticationTokenHash,
@@ -207,6 +208,7 @@ class AuthenticationUnitOfWork(Protocol):
     credentials: CredentialRepository
     sessions: SessionRepository
     one_time_tokens: OneTimeTokenRepository
+    audit_events: AuditEventAppendRepository
 
     async def __aenter__(self) -> AuthenticationUnitOfWork: ...
 

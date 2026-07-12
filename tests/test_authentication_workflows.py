@@ -26,6 +26,7 @@ from closeros.application.authentication_workflows import (
     AuthenticationWorkflowService,
     AuthenticationWorkflowUnavailableError,
 )
+from closeros.domain.audit import AuditEvent
 from closeros.domain.authentication import (
     AuthenticationEmail,
     AuthenticationSessionStage,
@@ -43,6 +44,7 @@ from closeros.infrastructure.password_hashing import Argon2idPasswordHasher
 from closeros.security.authentication_tokens import RawAuthenticationToken
 
 from tests.auth_workflow_support import (
+    TEST_AUDIT_CONTEXT,
     AcceptingMfaVerifier,
     RejectingMfaVerifier,
     deterministic_token_factory,
@@ -69,6 +71,7 @@ class FakeState:
     sessions_by_hash: dict[bytes, UUID] = field(default_factory=dict)
     tokens: dict[UUID, AuthenticationOneTimeToken] = field(default_factory=dict)
     tokens_by_hash: dict[bytes, UUID] = field(default_factory=dict)
+    audit_events: list[AuditEvent] = field(default_factory=list)
     committed: bool = False
 
 
@@ -325,6 +328,17 @@ class FakeOneTimeTokenRepository:
         return count
 
 
+class FakeAuditEventRepository:
+    def __init__(self, state: FakeState) -> None:
+        self._state = state
+
+    async def append(self, event: AuditEvent) -> None:
+        self._state.audit_events.append(event)
+
+    async def query_page(self, *, query_filter: object, cursor: object, page_size: int) -> object:
+        raise NotImplementedError("query_page is not implemented in fake audit repository")
+
+
 class FakeUnitOfWork:
     def __init__(self, state: FakeState) -> None:
         self._state = state
@@ -332,6 +346,7 @@ class FakeUnitOfWork:
         self.credentials = FakeCredentialRepository(state)
         self.sessions = FakeSessionRepository(state)
         self.one_time_tokens = FakeOneTimeTokenRepository(state)
+        self.audit_events = FakeAuditEventRepository(state)
 
     async def __aenter__(self) -> FakeUnitOfWork:
         return self
@@ -367,10 +382,12 @@ async def _seed_verified_credential(state: FakeState) -> RawAuthenticationToken:
         plaintext_password=PASSWORD,
         registered_at=NOW,
         raw_token_factory=deterministic_token_factory(bytes(range(32))),
+        audit_context=TEST_AUDIT_CONTEXT,
     )
     await service.confirm_email_verification(
         raw_token=registration.delivery.raw_token,
         confirmed_at=NOW + timedelta(minutes=1),
+        audit_context=TEST_AUDIT_CONTEXT,
     )
     return registration.delivery.raw_token
 
@@ -429,6 +446,7 @@ def test_registration_success_commits_once() -> None:
             plaintext_password=PASSWORD,
             registered_at=NOW,
             raw_token_factory=deterministic_token_factory(bytes(range(32))),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert result.user_id == USER_ID
@@ -447,6 +465,7 @@ def test_verification_request_for_verified_account_has_no_delivery() -> None:
             email=EMAIL.value,
             verification_token_id=uuid4(),
             requested_at=NOW + timedelta(minutes=2),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert accepted.delivery is None
@@ -465,6 +484,7 @@ def test_login_failure_message_is_generic() -> None:
                 session_id=SESSION_ID,
                 authenticated_at=NOW,
                 mfa_required=False,
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
         assert str(exc_info.value) == AUTHENTICATION_FAILED_MESSAGE
@@ -484,6 +504,7 @@ def test_login_success_after_verification() -> None:
             authenticated_at=NOW + timedelta(hours=1),
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(bytes(reversed(range(32)))),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert issued.session.stage is AuthenticationSessionStage.AUTHENTICATED
@@ -503,6 +524,7 @@ def test_mfa_completion_failure_is_generic() -> None:
             authenticated_at=NOW,
             mfa_required=True,
             raw_token_factory=deterministic_token_factory(bytes(reversed(range(32)))),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         with pytest.raises(AuthenticationWorkflowUnavailableError) as exc_info:
@@ -513,6 +535,7 @@ def test_mfa_completion_failure_is_generic() -> None:
                 mfa_response={"code": "000000"},
                 completed_at=NOW + timedelta(minutes=1),
                 mfa_verifier=RejectingMfaVerifier(),
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
         assert str(exc_info.value) == AUTHENTICATION_UNAVAILABLE_MESSAGE
@@ -532,6 +555,7 @@ def test_mfa_completion_success_with_accepting_verifier() -> None:
             authenticated_at=NOW,
             mfa_required=True,
             raw_token_factory=deterministic_token_factory(bytes(reversed(range(32)))),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         completed = await service.complete_mfa_login(
             pending_session_raw_token=pending.raw_token,
@@ -543,6 +567,7 @@ def test_mfa_completion_success_with_accepting_verifier() -> None:
             raw_token_factory=deterministic_token_factory(
                 bytes((index * 3) % 256 for index in range(32))
             ),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert completed.session.stage is AuthenticationSessionStage.AUTHENTICATED
@@ -563,6 +588,7 @@ def test_resolve_session_skips_touch_within_interval() -> None:
             authenticated_at=NOW,
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(bytes(reversed(range(32)))),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         before = state.sessions[SESSION_ID].last_seen_at
         resolved = await service.resolve_session(
@@ -586,11 +612,13 @@ def test_reset_request_for_unverified_account_has_no_delivery() -> None:
             plaintext_password=PASSWORD,
             registered_at=NOW,
             raw_token_factory=deterministic_token_factory(bytes(range(32))),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         accepted = await service.request_password_reset(
             email=EMAIL.value,
             reset_token_id=uuid4(),
             requested_at=NOW + timedelta(minutes=1),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert accepted.delivery is None
@@ -610,6 +638,7 @@ def test_change_password_wrong_current_password_fails_generically() -> None:
             authenticated_at=NOW,
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(bytes(reversed(range(32)))),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         with pytest.raises(AuthenticationFailedError):
@@ -619,6 +648,7 @@ def test_change_password_wrong_current_password_fails_generically() -> None:
                 new_password="Synthetic-Password-2",
                 new_session_id=NEW_SESSION_ID,
                 changed_at=NOW + timedelta(minutes=1),
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
     asyncio.run(exercise())
@@ -636,6 +666,7 @@ def test_confirm_verification_with_wrong_purpose_token_fails() -> None:
             raw_token_factory=deterministic_token_factory(
                 bytes((index * 5) % 256 for index in range(32))
             ),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         assert reset.delivery is not None
 
@@ -643,6 +674,7 @@ def test_confirm_verification_with_wrong_purpose_token_fails() -> None:
             await service.confirm_email_verification(
                 raw_token=reset.delivery.raw_token,
                 confirmed_at=NOW + timedelta(hours=1, minutes=1),
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
     asyncio.run(exercise())

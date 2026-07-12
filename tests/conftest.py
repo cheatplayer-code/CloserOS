@@ -169,6 +169,16 @@ def auth_uow_factory(auth_session_factory: Any) -> Any:
     return factory
 
 
+@pytest.fixture
+def auth_audit_uow_factory(auth_session_factory: Any) -> Any:
+    from closeros.infrastructure.audit_unit_of_work import SqlAlchemyAuditUnitOfWork
+
+    def factory() -> SqlAlchemyAuditUnitOfWork:
+        return SqlAlchemyAuditUnitOfWork(auth_session_factory)
+
+    return factory
+
+
 @pytest.fixture(autouse=True)
 def _reset_auth_tables(request: pytest.FixtureRequest) -> Iterator[None]:
     if request.node.get_closest_marker("auth_persistence") is None:
@@ -183,7 +193,7 @@ def _reset_auth_tables(request: pytest.FixtureRequest) -> Iterator[None]:
         async with engine.begin() as connection:
             await connection.execute(
                 text(
-                    "TRUNCATE authentication_one_time_tokens, "
+                    "TRUNCATE audit_events, authentication_one_time_tokens, "
                     "authentication_sessions, authentication_credentials, "
                     "users RESTART IDENTITY CASCADE"
                 )

@@ -20,6 +20,12 @@ Block C exposes framework-independent authentication workflows at
 Process health remains at `/health`. Database readiness is exposed at `/ready`
 without connection details.
 
+## Request correlation
+
+Every API response includes a server-generated `X-Request-ID` UUID. Clients must
+not rely on supplying their own correlation header; when present it is ignored and
+replaced. Authentication audit events for a request reuse the same correlation ID.
+
 ## Browser security
 
 - Production session cookie: `__Host-closeros_session` (`Secure`, `HttpOnly`,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, cast
 
+from closeros.application.audit_recording import AuditContext
 from closeros.application.authentication_workflows import (
     AuthenticationFailedError,
     AuthenticationWorkflowUnavailableError,
@@ -40,6 +41,7 @@ from closeros_api.auth_security import (
     set_session_cookie,
 )
 from closeros_api.composition import AuthRuntime
+from closeros_api.request_correlation import get_request_correlation_id
 
 router = APIRouter(tags=["authentication"])
 
@@ -48,6 +50,16 @@ ACCESS_DENIED = "access denied"
 REQUEST_ACCEPTED = "request accepted"
 RATE_LIMITED = "too many requests"
 REQUEST_UNAVAILABLE = "request unavailable"
+
+
+def _audit_context(request: Request) -> AuditContext:
+    route = request.scope.get("route")
+    route_template = getattr(route, "path", None)
+    return AuditContext(
+        correlation_id=get_request_correlation_id(request),
+        http_method=request.method,
+        route_template=route_template if isinstance(route_template, str) else None,
+    )
 
 
 def _runtime(request: Request) -> AuthRuntime:
@@ -191,6 +203,7 @@ async def register(
             email=body.email,
             plaintext_password=body.password.get_secret_value(),
             registered_at=runtime.clock.now(),
+            audit_context=_audit_context(request),
         )
         await _dispatch_safely(
             runtime.notification_dispatcher.dispatch_email_verification(result.delivery)
@@ -225,6 +238,7 @@ async def request_email_verification(
         email=body.email,
         verification_token_id=runtime.uuid_factory(),
         requested_at=runtime.clock.now(),
+        audit_context=_audit_context(request),
     )
     if accepted.delivery is not None:
         await _dispatch_safely(
@@ -252,6 +266,7 @@ async def confirm_email_verification(
         await runtime.workflows.confirm_email_verification(
             raw_token=raw_token,
             confirmed_at=runtime.clock.now(),
+            audit_context=_audit_context(request),
         )
     except (AuthenticationWorkflowUnavailableError, TypeError, ValueError):
         raise HTTPException(
@@ -285,6 +300,7 @@ async def login(
             plaintext_password=body.password.get_secret_value(),
             session_id=runtime.uuid_factory(),
             authenticated_at=runtime.clock.now(),
+            audit_context=_audit_context(request),
             mfa_requirement_policy=runtime.mfa_requirement_policy,
         )
     except AuthenticationFailedError:
@@ -338,6 +354,7 @@ async def complete_mfa(
             method=MfaMethod(body.method),
             mfa_response=body.response,
             completed_at=runtime.clock.now(),
+            audit_context=_audit_context(request),
             mfa_verifier=runtime.mfa_verifier,
         )
     except AuthenticationWorkflowUnavailableError:
@@ -413,6 +430,7 @@ async def logout(
         await runtime.workflows.logout(
             raw_token=session_token,
             revoked_at=runtime.clock.now(),
+            audit_context=_audit_context(request),
         )
 
     clear_session_cookie(response, cookie_config=runtime.cookie_config)
@@ -449,6 +467,7 @@ async def logout_all(
     await runtime.workflows.logout_all_sessions(
         user_id=resolved.user.id,
         revoked_at=runtime.clock.now(),
+        audit_context=_audit_context(request),
     )
     clear_session_cookie(response, cookie_config=runtime.cookie_config)
     response.status_code = status.HTTP_204_NO_CONTENT
@@ -479,6 +498,7 @@ async def request_password_reset(
         email=body.email,
         reset_token_id=runtime.uuid_factory(),
         requested_at=runtime.clock.now(),
+        audit_context=_audit_context(request),
     )
     if accepted.delivery is not None:
         await _dispatch_safely(
@@ -508,6 +528,7 @@ async def confirm_password_reset(
             raw_token=raw_token,
             new_plaintext_password=body.new_password.get_secret_value(),
             confirmed_at=runtime.clock.now(),
+            audit_context=_audit_context(request),
         )
     except (AuthenticationWorkflowUnavailableError, TypeError, ValueError):
         raise HTTPException(
@@ -550,6 +571,7 @@ async def change_password(
             new_password=body.new_password.get_secret_value(),
             new_session_id=runtime.uuid_factory(),
             changed_at=runtime.clock.now(),
+            audit_context=_audit_context(request),
         )
     except AuthenticationFailedError:
         raise HTTPException(

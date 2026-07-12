@@ -14,6 +14,25 @@ from datetime import datetime, timedelta
 from typing import NoReturn, Protocol
 from uuid import UUID
 
+from closeros.application.audit_recording import (
+    AuditContext,
+    StandaloneAuditAppender,
+    append_required_audit_event,
+)
+from closeros.application.authentication_audit import (
+    email_verification_completed_event,
+    email_verification_requested_event,
+    login_failed_event,
+    login_succeeded_event,
+    mfa_completed_event,
+    mfa_failed_event,
+    password_changed_event,
+    password_reset_completed_event,
+    password_reset_requested_event,
+    registration_completed_event,
+    session_revoked_event,
+    sessions_revoked_all_event,
+)
 from closeros.application.authentication_issuance import (
     AuthenticationSessionTransitionError,
     IssuedAuthenticationSession,
@@ -304,6 +323,42 @@ class AuthenticationWorkflowService:
     session_timeout_policy: AuthenticationSessionTimeoutPolicy = (
         AUTHENTICATION_SESSION_TIMEOUT_POLICY
     )
+    standalone_audit_appender: StandaloneAuditAppender | None = None
+
+    def _resolved_standalone_audit_appender(self) -> StandaloneAuditAppender:
+        if self.standalone_audit_appender is not None:
+            return self.standalone_audit_appender
+        return StandaloneAuditAppender(self.uow_factory)
+
+    async def _record_login_failed(
+        self,
+        *,
+        occurred_at: datetime,
+        audit_context: AuditContext,
+    ) -> None:
+        await self._resolved_standalone_audit_appender().append(
+            login_failed_event(
+                occurred_at=occurred_at,
+                audit_context=audit_context,
+            )
+        )
+
+    async def _record_mfa_failed(
+        self,
+        *,
+        user_id: UUID,
+        occurred_at: datetime,
+        audit_context: AuditContext,
+        mfa_method: MfaMethod,
+    ) -> None:
+        await self._resolved_standalone_audit_appender().append(
+            mfa_failed_event(
+                user_id=user_id,
+                occurred_at=occurred_at,
+                audit_context=audit_context,
+                mfa_method=mfa_method.value,
+            )
+        )
 
     async def register_user(
         self,
@@ -314,6 +369,7 @@ class AuthenticationWorkflowService:
         email: str,
         plaintext_password: str,
         registered_at: datetime,
+        audit_context: AuditContext,
         raw_token_factory: _RawAuthenticationTokenFactory = (generate_raw_authentication_token),
     ) -> RegistrationResult:
         validated_user_id = _validate_uuid(user_id, "user_id")
@@ -356,6 +412,14 @@ class AuthenticationWorkflowService:
                 issued_at=validated_registered_at,
                 raw_token_factory=raw_token_factory,
             )
+            await append_required_audit_event(
+                uow.audit_events,
+                registration_completed_event(
+                    user_id=validated_user_id,
+                    occurred_at=validated_registered_at,
+                    audit_context=audit_context,
+                ),
+            )
             await uow.commit()
 
         return RegistrationResult(user_id=validated_user_id, delivery=delivery)
@@ -366,6 +430,7 @@ class AuthenticationWorkflowService:
         email: str,
         verification_token_id: UUID,
         requested_at: datetime,
+        audit_context: AuditContext,
         raw_token_factory: _RawAuthenticationTokenFactory = (generate_raw_authentication_token),
     ) -> AuthenticationRequestAccepted:
         validated_token_id = _validate_uuid(
@@ -397,6 +462,14 @@ class AuthenticationWorkflowService:
                     issued_at=validated_requested_at,
                     raw_token_factory=raw_token_factory,
                 )
+                await append_required_audit_event(
+                    uow.audit_events,
+                    email_verification_requested_event(
+                        user_id=credential.user_id,
+                        occurred_at=validated_requested_at,
+                        audit_context=audit_context,
+                    ),
+                )
             await uow.commit()
 
         return AuthenticationRequestAccepted(delivery=delivery)
@@ -406,6 +479,7 @@ class AuthenticationWorkflowService:
         *,
         raw_token: RawAuthenticationToken,
         confirmed_at: datetime,
+        audit_context: AuditContext,
     ) -> None:
         if not isinstance(raw_token, RawAuthenticationToken):
             raise TypeError("raw_token must be a RawAuthenticationToken")
@@ -442,6 +516,14 @@ class AuthenticationWorkflowService:
                 purpose=AuthenticationTokenPurpose.EMAIL_VERIFICATION,
                 revoked_at=validated_confirmed_at,
             )
+            await append_required_audit_event(
+                uow.audit_events,
+                email_verification_completed_event(
+                    user_id=token.user_id,
+                    occurred_at=validated_confirmed_at,
+                    audit_context=audit_context,
+                ),
+            )
             await uow.commit()
 
     async def login_with_password(
@@ -451,6 +533,7 @@ class AuthenticationWorkflowService:
         plaintext_password: str,
         session_id: UUID,
         authenticated_at: datetime,
+        audit_context: AuditContext,
         mfa_required: bool = False,
         mfa_requirement_policy: MfaRequirementPolicy | None = None,
         raw_token_factory: _RawAuthenticationTokenFactory = (generate_raw_authentication_token),
@@ -466,19 +549,38 @@ class AuthenticationWorkflowService:
         async with uow:
             credential = await uow.credentials.get_by_email_for_update(normalized_email)
             if credential is None:
+                await self._record_login_failed(
+                    occurred_at=validated_authenticated_at,
+                    audit_context=audit_context,
+                )
                 _raise_login_failed()
 
             user = await _load_active_user(uow, user_id=credential.user_id)
             if user is None:
+                await self._record_login_failed(
+                    occurred_at=validated_authenticated_at,
+                    audit_context=audit_context,
+                )
                 _raise_login_failed()
 
-            requires_rehash = await _verify_password_or_fail(
-                self.password_hasher,
-                candidate=plaintext_password,
-                stored=credential,
-            )
+            try:
+                requires_rehash = await _verify_password_or_fail(
+                    self.password_hasher,
+                    candidate=plaintext_password,
+                    stored=credential,
+                )
+            except AuthenticationFailedError:
+                await self._record_login_failed(
+                    occurred_at=validated_authenticated_at,
+                    audit_context=audit_context,
+                )
+                raise
 
             if credential.email_verified_at is None:
+                await self._record_login_failed(
+                    occurred_at=validated_authenticated_at,
+                    audit_context=audit_context,
+                )
                 _raise_login_failed()
 
             if requires_rehash:
@@ -512,6 +614,17 @@ class AuthenticationWorkflowService:
                 )
 
             await uow.sessions.add(issued.session)
+            await append_required_audit_event(
+                uow.audit_events,
+                login_succeeded_event(
+                    user_id=user.id,
+                    session_id=validated_session_id,
+                    occurred_at=validated_authenticated_at,
+                    audit_context=audit_context,
+                    session_stage=issued.session.stage,
+                    assurance_level=issued.session.assurance_level,
+                ),
+            )
             await uow.commit()
 
         return issued
@@ -524,6 +637,7 @@ class AuthenticationWorkflowService:
         method: MfaMethod,
         mfa_response: object,
         completed_at: datetime,
+        audit_context: AuditContext,
         mfa_verifier: MfaVerifier,
         raw_token_factory: _RawAuthenticationTokenFactory = (generate_raw_authentication_token),
     ) -> IssuedAuthenticationSession:
@@ -566,6 +680,12 @@ class AuthenticationWorkflowService:
                 response=mfa_response,
             )
             if not verified:
+                await self._record_mfa_failed(
+                    user_id=pending_session.user_id,
+                    occurred_at=validated_completed_at,
+                    audit_context=audit_context,
+                    mfa_method=method,
+                )
                 _raise_unavailable()
 
             try:
@@ -586,6 +706,16 @@ class AuthenticationWorkflowService:
                 revoked_at=validated_completed_at,
             )
             await uow.sessions.add(rotation.issued.session)
+            await append_required_audit_event(
+                uow.audit_events,
+                mfa_completed_event(
+                    user_id=pending_session.user_id,
+                    session_id=validated_new_session_id,
+                    occurred_at=validated_completed_at,
+                    audit_context=audit_context,
+                    mfa_method=method.value,
+                ),
+            )
             await uow.commit()
 
         return rotation.issued
@@ -657,6 +787,7 @@ class AuthenticationWorkflowService:
         *,
         raw_token: RawAuthenticationToken,
         revoked_at: datetime,
+        audit_context: AuditContext,
     ) -> None:
         if not isinstance(raw_token, RawAuthenticationToken):
             raise TypeError("raw_token must be a RawAuthenticationToken")
@@ -675,6 +806,15 @@ class AuthenticationWorkflowService:
                     session_id=session.id,
                     revoked_at=validated_revoked_at,
                 )
+                await append_required_audit_event(
+                    uow.audit_events,
+                    session_revoked_event(
+                        user_id=session.user_id,
+                        session_id=session.id,
+                        occurred_at=validated_revoked_at,
+                        audit_context=audit_context,
+                    ),
+                )
             await uow.commit()
 
     async def logout_all_sessions(
@@ -682,6 +822,7 @@ class AuthenticationWorkflowService:
         *,
         user_id: UUID,
         revoked_at: datetime,
+        audit_context: AuditContext,
     ) -> int:
         validated_user_id = _validate_uuid(user_id, "user_id")
         validated_revoked_at = _validate_timezone_aware_datetime(
@@ -695,6 +836,15 @@ class AuthenticationWorkflowService:
                 user_id=validated_user_id,
                 revoked_at=validated_revoked_at,
             )
+            await append_required_audit_event(
+                uow.audit_events,
+                sessions_revoked_all_event(
+                    user_id=validated_user_id,
+                    occurred_at=validated_revoked_at,
+                    audit_context=audit_context,
+                    affected_count=revoked_count,
+                ),
+            )
             await uow.commit()
 
         return revoked_count
@@ -705,6 +855,7 @@ class AuthenticationWorkflowService:
         email: str,
         reset_token_id: UUID,
         requested_at: datetime,
+        audit_context: AuditContext,
         raw_token_factory: _RawAuthenticationTokenFactory = (generate_raw_authentication_token),
     ) -> AuthenticationRequestAccepted:
         validated_token_id = _validate_uuid(reset_token_id, "reset_token_id")
@@ -733,6 +884,14 @@ class AuthenticationWorkflowService:
                     requested_at=validated_requested_at,
                     raw_token_factory=raw_token_factory,
                 )
+                await append_required_audit_event(
+                    uow.audit_events,
+                    password_reset_requested_event(
+                        user_id=credential.user_id,
+                        occurred_at=validated_requested_at,
+                        audit_context=audit_context,
+                    ),
+                )
             await uow.commit()
 
         return AuthenticationRequestAccepted(delivery=delivery)
@@ -743,6 +902,7 @@ class AuthenticationWorkflowService:
         raw_token: RawAuthenticationToken,
         new_plaintext_password: str,
         confirmed_at: datetime,
+        audit_context: AuditContext,
     ) -> None:
         if not isinstance(raw_token, RawAuthenticationToken):
             raise TypeError("raw_token must be a RawAuthenticationToken")
@@ -784,6 +944,14 @@ class AuthenticationWorkflowService:
                 user_id=token.user_id,
                 revoked_at=validated_confirmed_at,
             )
+            await append_required_audit_event(
+                uow.audit_events,
+                password_reset_completed_event(
+                    user_id=token.user_id,
+                    occurred_at=validated_confirmed_at,
+                    audit_context=audit_context,
+                ),
+            )
             await uow.commit()
 
     async def change_password(
@@ -794,6 +962,7 @@ class AuthenticationWorkflowService:
         new_password: str,
         new_session_id: UUID,
         changed_at: datetime,
+        audit_context: AuditContext,
         raw_token_factory: _RawAuthenticationTokenFactory = (generate_raw_authentication_token),
     ) -> IssuedAuthenticationSession:
         if not isinstance(session_raw_token, RawAuthenticationToken):
@@ -857,6 +1026,15 @@ class AuthenticationWorkflowService:
                 timeout_policy=self.session_timeout_policy,
             )
             await uow.sessions.add(issued.session)
+            await append_required_audit_event(
+                uow.audit_events,
+                password_changed_event(
+                    user_id=user.id,
+                    session_id=validated_new_session_id,
+                    occurred_at=validated_changed_at,
+                    audit_context=audit_context,
+                ),
+            )
             await uow.commit()
 
         return issued
