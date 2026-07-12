@@ -73,6 +73,9 @@ _ALLOWED_METADATA_KEYS: frozenset[str] = frozenset(
         "budget_status",
         "knowledge_source_kind",
         "version_number",
+        "task_count",
+        "overdue_count",
+        "score_formula_version",
     }
 )
 
@@ -146,6 +149,19 @@ class AuditAction(StrEnum):
     ANALYSIS_FAILED = "analysis.failed"
     ANALYSIS_FINDINGS_VIEWED = "analysis.findings.viewed"
     AI_BUDGET_EXCEEDED = "ai.budget.exceeded"
+    FOLLOW_UP_TASK_CREATED = "follow_up_task.created"
+    FOLLOW_UP_TASK_ASSIGNED = "follow_up_task.assigned"
+    FOLLOW_UP_TASK_PRIORITY_CHANGED = "follow_up_task.priority_changed"
+    FOLLOW_UP_TASK_DUE_DATE_CHANGED = "follow_up_task.due_date_changed"
+    FOLLOW_UP_TASK_STARTED = "follow_up_task.started"
+    FOLLOW_UP_TASK_COMPLETED = "follow_up_task.completed"
+    FOLLOW_UP_TASK_CANCELLED = "follow_up_task.cancelled"
+    FOLLOW_UP_TASK_REOPENED = "follow_up_task.reopened"
+    FOLLOW_UP_TASK_VIEWED = "follow_up_task.viewed"
+    CONVERSATION_LIST_VIEWED = "conversation.list.viewed"
+    CONVERSATION_DETAIL_VIEWED = "conversation.detail.viewed"
+    DASHBOARD_VIEWED = "dashboard.viewed"
+    SCORECARD_VIEWED = "scorecard.viewed"
 
 
 class AuditTargetType(StrEnum):
@@ -170,6 +186,10 @@ class AuditTargetType(StrEnum):
     KNOWLEDGE_DOCUMENT = "knowledge_document"
     KNOWLEDGE_DOCUMENT_VERSION = "knowledge_document_version"
     CONVERSATION_ANALYSIS_RUN = "conversation_analysis_run"
+    FOLLOW_UP_TASK = "follow_up_task"
+    CONVERSATION_THREAD = "conversation_thread"
+    DASHBOARD = "dashboard"
+    SCORECARD = "scorecard"
 
 
 class AuditMetadataError(ValueError):

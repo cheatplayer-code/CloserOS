@@ -61,10 +61,15 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "redis_integration: Redis stream queue integration tests",
     )
+    config.addinivalue_line(
+        "markers",
+        "rstu_persistence: PostgreSQL RSTU product workspace integration tests",
+    )
 
 
 _PLATFORM_TRUNCATE_TABLES = (
     "conversation_finding_knowledge_citations",
+    "follow_up_tasks",
     "conversation_finding_evidence",
     "conversation_findings",
     "conversation_analysis_runs",
@@ -295,6 +300,7 @@ def _requires_persistence_reset(request: pytest.FixtureRequest) -> bool:
         or request.node.get_closest_marker("jk_persistence") is not None
         or request.node.get_closest_marker("lm_persistence") is not None
         or request.node.get_closest_marker("nopq_persistence") is not None
+        or request.node.get_closest_marker("rstu_persistence") is not None
     )
 
 

@@ -1130,6 +1130,37 @@ Not implemented in Block NOPQ:
 Next block: **RSTU** — owner dashboard, conversation review, manager scorecards,
 and follow-up tasks.
 
+## Block RSTU — product workspace and follow-up management
+
+Status: **Implemented locally; PR verification pending.**
+
+Delivered:
+
+- Domain: `FollowUpTask` state machine, `product_metrics` formulas
+  (`rstu-dashboard-v1`, `rstu-scorecard-v1`), RSTU audit taxonomy.
+- Migration `f6a8c2e4b1d3`: `follow_up_tasks` table, tenant-scoped indexes,
+  membership composite uniqueness for task FK.
+- Application services: `DashboardQueryService`, `ConversationQueryService`,
+  `ScorecardQueryService`, `FollowUpTaskService`, shared `manager_attribution`.
+- API routers registered in `composition.py` / `app.py` with CSRF + Origin on writes.
+- Contracts package: dashboard, scorecard, follow-up task schemas and TypeScript types.
+- Web workspace: tenant provider, typed product API client, seven authenticated pages.
+
+Sanitized-only review boundary: ordinary conversation list/detail routes decrypt only
+`sanitized_message` content for `CONVERSATION_REVIEW`; raw content is not exposed.
+
+Scorecard attribution: conversations and findings via canonical thread assignment at
+window end; tasks via `assigned_membership_id`; metrics from manager-scope snapshots.
+
+Not implemented in Block RSTU:
+
+- autonomous outbound messaging;
+- official provider adapters (VW);
+- vector search / advanced forecasting (XY/Z).
+
+Next block: **VW** — design-partner/provider decision package and first official
+messaging provider.
+
 ## NOPQ knowledge application/infrastructure layer (superseded section)
 
 Status: **Merged into Block NOPQ section above.**

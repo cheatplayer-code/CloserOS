@@ -46,6 +46,7 @@ class ContentAccessPurpose(StrEnum):
     KEY_REWRAP = "key_rewrap"
     CSV_IMPORT_PROCESSING = "csv_import_processing"
     KNOWLEDGE_RETRIEVAL = "knowledge_retrieval"
+    CONVERSATION_REVIEW = "conversation_review"
 
 
 class EncryptedContentError(ValueError):

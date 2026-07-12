@@ -47,6 +47,7 @@ from closeros.infrastructure.csv_import_repositories import (
 from closeros.infrastructure.encrypted_content_repositories import (
     SqlAlchemyEncryptedContentRepository,
 )
+from closeros.infrastructure.follow_up_task_repositories import SqlAlchemyFollowUpTaskRepository
 from closeros.infrastructure.knowledge_repositories import (
     SqlAlchemyKnowledgeChunkRepository,
     SqlAlchemyKnowledgeChunkTermRepository,
@@ -104,6 +105,7 @@ class SqlAlchemyIntegratedUnitOfWork:
     conversation_finding_knowledge_citations: (
         SqlAlchemyConversationFindingKnowledgeCitationRepository
     )
+    follow_up_tasks: SqlAlchemyFollowUpTaskRepository
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -160,6 +162,7 @@ class SqlAlchemyIntegratedUnitOfWork:
         self.conversation_finding_knowledge_citations = (
             SqlAlchemyConversationFindingKnowledgeCitationRepository(session)
         )
+        self.follow_up_tasks = SqlAlchemyFollowUpTaskRepository(session)
         return self
 
     async def __aexit__(

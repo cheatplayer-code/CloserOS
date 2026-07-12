@@ -99,8 +99,44 @@ update to this file and `PROJECT_STATUS.md`.
 - Alembic revision `e3b7c9d1f5a2` for AI policy/usage, analysis runs/findings, and
   knowledge retrieval schema.
 
-Next block: **RSTU** — owner dashboard, conversation review, manager scorecards,
-and follow-up task queue.
+Next block: **VW** — design-partner/provider decision package + first official
+messaging provider.
+
+### Block RSTU — product workspace and follow-up management
+
+Status: **Implemented locally; PR verification pending.**
+
+Scope delivered:
+
+- Follow-up task domain state machine (`open` → `in_progress`/`completed`/`cancelled`,
+  reopen from `completed`/`cancelled`) with optimistic concurrency and audited mutations.
+- Alembic revision `f6a8c2e4b1d3` (`follow_up_tasks`, dashboard indexes, audit taxonomy).
+- Canonical manager attribution (thread assignment > sales-case assignment;
+  `assigned_at DESC, assignment_id DESC`) shared with LM metrics.
+- Sanitized-only conversation review (`CONVERSATION_REVIEW` decrypt purpose).
+- API routes under `/api/v1/tenants/{tenant_id}/…` for dashboard, conversations,
+  managers/scorecards, and follow-up tasks.
+- `@closeros/contracts` RSTU schemas/types and Next.js workspace pages
+  (`/app/dashboard`, `/app/conversations`, `/app/managers`, `/app/tasks`).
+
+Authorization matrix (server-enforced):
+
+| Resource | OWNER | SALES_HEAD | COMPLIANCE_ADMIN | MANAGER | ANALYST |
+|----------|-------|------------|------------------|---------|---------|
+| Dashboard | yes | yes | yes | no | no |
+| Conversations | yes | yes | yes | own threads | no |
+| Re-analysis POST | yes | yes | yes | no | no |
+| Scorecards | all managers | all managers | read | own only | no |
+| Tasks read | yes | yes | yes | own assigned | no |
+| Tasks write | yes | yes | no | limited PATCH | no |
+
+Verification (local):
+
+- `corepack pnpm run quality` — pending final gate run in this session.
+- Targeted tests: follow-up domain, product metrics formulas, RSTU migration u/d/u,
+  product API auth/CSRF/roles/cross-tenant denial, contracts fixtures, web product client.
+
+Next block: **VW** — design-partner/provider package and first official messaging provider.
 
 ## Rules
 

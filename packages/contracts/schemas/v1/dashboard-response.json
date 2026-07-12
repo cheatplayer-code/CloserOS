@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closeros.ai/schemas/v1/dashboard-response.json",
+  "title": "DashboardResponseV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "formula_version",
+    "window_start",
+    "window_end",
+    "previous_window_start",
+    "previous_window_end",
+    "total_conversations",
+    "open_high_severity_findings",
+    "overdue_follow_up_tasks",
+    "metrics",
+    "manager_summaries"
+  ],
+  "properties": {
+    "formula_version": { "type": "string" },
+    "window_start": { "type": "string", "format": "date-time" },
+    "window_end": { "type": "string", "format": "date-time" },
+    "previous_window_start": { "type": "string", "format": "date-time" },
+    "previous_window_end": { "type": "string", "format": "date-time" },
+    "total_conversations": { "type": "integer", "minimum": 0 },
+    "open_high_severity_findings": { "type": "integer", "minimum": 0 },
+    "overdue_follow_up_tasks": { "type": "integer", "minimum": 0 },
+    "metrics": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/dashboard_metric" }
+    },
+    "manager_summaries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/manager_performance" }
+    }
+  },
+  "$defs": {
+    "dashboard_metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "current_value", "previous_value", "delta"],
+      "properties": {
+        "key": { "type": "string" },
+        "current_value": { "type": "integer" },
+        "previous_value": { "type": "integer" },
+        "delta": { "type": "integer" }
+      }
+    },
+    "manager_performance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "manager_user_id",
+        "response_rate_basis_points",
+        "conversion_rate_basis_points",
+        "active_thread_count"
+      ],
+      "properties": {
+        "manager_user_id": { "type": "string", "format": "uuid" },
+        "response_rate_basis_points": { "type": "integer" },
+        "conversion_rate_basis_points": { "type": "integer" },
+        "active_thread_count": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

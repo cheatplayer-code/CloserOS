@@ -17,11 +17,15 @@ from closeros_api.auth_router import router as auth_router
 from closeros_api.auth_schemas import ErrorResponse, sanitize_validation_errors
 from closeros_api.auth_security import apply_security_headers
 from closeros_api.composition import ApiRuntimeOverrides, build_api_runtime
+from closeros_api.conversations_router import router as conversations_router
 from closeros_api.csv_imports_router import router as csv_imports_router
+from closeros_api.dashboard_router import router as dashboard_router
 from closeros_api.knowledge_router import router as knowledge_router
+from closeros_api.managers_router import router as managers_router
 from closeros_api.metrics_router import router as metrics_router
 from closeros_api.request_correlation import RequestCorrelationMiddleware
 from closeros_api.settings import ApiSettings
+from closeros_api.tasks_router import router as tasks_router
 from closeros_api.tenants_router import router as tenants_router
 from closeros_api.webhooks_router import router as webhooks_router
 
@@ -53,7 +57,7 @@ def create_app(
         CORSMiddleware,
         allow_origins=list(resolved_settings.auth_allowed_origins),
         allow_credentials=True,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
         allow_headers=[
             "Content-Type",
             "X-CSRF-Token",
@@ -119,6 +123,10 @@ def create_app(
     application.include_router(webhooks_router, prefix="/api/v1")
     application.include_router(csv_imports_router, prefix="/api/v1")
     application.include_router(metrics_router, prefix="/api/v1")
+    application.include_router(dashboard_router, prefix="/api/v1")
+    application.include_router(conversations_router, prefix="/api/v1")
+    application.include_router(managers_router, prefix="/api/v1")
+    application.include_router(tasks_router, prefix="/api/v1")
     application.include_router(knowledge_router, prefix="/api/v1")
     application.include_router(analysis_router, prefix="/api/v1")
     application.include_router(ai_policy_router, prefix="/api/v1")

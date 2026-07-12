@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import cast
 
+from closeros.application.analysis_enqueue_service import AnalysisEnqueueService
 from closeros.application.analysis_query_service import AnalysisQueryService
 from closeros.application.atomic_content_commands import AtomicContentCommandService
 from closeros.application.audit_persistence import AuditUnitOfWork
@@ -18,8 +19,11 @@ from closeros.application.authentication_workflows import (
     MfaVerifier,
 )
 from closeros.application.content_encryption_service import ContentEncryptionService
+from closeros.application.conversation_query_service import ConversationQueryService
 from closeros.application.csv_import_service import CsvImportService
+from closeros.application.dashboard_query_service import DashboardQueryService
 from closeros.application.encryption_ports import RetentionExpiryCalculator
+from closeros.application.follow_up_task_service import FollowUpTaskService
 from closeros.application.integrated_unit_of_work import IntegratedUnitOfWork
 from closeros.application.knowledge_service import KnowledgeService
 from closeros.application.metrics_enqueue_service import MetricsEnqueueService
@@ -28,6 +32,7 @@ from closeros.application.password_hashing import PasswordHasher
 from closeros.application.platform_unit_of_work import PlatformUnitOfWork
 from closeros.application.provider_adapter_registry import ProviderAdapterRegistry
 from closeros.application.provider_ports import ImportContentScanner, WebhookRateLimiter
+from closeros.application.scorecard_query_service import ScorecardQueryService
 from closeros.application.tenant_context import TenantContextResolver, TenantListingService
 from closeros.application.tenant_persistence import TenantUnitOfWork
 from closeros.application.webhook_ingestion import WebhookIngestionService
@@ -158,7 +163,12 @@ class ApiRuntimeOverrides:
     metrics_query_service: MetricsQueryService | None = None
     metrics_enqueue_service: MetricsEnqueueService | None = None
     analysis_query_service: AnalysisQueryService | None = None
+    analysis_enqueue_service: AnalysisEnqueueService | None = None
     knowledge_service: KnowledgeService | None = None
+    dashboard_query_service: DashboardQueryService | None = None
+    conversation_query_service: ConversationQueryService | None = None
+    scorecard_query_service: ScorecardQueryService | None = None
+    follow_up_task_service: FollowUpTaskService | None = None
     engine: AsyncEngine | None = None
     session_factory: async_sessionmaker[AsyncSession] | None = None
 
@@ -193,7 +203,12 @@ class ApiRuntime:
     metrics_query_service: MetricsQueryService
     metrics_enqueue_service: MetricsEnqueueService
     analysis_query_service: AnalysisQueryService | None
+    analysis_enqueue_service: AnalysisEnqueueService | None
     knowledge_service: KnowledgeService | None
+    dashboard_query_service: DashboardQueryService | None
+    conversation_query_service: ConversationQueryService | None
+    scorecard_query_service: ScorecardQueryService | None
+    follow_up_task_service: FollowUpTaskService | None
 
     async def dispose(self) -> None:
         if self.engine is not None:
@@ -250,6 +265,55 @@ class _UnconfiguredMetricsEnqueueService:
 class _UnconfiguredAnalysisQueryService:
     async def list_runs(self, **kwargs: object) -> object:
         raise RuntimeError("analysis query service is not configured")
+
+
+class _UnconfiguredAnalysisEnqueueService:
+    async def enqueue_for_thread(self, **kwargs: object) -> object:
+        raise RuntimeError("analysis enqueue service is not configured")
+
+
+class _UnconfiguredDashboardQueryService:
+    async def get_dashboard(self, **kwargs: object) -> object:
+        raise RuntimeError("dashboard query service is not configured")
+
+
+class _UnconfiguredConversationQueryService:
+    async def list_conversations(self, **kwargs: object) -> object:
+        raise RuntimeError("conversation query service is not configured")
+
+    async def get_conversation_detail(self, **kwargs: object) -> object:
+        raise RuntimeError("conversation query service is not configured")
+
+
+class _UnconfiguredScorecardQueryService:
+    async def list_manager_scorecards(self, **kwargs: object) -> object:
+        raise RuntimeError("scorecard query service is not configured")
+
+    async def get_scorecard(self, **kwargs: object) -> object:
+        raise RuntimeError("scorecard query service is not configured")
+
+
+class _UnconfiguredFollowUpTaskService:
+    async def create_task(self, **kwargs: object) -> object:
+        raise RuntimeError("follow-up task service is not configured")
+
+    async def list_tasks(self, **kwargs: object) -> object:
+        raise RuntimeError("follow-up task service is not configured")
+
+    async def get_task(self, **kwargs: object) -> object:
+        raise RuntimeError("follow-up task service is not configured")
+
+    async def mutate_status(self, **kwargs: object) -> object:
+        raise RuntimeError("follow-up task service is not configured")
+
+    async def assign(self, **kwargs: object) -> object:
+        raise RuntimeError("follow-up task service is not configured")
+
+    async def update_priority(self, **kwargs: object) -> object:
+        raise RuntimeError("follow-up task service is not configured")
+
+    async def update_due_date(self, **kwargs: object) -> object:
+        raise RuntimeError("follow-up task service is not configured")
 
 
 class _UnconfiguredKnowledgeService:
@@ -436,6 +500,40 @@ def build_api_runtime(
             content_encryption=content_encryption,
             uuid_factory=uuid_factory,
         )
+        analysis_enqueue_service = (
+            override_values.analysis_enqueue_service
+            or AnalysisEnqueueService(
+                uow_factory=integrated_port_factory,
+                uuid_factory=uuid_factory,
+            )
+        )
+        dashboard_query_service = override_values.dashboard_query_service or DashboardQueryService(
+            uow_factory=integrated_port_factory,
+            metrics_query_service=metrics_query_service,
+            uuid_factory=uuid_factory,
+            clock=clock.now,
+        )
+        conversation_query_service = (
+            override_values.conversation_query_service
+            or ConversationQueryService(
+                uow_factory=integrated_port_factory,
+                content_encryption=content_encryption,
+                analysis_query_service=analysis_query_service,
+                uuid_factory=uuid_factory,
+                clock=clock.now,
+            )
+        )
+        scorecard_query_service = override_values.scorecard_query_service or ScorecardQueryService(
+            uow_factory=integrated_port_factory,
+            metrics_query_service=metrics_query_service,
+            uuid_factory=uuid_factory,
+            clock=clock.now,
+        )
+        follow_up_task_service = override_values.follow_up_task_service or FollowUpTaskService(
+            uow_factory=integrated_port_factory,
+            uuid_factory=uuid_factory,
+            clock=clock.now,
+        )
     else:
         content_encryption = cast(
             ContentEncryptionService,
@@ -468,6 +566,26 @@ def build_api_runtime(
         knowledge_service = cast(
             KnowledgeService,
             override_values.knowledge_service or _UnconfiguredKnowledgeService(),
+        )
+        analysis_enqueue_service = cast(
+            AnalysisEnqueueService,
+            override_values.analysis_enqueue_service or _UnconfiguredAnalysisEnqueueService(),
+        )
+        dashboard_query_service = cast(
+            DashboardQueryService,
+            override_values.dashboard_query_service or _UnconfiguredDashboardQueryService(),
+        )
+        conversation_query_service = cast(
+            ConversationQueryService,
+            override_values.conversation_query_service or _UnconfiguredConversationQueryService(),
+        )
+        scorecard_query_service = cast(
+            ScorecardQueryService,
+            override_values.scorecard_query_service or _UnconfiguredScorecardQueryService(),
+        )
+        follow_up_task_service = cast(
+            FollowUpTaskService,
+            override_values.follow_up_task_service or _UnconfiguredFollowUpTaskService(),
         )
 
     tenant_context_resolver = override_values.tenant_context_resolver
@@ -531,7 +649,12 @@ def build_api_runtime(
         metrics_query_service=metrics_query_service,
         metrics_enqueue_service=metrics_enqueue_service,
         analysis_query_service=analysis_query_service,
+        analysis_enqueue_service=analysis_enqueue_service,
         knowledge_service=knowledge_service,
+        dashboard_query_service=dashboard_query_service,
+        conversation_query_service=conversation_query_service,
+        scorecard_query_service=scorecard_query_service,
+        follow_up_task_service=follow_up_task_service,
     )
 
 

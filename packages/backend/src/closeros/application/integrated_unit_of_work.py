@@ -41,6 +41,7 @@ from closeros.application.csv_import_persistence import (
     CsvImportRowErrorRepository,
 )
 from closeros.application.encrypted_content_persistence import EncryptedContentRepository
+from closeros.application.follow_up_task_persistence import FollowUpTaskRepository
 from closeros.application.knowledge_persistence import (
     KnowledgeChunkRepository,
     KnowledgeChunkTermRepository,
@@ -96,6 +97,7 @@ class IntegratedUnitOfWork(Protocol):
     conversation_findings: ConversationFindingRepository
     conversation_finding_evidence: ConversationFindingEvidenceRepository
     conversation_finding_knowledge_citations: ConversationFindingKnowledgeCitationRepository
+    follow_up_tasks: FollowUpTaskRepository
 
     async def __aenter__(self) -> IntegratedUnitOfWork: ...
 

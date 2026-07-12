@@ -64,6 +64,7 @@ _PURPOSES_BY_KIND: dict[EncryptedContentKind, frozenset[ContentAccessPurpose]] =
     EncryptedContentKind.SANITIZED_MESSAGE: frozenset(
         {
             ContentAccessPurpose.AI_ANALYSIS,
+            ContentAccessPurpose.CONVERSATION_REVIEW,
             ContentAccessPurpose.AUDIT_REVIEW,
             ContentAccessPurpose.RETENTION_DELETION,
         }
