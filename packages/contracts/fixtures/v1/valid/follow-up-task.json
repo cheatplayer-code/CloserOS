@@ -1,0 +1,15 @@
+{
+  "id": "20000000-0000-4000-8000-000000000701",
+  "conversation_thread_id": "20000000-0000-4000-8000-000000000601",
+  "source_finding_id": null,
+  "title": "Follow up on pricing question",
+  "status": "open",
+  "priority": "normal",
+  "assigned_membership_id": "20000000-0000-4000-8000-000000000500",
+  "due_at": "2026-07-14T12:00:00+00:00",
+  "completed_at": null,
+  "cancelled_at": null,
+  "created_at": "2026-07-12T08:00:00+00:00",
+  "updated_at": "2026-07-12T08:00:00+00:00",
+  "version": 1
+}

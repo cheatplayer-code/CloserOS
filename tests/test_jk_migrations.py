@@ -31,7 +31,7 @@ def _create_isolated_database_url() -> tuple[str, str, str]:
 def test_jk_migration_revision_is_head() -> None:
     config = build_alembic_config("postgresql+psycopg://local/local@127.0.0.1:5432/local")
     script = ScriptDirectory.from_config(config)
-    assert script.get_current_head() == "e3b7c9d1f5a2"
+    assert script.get_current_head() == "f6a8c2e4b1d3"
 
 
 def test_jk_migration_upgrade_creates_csv_tables() -> None:

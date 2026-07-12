@@ -1,0 +1,61 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closeros.ai/schemas/v1/manager-scorecard.json",
+  "title": "ManagerScorecardV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "membership_id",
+    "manager_user_id",
+    "formula_version",
+    "window_start",
+    "window_end",
+    "components",
+    "composite_basis_points",
+    "composite_delta_basis_points",
+    "finding_counts",
+    "task_counts"
+  ],
+  "properties": {
+    "membership_id": { "type": "string", "format": "uuid" },
+    "manager_user_id": { "type": "string", "format": "uuid" },
+    "formula_version": { "type": "string" },
+    "window_start": { "type": "string", "format": "date-time" },
+    "window_end": { "type": "string", "format": "date-time" },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "response_rate_basis_points",
+        "conversion_rate_basis_points",
+        "finding_discipline_basis_points",
+        "task_completion_basis_points"
+      ],
+      "properties": {
+        "response_rate_basis_points": { "type": "integer" },
+        "conversion_rate_basis_points": { "type": "integer" },
+        "finding_discipline_basis_points": { "type": "integer" },
+        "task_completion_basis_points": { "type": "integer" }
+      }
+    },
+    "composite_basis_points": { "type": "integer" },
+    "composite_delta_basis_points": { "type": "integer" },
+    "finding_counts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["finding_code", "severity", "count"],
+        "properties": {
+          "finding_code": { "type": "string" },
+          "severity": { "type": "string" },
+          "count": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "task_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    }
+  }
+}

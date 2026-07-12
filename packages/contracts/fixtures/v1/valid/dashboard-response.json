@@ -1,0 +1,26 @@
+{
+  "formula_version": "rstu-dashboard-v1",
+  "window_start": "2026-07-12T00:00:00+00:00",
+  "window_end": "2026-07-13T00:00:00+00:00",
+  "previous_window_start": "2026-07-11T00:00:00+00:00",
+  "previous_window_end": "2026-07-12T00:00:00+00:00",
+  "total_conversations": 12,
+  "open_high_severity_findings": 2,
+  "overdue_follow_up_tasks": 1,
+  "metrics": [
+    {
+      "key": "active_thread_count",
+      "current_value": 12,
+      "previous_value": 10,
+      "delta": 2
+    }
+  ],
+  "manager_summaries": [
+    {
+      "manager_user_id": "20000000-0000-4000-8000-000000000020",
+      "response_rate_basis_points": 8500,
+      "conversion_rate_basis_points": 4200,
+      "active_thread_count": 5
+    }
+  ]
+}

@@ -1,9 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-import { AppShell, EmptyWorkspaceState } from "../app/app-shell";
 import { ProtectedRoute } from "../app/protected-route";
 import { Spinner } from "../auth/spinner";
 import { useAuth } from "../../lib/auth/auth-provider";
@@ -18,7 +18,7 @@ export function HomeRedirectPage() {
     }
 
     if (auth.phase === "authenticated") {
-      router.replace("/app");
+      router.replace("/app/dashboard");
       return;
     }
 
@@ -40,33 +40,28 @@ export function HomeRedirectPage() {
 export function AppWorkspacePage() {
   return (
     <ProtectedRoute returnTo="/app">
-      <AppWorkspaceContent />
+      <AppWorkspaceRedirect />
     </ProtectedRoute>
   );
 }
 
-function AppWorkspaceContent() {
-  const auth = useAuth();
+function AppWorkspaceRedirect() {
+  const router = useRouter();
 
-  if (!auth.session) {
-    return null;
-  }
+  useEffect(() => {
+    router.replace("/app/dashboard");
+  }, [router]);
 
   return (
-    <AppShell
-      session={auth.session}
-      onLogout={() => {
-        void auth.logout().then(() => {
-          window.location.assign("/auth/sign-in");
-        });
-      }}
-      onLogoutAll={() => {
-        void auth.logoutAll().then(() => {
-          window.location.assign("/auth/sign-in");
-        });
-      }}
-    >
-      <EmptyWorkspaceState />
-    </AppShell>
+    <div className="center-state">
+      <section className="workspace-panel" aria-labelledby="app-redirect-title">
+        <h1 id="app-redirect-title">Opening dashboard</h1>
+        <p>
+          Redirecting to your workspace dashboard. If nothing happens, open the{" "}
+          <Link href="/app/dashboard">dashboard</Link> manually.
+        </p>
+        <Spinner label="Redirecting to dashboard" />
+      </section>
+    </div>
   );
 }

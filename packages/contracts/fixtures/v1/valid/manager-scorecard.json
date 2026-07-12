@@ -1,0 +1,29 @@
+{
+  "membership_id": "20000000-0000-4000-8000-000000000500",
+  "manager_user_id": "20000000-0000-4000-8000-000000000020",
+  "formula_version": "rstu-scorecard-v1",
+  "window_start": "2026-07-12T00:00:00+00:00",
+  "window_end": "2026-07-13T00:00:00+00:00",
+  "components": {
+    "response_rate_basis_points": 8500,
+    "conversion_rate_basis_points": 4200,
+    "finding_discipline_basis_points": 9000,
+    "task_completion_basis_points": 7500
+  },
+  "composite_basis_points": 7800,
+  "composite_delta_basis_points": 200,
+  "finding_counts": [
+    {
+      "finding_code": "slow_response",
+      "severity": "high",
+      "count": 1
+    }
+  ],
+  "task_counts": {
+    "open": 2,
+    "in_progress": 1,
+    "overdue": 0,
+    "completed": 4,
+    "cancelled": 0
+  }
+}

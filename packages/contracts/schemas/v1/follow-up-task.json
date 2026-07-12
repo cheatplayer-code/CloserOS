@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closeros.ai/schemas/v1/follow-up-task.json",
+  "title": "FollowUpTaskV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "conversation_thread_id",
+    "title",
+    "status",
+    "priority",
+    "created_at",
+    "updated_at",
+    "version"
+  ],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "conversation_thread_id": { "type": "string", "format": "uuid" },
+    "source_finding_id": { "type": ["string", "null"], "format": "uuid" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "status": {
+      "type": "string",
+      "enum": ["open", "in_progress", "completed", "cancelled"]
+    },
+    "priority": {
+      "type": "string",
+      "enum": ["low", "normal", "high", "urgent"]
+    },
+    "assigned_membership_id": { "type": ["string", "null"], "format": "uuid" },
+    "due_at": { "type": ["string", "null"], "format": "date-time" },
+    "completed_at": { "type": ["string", "null"], "format": "date-time" },
+    "cancelled_at": { "type": ["string", "null"], "format": "date-time" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "version": { "type": "integer", "minimum": 1 }
+  }
+}

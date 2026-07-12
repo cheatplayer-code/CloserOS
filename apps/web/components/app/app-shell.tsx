@@ -32,7 +32,10 @@ export function AppHeader({
         </span>
       </div>
       <nav className="app-header__nav" aria-label="Primary">
-        <Link href="/app">Workspace</Link>
+        <Link href="/app/dashboard">Dashboard</Link>
+        <Link href="/app/conversations">Conversations</Link>
+        <Link href="/app/managers">Managers</Link>
+        <Link href="/app/tasks">Tasks</Link>
         <Link href="/settings/security">Security</Link>
       </nav>
       <div className="app-header__session">
