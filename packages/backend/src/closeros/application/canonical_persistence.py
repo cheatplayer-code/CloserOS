@@ -96,6 +96,8 @@ class ChannelConnectionRepository(Protocol):
         connection_id: UUID,
     ) -> ChannelConnection | None: ...
 
+    async def get_by_connection_id(self, *, connection_id: UUID) -> ChannelConnection | None: ...
+
     async def get_by_provider_external_id(
         self,
         *,

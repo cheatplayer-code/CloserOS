@@ -24,6 +24,7 @@ jobs:
     env:
       AI_EXTERNAL_CALLS_ENABLED: "false"
       TEST_DATABASE_URL: postgresql://closeros_ci:closeros_ci_only_not_production@127.0.0.1:5432/postgres
+      TEST_REDIS_URL: redis://:closeros_ci_redis_only_not_production@127.0.0.1:6379/0
 
     services:
       postgres:
@@ -36,6 +37,19 @@ jobs:
           - 5432:5432
         options: >-
           --health-cmd "pg_isready -U closeros_ci -d closeros_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:8.8.0-trixie
+        ports:
+          - 6379:6379
+        command: >-
+          redis-server
+          --requirepass closeros_ci_redis_only_not_production
+        options: >-
+          --health-cmd "redis-cli -a closeros_ci_redis_only_not_production ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10

@@ -1,6 +1,10 @@
 """Smoke tests for the CLS-001 Python workspace."""
 
+import sys
+from unittest.mock import patch
+
 import closeros
+import pytest
 from closeros_api import app
 from closeros_worker import main as worker_main
 from fastapi.testclient import TestClient
@@ -17,5 +21,10 @@ def test_api_health_endpoint() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_worker_entry_point_exits_safely() -> None:
-    assert worker_main() == 0
+def test_worker_cli_help_exits_zero() -> None:
+    with (
+        patch.object(sys, "argv", ["closeros-worker", "--help"]),
+        pytest.raises(SystemExit) as exc,
+    ):
+        worker_main()
+    assert exc.value.code == 0

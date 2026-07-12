@@ -12,6 +12,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from closeros.domain.encrypted_content import (
     CONTENT_AAD_VERSION,
+    CSV_IMPORT_MAX_PLAINTEXT_BYTES,
     GCM_NONCE_SIZE_BYTES,
     MAX_KEY_VERSION_LENGTH,
     PROVIDER_PAYLOAD_MAX_PLAINTEXT_BYTES,
@@ -86,7 +87,10 @@ class EncryptedContentRow(Base):
         CheckConstraint(
             f"(kind = '{EncryptedContentKind.PROVIDER_PAYLOAD.value}' "
             f"AND plaintext_byte_length <= {PROVIDER_PAYLOAD_MAX_PLAINTEXT_BYTES}) OR "
-            f"(kind <> '{EncryptedContentKind.PROVIDER_PAYLOAD.value}' "
+            f"(kind = '{EncryptedContentKind.CSV_IMPORT.value}' "
+            f"AND plaintext_byte_length <= {CSV_IMPORT_MAX_PLAINTEXT_BYTES}) OR "
+            f"(kind NOT IN ('{EncryptedContentKind.PROVIDER_PAYLOAD.value}', "
+            f"'{EncryptedContentKind.CSV_IMPORT.value}') "
             f"AND plaintext_byte_length <= {RAW_OR_SANITIZED_MAX_PLAINTEXT_BYTES})",
             name="plaintext_byte_length_kind_limit",
         ),

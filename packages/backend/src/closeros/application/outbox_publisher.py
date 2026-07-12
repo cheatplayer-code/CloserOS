@@ -18,6 +18,7 @@ from closeros.domain.outbox import (
     OutboxErrorCode,
     OutboxJob,
     OutboxJobAttempt,
+    OutboxJobKind,
     OutboxJobPhase,
     OutboxTransitionError,
     schedule_retry,
@@ -65,11 +66,13 @@ class OutboxPublisherService:
         *,
         now: datetime,
         batch_size: int,
+        allowed_job_kinds: frozenset[OutboxJobKind] | None = None,
     ) -> OutboxPublisherResult:
         claimed_jobs = await self._outbox_jobs.claim_publisher_batch(
             worker_id=self._worker_id,
             now=now,
             batch_size=batch_size,
+            allowed_job_kinds=allowed_job_kinds,
         )
         published_count = 0
         retried_count = 0

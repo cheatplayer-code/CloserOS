@@ -13,6 +13,7 @@ from closeros.application.canonical_persistence import (
     CanonicalRecordNotFoundError,
     DuplicateMessageEditEventError,
     DuplicateMessageError,
+    DuplicateWebhookEventError,
 )
 from closeros.application.content_audit import (
     message_edit_stored_event,
@@ -24,15 +25,24 @@ from closeros.application.content_encryption_service import (
     ContentEncryptionUnavailableError,
     ContentTenantUnavailableError,
 )
+from closeros.application.ingestion_audit import (
+    webhook_accepted_event,
+    webhook_duplicate_accepted_event,
+)
 from closeros.application.integrated_unit_of_work import IntegratedUnitOfWork
 from closeros.application.outbox_persistence import DuplicateOutboxJobError
 from closeros.domain.adapter_metadata import AdapterMetadata
 from closeros.domain.audit import AuditActorType
-from closeros.domain.canonical_enums import MessageDirection, ParticipantSenderType
+from closeros.domain.canonical_enums import (
+    MessageDirection,
+    ParticipantSenderType,
+    WebhookProcessingStatus,
+)
 from closeros.domain.encrypted_content import ContentEncoding, EncryptedContentKind
 from closeros.domain.message import Message
 from closeros.domain.message_events import MessageEditEvent
 from closeros.domain.outbox import OutboxJobKind, OutboxJobReference, build_outbox_job
+from closeros.domain.webhook_event import WebhookEvent
 
 
 class AtomicContentCommandError(Exception):
@@ -91,6 +101,14 @@ class AttachProviderPayloadResult:
     content_id: UUID
     webhook_event_id: UUID
     outbox_job_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
+class AcceptWebhookResult:
+    content_id: UUID
+    webhook_event_id: UUID
+    outbox_job_id: UUID
+    duplicate: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -425,4 +443,157 @@ class AtomicContentCommandService:
             content_id=validated_content_id,
             webhook_event_id=validated_webhook_event_id,
             outbox_job_id=validated_outbox_job_id,
+        )
+
+    async def accept_webhook(
+        self,
+        *,
+        tenant_id: UUID,
+        channel_connection_id: UUID,
+        webhook_event_id: UUID,
+        content_id: UUID,
+        outbox_job_id: UUID,
+        audit_event_id: UUID,
+        external_event_id: str,
+        provider_code: str,
+        adapter_metadata: AdapterMetadata,
+        plaintext: bytes,
+        encoding: ContentEncoding,
+        received_at: datetime,
+        occurred_at: datetime,
+        audit_context: AuditContext,
+        actor_type: AuditActorType,
+        actor_id: UUID | None,
+    ) -> AcceptWebhookResult:
+        validated_tenant_id = _validate_uuid(tenant_id, "tenant_id")
+        validated_connection_id = _validate_uuid(channel_connection_id, "channel_connection_id")
+        validated_webhook_event_id = _validate_uuid(webhook_event_id, "webhook_event_id")
+        validated_content_id = _validate_uuid(content_id, "content_id")
+        validated_outbox_job_id = _validate_uuid(outbox_job_id, "outbox_job_id")
+        validated_audit_event_id = _validate_uuid(audit_event_id, "audit_event_id")
+        validated_received_at = _validate_timezone_aware_datetime(received_at, "received_at")
+        validated_occurred_at = _validate_timezone_aware_datetime(occurred_at, "occurred_at")
+
+        if not isinstance(encoding, ContentEncoding):
+            raise TypeError("encoding must be a ContentEncoding")
+
+        uow = self.uow_factory()
+        async with uow:
+            existing = await uow.webhook_events.get_by_external_event_id(
+                tenant_id=validated_tenant_id,
+                channel_connection_id=validated_connection_id,
+                external_event_id=external_event_id,
+            )
+            if existing is not None:
+                if existing.encrypted_payload_content_id is not None:
+                    await append_required_audit_event(
+                        uow.audit_events,
+                        webhook_duplicate_accepted_event(
+                            tenant_id=validated_tenant_id,
+                            webhook_event_id=existing.id,
+                            provider_code=provider_code,
+                            occurred_at=validated_occurred_at,
+                            audit_context=audit_context,
+                            actor_type=actor_type,
+                            actor_id=actor_id,
+                            event_id=validated_audit_event_id,
+                        ),
+                    )
+                    await uow.commit()
+                    return AcceptWebhookResult(
+                        content_id=existing.encrypted_payload_content_id,
+                        webhook_event_id=existing.id,
+                        outbox_job_id=validated_outbox_job_id,
+                        duplicate=True,
+                    )
+                raise AtomicContentCommandUnavailableError("atomic content command failed")
+
+            try:
+                await self.content_encryption.encrypt_and_persist(
+                    uow,
+                    content_id=validated_content_id,
+                    tenant_id=validated_tenant_id,
+                    kind=EncryptedContentKind.PROVIDER_PAYLOAD,
+                    encoding=encoding,
+                    plaintext=plaintext,
+                    created_at=validated_received_at,
+                )
+                webhook_event = WebhookEvent(
+                    id=validated_webhook_event_id,
+                    tenant_id=validated_tenant_id,
+                    channel_connection_id=validated_connection_id,
+                    external_event_id=external_event_id,
+                    processing_status=WebhookProcessingStatus.ACKNOWLEDGED,
+                    received_at=validated_received_at,
+                    processed_at=None,
+                    encrypted_payload_content_id=validated_content_id,
+                    adapter_metadata=adapter_metadata,
+                )
+                await uow.webhook_events.append(webhook_event)
+                await uow.outbox_jobs.enqueue(
+                    build_outbox_job(
+                        job_id=validated_outbox_job_id,
+                        tenant_id=validated_tenant_id,
+                        job_kind=OutboxJobKind.WEBHOOK_NORMALIZE,
+                        reference=OutboxJobReference(
+                            resource_type="webhook_event",
+                            resource_id=validated_webhook_event_id,
+                            schema_version=1,
+                            tenant_id=validated_tenant_id,
+                            secondary_id=validated_content_id,
+                        ),
+                        deduplication_key=_webhook_normalize_deduplication_key(
+                            webhook_event_id=validated_webhook_event_id,
+                        ),
+                        created_at=validated_received_at,
+                    )
+                )
+                await append_required_audit_event(
+                    uow.audit_events,
+                    webhook_accepted_event(
+                        tenant_id=validated_tenant_id,
+                        webhook_event_id=validated_webhook_event_id,
+                        provider_code=provider_code,
+                        occurred_at=validated_occurred_at,
+                        audit_context=audit_context,
+                        actor_type=actor_type,
+                        actor_id=actor_id,
+                        event_id=validated_audit_event_id,
+                    ),
+                )
+                await uow.commit()
+            except (
+                ContentEncryptionUnavailableError,
+                ContentTenantUnavailableError,
+                DuplicateWebhookEventError,
+                DuplicateOutboxJobError,
+            ) as error:
+                await uow.rollback()
+                if isinstance(error, DuplicateWebhookEventError):
+                    duplicate = await uow.webhook_events.get_by_external_event_id(
+                        tenant_id=validated_tenant_id,
+                        channel_connection_id=validated_connection_id,
+                        external_event_id=external_event_id,
+                    )
+                    if duplicate is not None and duplicate.encrypted_payload_content_id is not None:
+                        return AcceptWebhookResult(
+                            content_id=duplicate.encrypted_payload_content_id,
+                            webhook_event_id=duplicate.id,
+                            outbox_job_id=validated_outbox_job_id,
+                            duplicate=True,
+                        )
+                raise AtomicContentCommandUnavailableError(
+                    "atomic content command failed"
+                ) from error
+            except Exception as error:
+                await uow.rollback()
+                raise AtomicContentCommandUnavailableError(
+                    "atomic content command failed"
+                ) from error
+
+        return AcceptWebhookResult(
+            content_id=validated_content_id,
+            webhook_event_id=validated_webhook_event_id,
+            outbox_job_id=validated_outbox_job_id,
+            duplicate=False,
         )

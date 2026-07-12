@@ -38,6 +38,9 @@ def development_api_settings(*, database_url: str) -> ApiSettings:
         auth_rate_limit_secret=TEST_RATE_SECRET,
         session_touch_interval=timedelta(minutes=5),
         trust_forwarded_client_ip=False,
+        webhook_max_body_bytes=1_048_576,
+        csv_max_body_bytes=10_485_760,
+        ingestion_service_id=UUID("00000000-0000-0000-0000-00000000e001"),
     )
 
 
@@ -50,6 +53,9 @@ def production_api_settings(*, database_url: str) -> ApiSettings:
         auth_rate_limit_secret=TEST_RATE_SECRET,
         session_touch_interval=timedelta(minutes=5),
         trust_forwarded_client_ip=False,
+        webhook_max_body_bytes=1_048_576,
+        csv_max_body_bytes=10_485_760,
+        ingestion_service_id=UUID("00000000-0000-0000-0000-00000000e001"),
     )
 
 

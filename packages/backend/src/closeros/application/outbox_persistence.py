@@ -9,7 +9,7 @@ from typing import Protocol
 from uuid import UUID
 
 from closeros.application.persistence_errors import PersistenceError
-from closeros.domain.outbox import OutboxJob, OutboxJobAttempt, OutboxJobState
+from closeros.domain.outbox import OutboxJob, OutboxJobAttempt, OutboxJobKind, OutboxJobState
 
 
 class OutboxPersistenceError(PersistenceError):
@@ -52,6 +52,7 @@ class OutboxJobRepository(Protocol):
         worker_id: str,
         now: datetime,
         batch_size: int,
+        allowed_job_kinds: frozenset[OutboxJobKind] | None = None,
     ) -> tuple[OutboxJob, ...]: ...
 
     async def mark_published(
@@ -90,6 +91,7 @@ class OutboxJobRepository(Protocol):
         job_id: UUID,
         worker_id: str,
         now: datetime,
+        allowed_job_kinds: frozenset[OutboxJobKind] | None = None,
     ) -> OutboxJob | None: ...
 
     async def mark_succeeded(

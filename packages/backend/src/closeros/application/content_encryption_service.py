@@ -76,6 +76,13 @@ _PURPOSES_BY_KIND: dict[EncryptedContentKind, frozenset[ContentAccessPurpose]] =
             ContentAccessPurpose.RETENTION_DELETION,
         }
     ),
+    EncryptedContentKind.CSV_IMPORT: frozenset(
+        {
+            ContentAccessPurpose.CSV_IMPORT_PROCESSING,
+            ContentAccessPurpose.AUDIT_REVIEW,
+            ContentAccessPurpose.RETENTION_DELETION,
+        }
+    ),
 }
 
 

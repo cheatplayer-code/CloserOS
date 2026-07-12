@@ -27,6 +27,10 @@ from closeros.infrastructure.canonical_repositories import (
     SqlAlchemySalesCaseRepository,
     SqlAlchemyWebhookEventRepository,
 )
+from closeros.infrastructure.csv_import_repositories import (
+    SqlAlchemyCsvImportBatchRepository,
+    SqlAlchemyCsvImportRowErrorRepository,
+)
 from closeros.infrastructure.encrypted_content_repositories import (
     SqlAlchemyEncryptedContentRepository,
 )
@@ -64,6 +68,8 @@ class SqlAlchemyIntegratedUnitOfWork:
     outbox_jobs: SqlAlchemyOutboxJobRepository
     outbox_job_attempts: SqlAlchemyOutboxJobAttemptRepository
     audit_events: SqlAlchemyAuditEventRepository
+    csv_import_batches: SqlAlchemyCsvImportBatchRepository
+    csv_import_row_errors: SqlAlchemyCsvImportRowErrorRepository
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -96,6 +102,8 @@ class SqlAlchemyIntegratedUnitOfWork:
         self.outbox_jobs = SqlAlchemyOutboxJobRepository(session)
         self.outbox_job_attempts = SqlAlchemyOutboxJobAttemptRepository(session)
         self.audit_events = SqlAlchemyAuditEventRepository(session)
+        self.csv_import_batches = SqlAlchemyCsvImportBatchRepository(session)
+        self.csv_import_row_errors = SqlAlchemyCsvImportRowErrorRepository(session)
         return self
 
     async def __aexit__(

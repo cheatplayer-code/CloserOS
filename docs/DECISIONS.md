@@ -113,3 +113,10 @@ Status: accepted
 File: `docs/adr/ADR-0012-envelope-encryption-and-transactional-outbox.md`
 
 AES-256-GCM envelope encryption with per-content DEKs, AAD binding, and a `KeyProvider` KMS boundary stores ciphertext in PostgreSQL. The transactional outbox publishes job UUIDs only with at-least-once semantics, lease-based claims, retry/dead-letter handling, and PostgreSQL as the source of truth.
+
+### ADR-0013 — Provider ingestion pipeline and controlled CSV import
+
+Status: accepted
+File: `docs/adr/ADR-0013-ingestion-pipeline-and-csv-import.md`
+
+Provider-neutral webhook acceptance with encrypted payload persistence, Redis Streams delivery of outbox job UUIDs only, asynchronous normalization via `webhook.normalize`, and controlled encrypted CSV import with resumable row processing and lawful-source confirmation.

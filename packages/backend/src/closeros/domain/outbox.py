@@ -35,6 +35,7 @@ class OutboxJobKind(StrEnum):
     RETENTION_DELETE = "retention.delete"
     KNOWLEDGE_INDEX = "knowledge.index"
     RECONCILIATION_RUN = "reconciliation.run"
+    CSV_IMPORT = "csv.import"
 
 
 class OutboxJobState(StrEnum):
@@ -64,6 +65,10 @@ class OutboxErrorCode(StrEnum):
     TRANSITION_INVALID = "transition_invalid"
     CLAIM_EXPIRED = "claim_expired"
     MAX_ATTEMPTS_EXCEEDED = "max_attempts_exceeded"
+    MALFORMED_PROVIDER_EVENT = "malformed_provider_event"
+    UNSUPPORTED_OPERATION = "unsupported_operation"
+    MISSING_CANONICAL_PARENT = "missing_canonical_parent"
+    ADAPTER_UNAVAILABLE = "adapter_unavailable"
 
 
 class OutboxAttemptOutcome(StrEnum):

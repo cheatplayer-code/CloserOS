@@ -45,9 +45,19 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "hi_persistence: PostgreSQL encrypted content and outbox integration tests",
     )
+    config.addinivalue_line(
+        "markers",
+        "jk_persistence: PostgreSQL webhook and CSV import ingestion integration tests",
+    )
+    config.addinivalue_line(
+        "markers",
+        "redis_integration: Redis stream queue integration tests",
+    )
 
 
 _PLATFORM_TRUNCATE_TABLES = (
+    "csv_import_row_errors",
+    "csv_import_batches",
     "webhook_events",
     "outbox_job_attempts",
     "outbox_jobs",
@@ -260,6 +270,7 @@ def _requires_persistence_reset(request: pytest.FixtureRequest) -> bool:
         request.node.get_closest_marker("auth_persistence") is not None
         or request.node.get_closest_marker("platform_persistence") is not None
         or request.node.get_closest_marker("hi_persistence") is not None
+        or request.node.get_closest_marker("jk_persistence") is not None
     )
 
 

@@ -133,6 +133,10 @@ class SqlAlchemyChannelConnectionRepository:
         )
         return None if row is None else mappers.channel_connection_to_domain(row)
 
+    async def get_by_connection_id(self, *, connection_id: UUID) -> ChannelConnection | None:
+        row = await self._session.get(ChannelConnectionRow, connection_id)
+        return None if row is None else mappers.channel_connection_to_domain(row)
+
     async def get_by_provider_external_id(
         self,
         *,
