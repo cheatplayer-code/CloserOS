@@ -40,6 +40,7 @@ from tests.auth_workflow_support import (
     REGISTER_PASSWORD,
     RESET_TOKEN_ID,
     SESSION_ID,
+    TEST_AUDIT_CONTEXT,
     TOKEN_ENTROPY_A,
     TOKEN_ENTROPY_B,
     TOKEN_ENTROPY_C,
@@ -81,10 +82,12 @@ async def _register_verified_user(
         plaintext_password=password,
         registered_at=registered_at,
         raw_token_factory=deterministic_token_factory(token_entropy),
+        audit_context=TEST_AUDIT_CONTEXT,
     )
     await service.confirm_email_verification(
         raw_token=registration.delivery.raw_token,
         confirmed_at=registered_at + timedelta(minutes=1),
+        audit_context=TEST_AUDIT_CONTEXT,
     )
     return registration, registration.delivery.raw_token
 
@@ -100,6 +103,7 @@ def test_registration_persists_user_and_credential(auth_uow_factory: Any) -> Non
             plaintext_password=REGISTER_PASSWORD,
             registered_at=NOW,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_A),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         lookup = auth_uow_factory()
@@ -129,6 +133,7 @@ def test_registration_rejects_duplicate_email(auth_uow_factory: Any) -> None:
             plaintext_password=REGISTER_PASSWORD,
             registered_at=NOW,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_A),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         with pytest.raises(RegistrationUnavailableError) as exc_info:
@@ -140,6 +145,7 @@ def test_registration_rejects_duplicate_email(auth_uow_factory: Any) -> None:
                 plaintext_password=REGISTER_PASSWORD,
                 registered_at=NOW,
                 raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_B),
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
         assert str(exc_info.value) == REGISTRATION_UNAVAILABLE_MESSAGE
@@ -156,6 +162,7 @@ def test_verification_request_is_generic_for_unknown_email(auth_uow_factory: Any
             verification_token_id=VERIFICATION_TOKEN_ID,
             requested_at=NOW,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_A),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert accepted.delivery is None
@@ -175,18 +182,21 @@ def test_verification_request_revokes_prior_tokens(auth_uow_factory: Any) -> Non
             plaintext_password=REGISTER_PASSWORD,
             registered_at=NOW,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_A),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         first = await service.request_email_verification(
             email=REGISTER_EMAIL,
             verification_token_id=UUID("00000000-0000-0000-0000-000000000031"),
             requested_at=NOW + timedelta(minutes=1),
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_B),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         second = await service.request_email_verification(
             email=REGISTER_EMAIL,
             verification_token_id=UUID("00000000-0000-0000-0000-000000000032"),
             requested_at=NOW + timedelta(minutes=2),
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert first.delivery is not None
@@ -195,11 +205,13 @@ def test_verification_request_revokes_prior_tokens(auth_uow_factory: Any) -> Non
             await service.confirm_email_verification(
                 raw_token=first.delivery.raw_token,
                 confirmed_at=NOW + timedelta(minutes=3),
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
         await service.confirm_email_verification(
             raw_token=second.delivery.raw_token,
             confirmed_at=NOW + timedelta(minutes=3),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
     asyncio.run(exercise())
@@ -218,11 +230,13 @@ def test_confirm_email_verification_marks_credential_verified(
             plaintext_password=REGISTER_PASSWORD,
             registered_at=NOW,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_A),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         confirmed_at = NOW + timedelta(minutes=5)
         await service.confirm_email_verification(
             raw_token=registration.delivery.raw_token,
             confirmed_at=confirmed_at,
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         lookup = auth_uow_factory()
@@ -246,17 +260,20 @@ def test_confirm_email_verification_rejects_replay(auth_uow_factory: Any) -> Non
             plaintext_password=REGISTER_PASSWORD,
             registered_at=NOW,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_A),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         raw_token = registration.delivery.raw_token
         await service.confirm_email_verification(
             raw_token=raw_token,
             confirmed_at=NOW + timedelta(minutes=1),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         with pytest.raises(AuthenticationWorkflowUnavailableError):
             await service.confirm_email_verification(
                 raw_token=raw_token,
                 confirmed_at=NOW + timedelta(minutes=2),
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
     asyncio.run(exercise())
@@ -273,6 +290,7 @@ def test_login_success_single_factor(auth_uow_factory: Any) -> None:
             authenticated_at=NOW + timedelta(hours=1),
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert issued.session.stage is AuthenticationSessionStage.AUTHENTICATED
@@ -293,6 +311,7 @@ def test_login_rejects_wrong_password(auth_uow_factory: Any) -> None:
                 session_id=SESSION_ID,
                 authenticated_at=NOW + timedelta(hours=1),
                 mfa_required=False,
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
         assert str(exc_info.value) == AUTHENTICATION_FAILED_MESSAGE
@@ -311,6 +330,7 @@ def test_login_rejects_unknown_email(auth_uow_factory: Any) -> None:
                 session_id=SESSION_ID,
                 authenticated_at=NOW,
                 mfa_required=False,
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
     asyncio.run(exercise())
@@ -336,6 +356,7 @@ def test_login_rejects_disabled_user(auth_uow_factory: Any) -> None:
                 session_id=SESSION_ID,
                 authenticated_at=NOW + timedelta(hours=1),
                 mfa_required=False,
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
     asyncio.run(exercise())
@@ -352,6 +373,7 @@ def test_login_rejects_unverified_email(auth_uow_factory: Any) -> None:
             plaintext_password=REGISTER_PASSWORD,
             registered_at=NOW,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_A),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         with pytest.raises(AuthenticationFailedError):
@@ -361,6 +383,7 @@ def test_login_rejects_unverified_email(auth_uow_factory: Any) -> None:
                 session_id=SESSION_ID,
                 authenticated_at=NOW + timedelta(hours=1),
                 mfa_required=False,
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
     asyncio.run(exercise())
@@ -377,6 +400,7 @@ def test_login_pending_mfa_path(auth_uow_factory: Any) -> None:
             authenticated_at=NOW + timedelta(hours=1),
             mfa_required=True,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert issued.session.stage is AuthenticationSessionStage.PENDING_MFA
@@ -395,6 +419,7 @@ def test_mfa_completion_rotates_session(auth_uow_factory: Any) -> None:
             authenticated_at=NOW + timedelta(hours=1),
             mfa_required=True,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         completed = await service.complete_mfa_login(
             pending_session_raw_token=pending.raw_token,
@@ -404,6 +429,7 @@ def test_mfa_completion_rotates_session(auth_uow_factory: Any) -> None:
             completed_at=NOW + timedelta(hours=1, minutes=1),
             mfa_verifier=AcceptingMfaVerifier(),
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_B),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert completed.session.stage is AuthenticationSessionStage.AUTHENTICATED
@@ -425,6 +451,7 @@ def test_mfa_completion_rejects_failed_verification(auth_uow_factory: Any) -> No
             authenticated_at=NOW + timedelta(hours=1),
             mfa_required=True,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         with pytest.raises(AuthenticationWorkflowUnavailableError):
@@ -435,6 +462,7 @@ def test_mfa_completion_rejects_failed_verification(auth_uow_factory: Any) -> No
                 mfa_response={"code": "000000"},
                 completed_at=NOW + timedelta(hours=1, minutes=1),
                 mfa_verifier=RejectingMfaVerifier(),
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
     asyncio.run(exercise())
@@ -451,6 +479,7 @@ def test_mfa_completion_cannot_complete_twice(auth_uow_factory: Any) -> None:
             authenticated_at=NOW + timedelta(hours=1),
             mfa_required=True,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         await service.complete_mfa_login(
             pending_session_raw_token=pending.raw_token,
@@ -460,6 +489,7 @@ def test_mfa_completion_cannot_complete_twice(auth_uow_factory: Any) -> None:
             completed_at=NOW + timedelta(hours=1, minutes=1),
             mfa_verifier=AcceptingMfaVerifier(),
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_B),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         with pytest.raises(AuthenticationWorkflowUnavailableError):
@@ -470,6 +500,7 @@ def test_mfa_completion_cannot_complete_twice(auth_uow_factory: Any) -> None:
                 mfa_response={"code": "123456"},
                 completed_at=NOW + timedelta(hours=1, minutes=2),
                 mfa_verifier=AcceptingMfaVerifier(),
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
     asyncio.run(exercise())
@@ -486,6 +517,7 @@ def test_resolve_session_returns_active_user(auth_uow_factory: Any) -> None:
             authenticated_at=NOW + timedelta(hours=1),
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         resolved = await service.resolve_session(
             raw_token=issued.raw_token,
@@ -509,6 +541,7 @@ def test_resolve_session_rejects_expired_session(auth_uow_factory: Any) -> None:
             authenticated_at=NOW,
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         with pytest.raises(AuthenticationWorkflowUnavailableError):
@@ -531,6 +564,7 @@ def test_resolve_session_touches_after_interval(auth_uow_factory: Any) -> None:
             authenticated_at=NOW,
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         touch_at = NOW + timedelta(minutes=6)
         resolved = await service.resolve_session(
@@ -561,11 +595,18 @@ def test_logout_is_idempotent(auth_uow_factory: Any) -> None:
             authenticated_at=NOW,
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         revoked_at = NOW + timedelta(minutes=10)
-        await service.logout(raw_token=issued.raw_token, revoked_at=revoked_at)
         await service.logout(
-            raw_token=issued.raw_token, revoked_at=revoked_at + timedelta(minutes=1)
+            raw_token=issued.raw_token,
+            revoked_at=revoked_at,
+            audit_context=TEST_AUDIT_CONTEXT,
+        )
+        await service.logout(
+            raw_token=issued.raw_token,
+            revoked_at=revoked_at + timedelta(minutes=1),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         lookup = auth_uow_factory()
@@ -589,6 +630,7 @@ def test_logout_all_revokes_active_sessions(auth_uow_factory: Any) -> None:
             authenticated_at=NOW,
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         await service.login_with_password(
             email=REGISTER_EMAIL,
@@ -597,10 +639,12 @@ def test_logout_all_revokes_active_sessions(auth_uow_factory: Any) -> None:
             authenticated_at=NOW,
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_B),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         revoked_count = await service.logout_all_sessions(
             user_id=USER_ID,
             revoked_at=NOW + timedelta(minutes=1),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert revoked_count == 2
@@ -617,6 +661,7 @@ def test_password_reset_request_is_generic_for_unknown_email(
             email="missing@example.test",
             reset_token_id=RESET_TOKEN_ID,
             requested_at=NOW,
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert accepted.delivery is None
@@ -635,18 +680,21 @@ def test_password_reset_confirm_revokes_all_sessions(auth_uow_factory: Any) -> N
             authenticated_at=NOW,
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         reset = await service.request_password_reset(
             email=REGISTER_EMAIL,
             reset_token_id=RESET_TOKEN_ID,
             requested_at=NOW + timedelta(minutes=1),
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_B),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         assert reset.delivery is not None
         await service.confirm_password_reset(
             raw_token=reset.delivery.raw_token,
             new_plaintext_password=OTHER_PASSWORD,
             confirmed_at=NOW + timedelta(minutes=2),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         lookup = auth_uow_factory()
@@ -670,6 +718,7 @@ def test_password_reset_confirm_rejects_replay(auth_uow_factory: Any) -> None:
             reset_token_id=RESET_TOKEN_ID,
             requested_at=NOW,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_B),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         assert reset.delivery is not None
         raw_token = reset.delivery.raw_token
@@ -677,6 +726,7 @@ def test_password_reset_confirm_rejects_replay(auth_uow_factory: Any) -> None:
             raw_token=raw_token,
             new_plaintext_password=OTHER_PASSWORD,
             confirmed_at=NOW + timedelta(minutes=1),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         with pytest.raises(AuthenticationWorkflowUnavailableError):
@@ -684,6 +734,7 @@ def test_password_reset_confirm_rejects_replay(auth_uow_factory: Any) -> None:
                 raw_token=raw_token,
                 new_plaintext_password=REGISTER_PASSWORD,
                 confirmed_at=NOW + timedelta(minutes=2),
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
     asyncio.run(exercise())
@@ -700,6 +751,7 @@ def test_change_password_rotates_session(auth_uow_factory: Any) -> None:
             authenticated_at=NOW,
             mfa_required=True,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         authenticated = await service.complete_mfa_login(
             pending_session_raw_token=pending.raw_token,
@@ -709,6 +761,7 @@ def test_change_password_rotates_session(auth_uow_factory: Any) -> None:
             completed_at=NOW + timedelta(minutes=1),
             mfa_verifier=AcceptingMfaVerifier(),
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_B),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         rotated = await service.change_password(
             session_raw_token=authenticated.raw_token,
@@ -717,6 +770,7 @@ def test_change_password_rotates_session(auth_uow_factory: Any) -> None:
             new_session_id=OTHER_SESSION_ID,
             changed_at=NOW + timedelta(minutes=2),
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_A),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert rotated.session.mfa_completed is True
@@ -742,6 +796,7 @@ def test_change_password_rejects_wrong_current_password(auth_uow_factory: Any) -
             authenticated_at=NOW,
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         with pytest.raises(AuthenticationFailedError):
@@ -751,6 +806,7 @@ def test_change_password_rejects_wrong_current_password(auth_uow_factory: Any) -
                 new_password=OTHER_PASSWORD,
                 new_session_id=NEW_SESSION_ID,
                 changed_at=NOW + timedelta(minutes=1),
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
     asyncio.run(exercise())
@@ -767,6 +823,7 @@ def test_consume_if_usable_prevents_duplicate_consumption(auth_uow_factory: Any)
             plaintext_password=REGISTER_PASSWORD,
             registered_at=NOW,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_A),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         token_hash = hash_authentication_token(registration.delivery.raw_token)
 
@@ -810,6 +867,7 @@ def test_verification_request_for_disabled_user_has_no_delivery(
             plaintext_password=REGISTER_PASSWORD,
             registered_at=NOW,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_A),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         disable_uow = auth_uow_factory()
         async with disable_uow:
@@ -824,6 +882,7 @@ def test_verification_request_for_disabled_user_has_no_delivery(
             verification_token_id=UUID("00000000-0000-0000-0000-000000000033"),
             requested_at=NOW + timedelta(minutes=1),
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_B),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         assert accepted.delivery is None
@@ -863,6 +922,7 @@ def test_login_rehash_updates_stored_password_hash(auth_uow_factory: Any) -> Non
             authenticated_at=NOW + timedelta(hours=1),
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
         lookup = auth_uow_factory()
@@ -887,6 +947,7 @@ def test_resolve_session_rejects_disabled_user(auth_uow_factory: Any) -> None:
             authenticated_at=NOW,
             mfa_required=False,
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_C),
+            audit_context=TEST_AUDIT_CONTEXT,
         )
         disable_uow = auth_uow_factory()
         async with disable_uow:
@@ -911,6 +972,7 @@ def test_logout_unknown_token_does_not_raise(auth_uow_factory: Any) -> None:
         await service.logout(
             raw_token=raw_token_from_entropy(TOKEN_ENTROPY_A),
             revoked_at=NOW,
+            audit_context=TEST_AUDIT_CONTEXT,
         )
 
     asyncio.run(exercise())
@@ -928,6 +990,7 @@ def test_workflow_errors_do_not_leak_sensitive_values(auth_uow_factory: Any) -> 
                 session_id=SESSION_ID,
                 authenticated_at=NOW,
                 mfa_required=False,
+                audit_context=TEST_AUDIT_CONTEXT,
             )
 
         error_text = f"{exc_info.value}{repr(exc_info.value)}"

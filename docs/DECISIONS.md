@@ -99,3 +99,10 @@ Status: accepted
 File: `docs/adr/ADR-0010-authentication-and-session-strategy.md`
 
 CloserOS uses self-hosted authentication with server-side opaque sessions, Argon2id password hashing, secure cookies, verification and reset token hashes, and MFA for privileged roles.
+
+### ADR-0011 — Immutable audit log subsystem
+
+Status: accepted
+File: `docs/adr/ADR-0011-immutable-audit-log-subsystem.md`
+
+Security-sensitive actions append immutable, tenant-aware audit events with allowlisted metadata, database-level update/delete protection, and server-generated request correlation IDs.

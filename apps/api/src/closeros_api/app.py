@@ -15,6 +15,7 @@ from closeros_api.auth_router import router as auth_router
 from closeros_api.auth_schemas import ErrorResponse, sanitize_validation_errors
 from closeros_api.auth_security import apply_security_headers
 from closeros_api.composition import AuthRuntimeOverrides, build_auth_runtime
+from closeros_api.request_correlation import RequestCorrelationMiddleware
 from closeros_api.settings import ApiSettings
 
 
@@ -48,6 +49,7 @@ def create_app(
         allow_methods=["GET", "POST", "OPTIONS"],
         allow_headers=["Content-Type", "X-CSRF-Token"],
     )
+    application.add_middleware(RequestCorrelationMiddleware)
 
     @application.exception_handler(RequestValidationError)
     async def validation_exception_handler(

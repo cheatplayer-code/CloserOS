@@ -12,6 +12,7 @@ from types import TracebackType
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from closeros.infrastructure.audit_repositories import SqlAlchemyAuditEventRepository
 from closeros.infrastructure.authentication_repositories import (
     SqlAlchemyCredentialRepository,
     SqlAlchemyOneTimeTokenRepository,
@@ -29,6 +30,7 @@ class SqlAlchemyAuthenticationUnitOfWork:
     credentials: SqlAlchemyCredentialRepository
     sessions: SqlAlchemySessionRepository
     one_time_tokens: SqlAlchemyOneTimeTokenRepository
+    audit_events: SqlAlchemyAuditEventRepository
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -41,6 +43,7 @@ class SqlAlchemyAuthenticationUnitOfWork:
         self.credentials = SqlAlchemyCredentialRepository(session)
         self.sessions = SqlAlchemySessionRepository(session)
         self.one_time_tokens = SqlAlchemyOneTimeTokenRepository(session)
+        self.audit_events = SqlAlchemyAuditEventRepository(session)
         return self
 
     async def __aexit__(

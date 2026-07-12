@@ -9,6 +9,13 @@ Alembic migrations for the authentication persistence subsystem live under
 - **Tables:** `users`, `authentication_credentials`, `authentication_sessions`,
   `authentication_one_time_tokens`
 
+## Audit revision
+
+- **Revision ID:** `8e4b1d0f6a23`
+- **Revises:** `7f3a9c2e1b04`
+- **Table:** `audit_events` with append-only trigger, query indexes, and domain-aligned
+  CHECK constraints
+
 Raw passwords and raw authentication tokens are never stored. Session and
 one-time-token tables store only 32-byte SHA-256 hashes.
 

@@ -7,6 +7,7 @@ from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+from closeros.application.audit_recording import AuditContext
 from closeros.domain.authentication import MfaMethod
 from closeros.security.authentication_tokens import RawAuthenticationToken
 
@@ -20,6 +21,8 @@ RESET_TOKEN_ID = UUID("00000000-0000-0000-0000-000000000040")
 SESSION_ID = UUID("00000000-0000-0000-0000-000000000100")
 NEW_SESSION_ID = UUID("00000000-0000-0000-0000-000000000101")
 OTHER_SESSION_ID = UUID("00000000-0000-0000-0000-000000000102")
+CORRELATION_ID = UUID("00000000-0000-0000-0000-000000000999")
+TEST_AUDIT_CONTEXT = AuditContext(correlation_id=CORRELATION_ID)
 
 REGISTER_EMAIL = "workflow.test@example.test"
 REGISTER_PASSWORD = "Synthetic-Password-1"

@@ -863,5 +863,41 @@ Remaining CLS-011 work after Block D:
 - production email/outbox delivery;
 - WebAuthn/TOTP provider adapters;
 - distributed rate limiting;
-- audit subsystem;
 - production proxy and deployment configuration.
+
+## CLS-012 Block E — immutable audit subsystem
+
+Status: **Implemented locally; GitHub Pull Request verification pending.**
+
+Branch: `feat/e-immutable-audit`.
+
+Implemented:
+
+- framework-independent immutable audit domain with controlled action taxonomy and
+  strict metadata allowlist;
+- append-only application ports, mandatory audit recording, and tenant-scoped
+  authorized query service;
+- PostgreSQL `audit_events` table (revision `8e4b1d0f6a23`) with domain-aligned
+  CHECK constraints, query indexes, and trigger rejecting UPDATE/DELETE;
+- authentication workflow integration with atomic success commits and separate
+  sanitized failure transactions for login/MFA;
+- server-generated `X-Request-ID` correlation middleware;
+- ADR-0011, `docs/AUDIT_LOG.md`, and migration/API documentation updates;
+- unit, PostgreSQL, migration, authorization, and API regression tests.
+
+Not implemented in Block E:
+
+- HTTP audit-query route and frontend audit viewer;
+- retention purge worker;
+- SIEM/export;
+- message or conversation auditing;
+- production database role separation for audit readers/writers.
+
+Remaining scope for Block F and beyond:
+
+- tenant persistence/composition for authoritative browser tenant context;
+- audit query HTTP API once tenant context exists;
+- retention purge with dedicated controlled deletion mechanism;
+- export/SIEM integration;
+- continued CLS-011 production hardening (email/outbox, WebAuthn/TOTP, distributed
+  rate limiting).
