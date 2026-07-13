@@ -64,6 +64,12 @@ function IntegrationsSettingsContent() {
             </h2>
             <p>Meta WhatsApp Cloud API connections, webhooks, and templates.</p>
           </li>
+          <li className="workspace-card">
+            <h2>
+              <Link href="/settings/integrations/crm">CRM</Link>
+            </h2>
+            <p>Provisional Bitrix24 CRM connections and outcome sync.</p>
+          </li>
         </ul>
       </section>
     </AppShell>

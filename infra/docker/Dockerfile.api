@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1
+# Remote CI and staging/production API image. Do not use for local development.
+
+FROM python:3.12.13-slim-bookworm AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
+
+COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /usr/local/bin/uv
+
+WORKDIR /build
+
+COPY pyproject.toml uv.lock .python-version ./
+COPY apps/api/pyproject.toml apps/api/pyproject.toml
+COPY apps/worker/pyproject.toml apps/worker/pyproject.toml
+COPY packages/backend/pyproject.toml packages/backend/pyproject.toml
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --all-packages --frozen --no-dev --no-install-project
+
+COPY apps/api apps/api
+COPY packages/backend packages/backend
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --all-packages --frozen --no-dev
+
+FROM python:3.12.13-slim-bookworm AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    APP_ENV=production \
+    PATH="/app/.venv/bin:${PATH}"
+
+RUN groupadd --system --gid 10001 closeros \
+    && useradd --system --uid 10001 --gid closeros --home-dir /app --shell /usr/sbin/nologin closeros
+
+WORKDIR /app
+
+COPY --from=builder --chown=closeros:closeros /build/.venv /app/.venv
+COPY --from=builder --chown=closeros:closeros /build/apps/api /app/apps/api
+COPY --from=builder --chown=closeros:closeros /build/packages/backend /app/packages/backend
+COPY --chown=closeros:closeros pyproject.toml uv.lock .python-version ./
+
+USER closeros
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${PORT:-8000}/health', timeout=3)"
+
+CMD ["sh", "-c", "exec uvicorn closeros_api.app:app --host 0.0.0.0 --port ${PORT:-8000}"]

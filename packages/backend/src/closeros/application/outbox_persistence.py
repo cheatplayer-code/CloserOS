@@ -112,6 +112,17 @@ class OutboxJobRepository(Protocol):
         query_filter: OutboxReconciliationFilter,
     ) -> tuple[OutboxJob, ...]: ...
 
+    async def renew_processor_claim(
+        self,
+        *,
+        job_id: UUID,
+        claim_token: UUID,
+        now: datetime,
+        expected_version: int,
+    ) -> OutboxJob: ...
+
+    async def requeue_dead_letter(self, *, job_id: UUID, now: datetime) -> OutboxJob: ...
+
 
 class OutboxJobAttemptRepository(Protocol):
     async def append(self, attempt: OutboxJobAttempt) -> None: ...

@@ -40,6 +40,13 @@ from closeros.infrastructure.canonical_repositories import (
 from closeros.infrastructure.content_sanitization_repositories import (
     SqlAlchemyContentSanitizationRepository,
 )
+from closeros.infrastructure.crm_repositories import (
+    SqlAlchemyCrmConflictRepository,
+    SqlAlchemyCrmConnectionRepository,
+    SqlAlchemyCrmFieldMappingRepository,
+    SqlAlchemyCrmSyncAttemptRepository,
+    SqlAlchemyCrmSyncCheckpointRepository,
+)
 from closeros.infrastructure.csv_import_repositories import (
     SqlAlchemyCsvImportBatchRepository,
     SqlAlchemyCsvImportRowErrorRepository,
@@ -55,6 +62,7 @@ from closeros.infrastructure.knowledge_repositories import (
     SqlAlchemyKnowledgeDocumentVersionRepository,
 )
 from closeros.infrastructure.metrics_repositories import SqlAlchemyMetricSnapshotRepository
+from closeros.infrastructure.mfa_totp_repositories import SqlAlchemyUserMfaTotpEnrollmentRepository
 from closeros.infrastructure.outbound_repositories import (
     SqlAlchemyOutboundDeliveryAttemptRepository,
     SqlAlchemyOutboundMessageRepository,
@@ -76,6 +84,13 @@ from closeros.infrastructure.tenant_repositories import (
 )
 from closeros.infrastructure.whatsapp_repositories import (
     SqlAlchemyWhatsAppCloudConnectionRepository,
+)
+from closeros.infrastructure.xy_repositories import (
+    SqlAlchemyLegalHoldRepository,
+    SqlAlchemyNotificationDeliveryAttemptRepository,
+    SqlAlchemyNotificationDeliveryRepository,
+    SqlAlchemyRetentionPurgeBatchRepository,
+    SqlAlchemyRetentionPurgeRunRepository,
 )
 
 
@@ -124,6 +139,17 @@ class SqlAlchemyIntegratedUnitOfWork:
     provider_media_references: SqlAlchemyProviderMediaReferenceRepository
     outbound_messages: SqlAlchemyOutboundMessageRepository
     outbound_delivery_attempts: SqlAlchemyOutboundDeliveryAttemptRepository
+    notification_deliveries: SqlAlchemyNotificationDeliveryRepository
+    notification_delivery_attempts: SqlAlchemyNotificationDeliveryAttemptRepository
+    legal_holds: SqlAlchemyLegalHoldRepository
+    retention_purge_runs: SqlAlchemyRetentionPurgeRunRepository
+    retention_purge_batches: SqlAlchemyRetentionPurgeBatchRepository
+    crm_connections: SqlAlchemyCrmConnectionRepository
+    crm_field_mappings: SqlAlchemyCrmFieldMappingRepository
+    crm_sync_checkpoints: SqlAlchemyCrmSyncCheckpointRepository
+    crm_sync_attempts: SqlAlchemyCrmSyncAttemptRepository
+    crm_conflicts: SqlAlchemyCrmConflictRepository
+    user_mfa_totp_enrollments: SqlAlchemyUserMfaTotpEnrollmentRepository
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -186,6 +212,19 @@ class SqlAlchemyIntegratedUnitOfWork:
         self.provider_media_references = SqlAlchemyProviderMediaReferenceRepository(session)
         self.outbound_messages = SqlAlchemyOutboundMessageRepository(session)
         self.outbound_delivery_attempts = SqlAlchemyOutboundDeliveryAttemptRepository(session)
+        self.notification_deliveries = SqlAlchemyNotificationDeliveryRepository(session)
+        self.notification_delivery_attempts = SqlAlchemyNotificationDeliveryAttemptRepository(
+            session
+        )
+        self.legal_holds = SqlAlchemyLegalHoldRepository(session)
+        self.retention_purge_runs = SqlAlchemyRetentionPurgeRunRepository(session)
+        self.retention_purge_batches = SqlAlchemyRetentionPurgeBatchRepository(session)
+        self.crm_connections = SqlAlchemyCrmConnectionRepository(session)
+        self.crm_field_mappings = SqlAlchemyCrmFieldMappingRepository(session)
+        self.crm_sync_checkpoints = SqlAlchemyCrmSyncCheckpointRepository(session)
+        self.crm_sync_attempts = SqlAlchemyCrmSyncAttemptRepository(session)
+        self.crm_conflicts = SqlAlchemyCrmConflictRepository(session)
+        self.user_mfa_totp_enrollments = SqlAlchemyUserMfaTotpEnrollmentRepository(session)
         return self
 
     async def __aexit__(

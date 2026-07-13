@@ -135,6 +135,26 @@ class SqlAlchemyEncryptedContentRepository:
         rows = (await self._session.execute(statement)).scalars().all()
         return tuple(mappers.encrypted_content_to_domain(row) for row in rows)
 
+    async def count_due_for_retention(
+        self,
+        *,
+        query_filter: EncryptedContentRetentionFilter,
+    ) -> int:
+        from sqlalchemy import func, select
+
+        statement = select(func.count()).select_from(EncryptedContentRow)
+        if query_filter.tenant_id is not None:
+            statement = statement.where(
+                EncryptedContentRow.tenant_id == query_filter.tenant_id,
+            )
+        if query_filter.expires_before is not None:
+            statement = statement.where(
+                EncryptedContentRow.expires_at <= query_filter.expires_before,
+            )
+        result = await self._session.execute(statement)
+        counted = result.scalar_one()
+        return int(counted)
+
     async def list_due_for_retention(
         self,
         *,
@@ -158,3 +178,18 @@ class SqlAlchemyEncryptedContentRepository:
         ).limit(query_filter.limit)
         rows = (await self._session.execute(statement)).scalars().all()
         return tuple(mappers.encrypted_content_to_domain(row) for row in rows)
+
+    async def delete(
+        self,
+        *,
+        tenant_id: UUID,
+        content_id: UUID,
+    ) -> None:
+        from sqlalchemy import delete
+
+        statement = delete(EncryptedContentRow).where(
+            EncryptedContentRow.tenant_id == tenant_id,
+            EncryptedContentRow.id == content_id,
+        )
+        await self._session.execute(statement)
+        await _flush(self._session)

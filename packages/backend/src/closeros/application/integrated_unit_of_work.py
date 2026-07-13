@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from closeros.application.ai_policy_persistence import (
     AiUsageDailyRepository,
@@ -36,6 +36,13 @@ from closeros.application.canonical_persistence import (
     WebhookEventRepository,
 )
 from closeros.application.content_sanitization_persistence import ContentSanitizationRepository
+from closeros.application.crm_persistence import (
+    CrmConflictRepository,
+    CrmConnectionRepository,
+    CrmFieldMappingRepository,
+    CrmSyncAttemptRepository,
+    CrmSyncCheckpointRepository,
+)
 from closeros.application.csv_import_persistence import (
     CsvImportBatchRepository,
     CsvImportRowErrorRepository,
@@ -49,6 +56,11 @@ from closeros.application.knowledge_persistence import (
     KnowledgeDocumentVersionRepository,
 )
 from closeros.application.metrics_persistence import MetricSnapshotRepository
+from closeros.application.mfa_persistence import UserMfaTotpEnrollmentRepository
+from closeros.application.notification_ports import (
+    NotificationDeliveryAttemptRepository,
+    NotificationDeliveryRepository,
+)
 from closeros.application.outbound_persistence import (
     OutboundDeliveryAttemptRepository,
     OutboundMessageRepository,
@@ -59,6 +71,11 @@ from closeros.application.outbox_persistence import (
 )
 from closeros.application.provider_media_persistence import ProviderMediaReferenceRepository
 from closeros.application.provider_template_persistence import ProviderMessageTemplateRepository
+from closeros.application.retention_persistence import (
+    LegalHoldRepository,
+    RetentionPurgeBatchRepository,
+    RetentionPurgeRunRepository,
+)
 from closeros.application.tenant_persistence import (
     InvitationRepository,
     MembershipRepository,
@@ -67,6 +84,7 @@ from closeros.application.tenant_persistence import (
 from closeros.application.whatsapp_persistence import WhatsAppCloudConnectionRepository
 
 
+@runtime_checkable
 class IntegratedUnitOfWork(Protocol):
     users: UserRepository
     credentials: CredentialRepository
@@ -110,6 +128,17 @@ class IntegratedUnitOfWork(Protocol):
     provider_media_references: ProviderMediaReferenceRepository
     outbound_messages: OutboundMessageRepository
     outbound_delivery_attempts: OutboundDeliveryAttemptRepository
+    notification_deliveries: NotificationDeliveryRepository
+    notification_delivery_attempts: NotificationDeliveryAttemptRepository
+    legal_holds: LegalHoldRepository
+    retention_purge_runs: RetentionPurgeRunRepository
+    retention_purge_batches: RetentionPurgeBatchRepository
+    crm_connections: CrmConnectionRepository
+    crm_field_mappings: CrmFieldMappingRepository
+    crm_sync_checkpoints: CrmSyncCheckpointRepository
+    crm_sync_attempts: CrmSyncAttemptRepository
+    crm_conflicts: CrmConflictRepository
+    user_mfa_totp_enrollments: UserMfaTotpEnrollmentRepository
 
     async def __aenter__(self) -> IntegratedUnitOfWork: ...
 

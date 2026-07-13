@@ -15,6 +15,9 @@ PROVIDER_PAYLOAD_MAX_PLAINTEXT_BYTES = 1024 * 1024
 CSV_IMPORT_MAX_PLAINTEXT_BYTES = 10 * 1024 * 1024
 KNOWLEDGE_DOCUMENT_MAX_PLAINTEXT_BYTES = 5 * 1024 * 1024
 KNOWLEDGE_CHUNK_MAX_PLAINTEXT_BYTES = 32 * 1024
+NOTIFICATION_PAYLOAD_MAX_PLAINTEXT_BYTES = 64 * 1024
+MFA_TOTP_SECRET_MAX_PLAINTEXT_BYTES = 64
+PROVIDER_MEDIA_BINARY_MAX_PLAINTEXT_BYTES = 100 * 1024 * 1024
 MAX_KEY_VERSION_LENGTH = 64
 
 
@@ -26,6 +29,9 @@ class EncryptedContentKind(StrEnum):
     CSV_IMPORT = "csv_import"
     KNOWLEDGE_DOCUMENT = "knowledge_document"
     KNOWLEDGE_CHUNK = "knowledge_chunk"
+    NOTIFICATION_PAYLOAD = "notification_payload"
+    PROVIDER_MEDIA_BINARY = "provider_media_binary"
+    MFA_TOTP_SECRET = "mfa_totp_secret"
 
 
 class ContentEncoding(StrEnum):
@@ -50,6 +56,9 @@ class ContentAccessPurpose(StrEnum):
     CSV_IMPORT_PROCESSING = "csv_import_processing"
     KNOWLEDGE_RETRIEVAL = "knowledge_retrieval"
     CONVERSATION_REVIEW = "conversation_review"
+    NOTIFICATION_DELIVERY = "notification_delivery"
+    MEDIA_SCAN = "media_scan"
+    MFA_TOTP_VERIFY = "mfa_totp_verify"
 
 
 class EncryptedContentError(ValueError):
@@ -160,6 +169,15 @@ def max_plaintext_bytes_for_kind(kind: EncryptedContentKind) -> int:
 
     if kind is EncryptedContentKind.KNOWLEDGE_CHUNK:
         return KNOWLEDGE_CHUNK_MAX_PLAINTEXT_BYTES
+
+    if kind is EncryptedContentKind.NOTIFICATION_PAYLOAD:
+        return NOTIFICATION_PAYLOAD_MAX_PLAINTEXT_BYTES
+
+    if kind is EncryptedContentKind.MFA_TOTP_SECRET:
+        return MFA_TOTP_SECRET_MAX_PLAINTEXT_BYTES
+
+    if kind is EncryptedContentKind.PROVIDER_MEDIA_BINARY:
+        return PROVIDER_MEDIA_BINARY_MAX_PLAINTEXT_BYTES
 
     return RAW_OR_SANITIZED_MAX_PLAINTEXT_BYTES
 

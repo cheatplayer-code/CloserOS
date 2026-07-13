@@ -19,6 +19,7 @@ from closeros.domain.encrypted_content import (
     GCM_NONCE_SIZE_BYTES,
 )
 from closeros.infrastructure.aes_gcm_encryption import AesGcmContentCryptography
+from closeros.infrastructure.remote_kms_key_provider import RemoteKmsKeyProvider
 from closeros.infrastructure.secure_random import OsSecureRandom
 from closeros.infrastructure.static_key_provider import StaticKeyProvider
 
@@ -55,6 +56,16 @@ def build_test_key_provider(*, active_version: str = TEST_KEY_VERSION_V1) -> Sta
     return StaticKeyProvider(
         keys_by_version=build_test_keys_by_version(),
         active_version=active_version,
+    )
+
+
+def build_production_test_key_provider() -> RemoteKmsKeyProvider:
+    """Non-static key provider accepted by production composition guards."""
+    return RemoteKmsKeyProvider(
+        base_url="https://kms.example",
+        api_token_reference="env:KMS_TOKEN",
+        active_key_version="kek-v1",
+        key_versions=("kek-v1",),
     )
 
 

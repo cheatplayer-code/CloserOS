@@ -35,6 +35,8 @@ def _settings(database_url: str) -> WorkerSettings:
         polling_interval_seconds=1.0,
         publish_batch_size=25,
         processor_block_ms=5_000,
+        max_parallel_jobs=4,
+        shutdown_grace_seconds=30.0,
     )
 
 

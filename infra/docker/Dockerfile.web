@@ -1,0 +1,53 @@
+# syntax=docker/dockerfile:1
+# Remote CI and staging/production web image. Do not use for local development.
+
+FROM node:24.14.1-bookworm-slim AS builder
+
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+
+WORKDIR /build
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .node-version ./
+COPY apps/web/package.json apps/web/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/ui/package.json packages/ui/package.json
+
+RUN corepack enable pnpm \
+    && corepack pnpm --version \
+    && corepack pnpm install --frozen-lockfile
+
+COPY apps/web apps/web
+COPY packages/contracts packages/contracts
+COPY packages/ui packages/ui
+
+ARG NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+
+RUN corepack pnpm --filter @closeros/web build
+
+FROM node:24.14.1-bookworm-slim AS runtime
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    HOSTNAME=0.0.0.0
+
+WORKDIR /app
+
+RUN corepack enable pnpm
+
+COPY --from=builder --chown=node:node /build/package.json /build/pnpm-lock.yaml /build/pnpm-workspace.yaml ./
+COPY --from=builder --chown=node:node /build/apps/web ./apps/web
+COPY --from=builder --chown=node:node /build/packages/contracts ./packages/contracts
+COPY --from=builder --chown=node:node /build/packages/ui ./packages/ui
+COPY --from=builder --chown=node:node /build/node_modules ./node_modules
+
+USER node
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD node -e "fetch('http://127.0.0.1:' + (process.env.PORT || 3000)).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+
+CMD ["sh", "-c", "exec corepack pnpm --filter @closeros/web start --hostname 0.0.0.0 --port ${PORT:-3000}"]

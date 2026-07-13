@@ -5,9 +5,12 @@ from unittest.mock import patch
 
 import closeros
 import pytest
-from closeros_api import app
+from closeros_api.app import create_app
 from closeros_worker import main as worker_main
 from fastapi.testclient import TestClient
+
+from tests.auth_api_support import development_api_settings
+from tests.database_url_support import placeholder_database_url
 
 
 def test_shared_backend_package_imports() -> None:
@@ -15,6 +18,7 @@ def test_shared_backend_package_imports() -> None:
 
 
 def test_api_health_endpoint() -> None:
+    app = create_app(settings=development_api_settings(database_url=placeholder_database_url()))
     response = TestClient(app).get("/health")
 
     assert response.status_code == 200

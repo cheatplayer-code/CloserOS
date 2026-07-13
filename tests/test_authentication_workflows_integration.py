@@ -84,6 +84,7 @@ async def _register_verified_user(
         raw_token_factory=deterministic_token_factory(token_entropy),
         audit_context=TEST_AUDIT_CONTEXT,
     )
+    assert registration.delivery is not None
     await service.confirm_email_verification(
         raw_token=registration.delivery.raw_token,
         confirmed_at=registered_at + timedelta(minutes=1),
@@ -117,6 +118,7 @@ def test_registration_persists_user_and_credential(auth_uow_factory: Any) -> Non
         assert credential is not None
         assert credential.email_verified_at is None
         assert REGISTER_PASSWORD not in repr(registration)
+        assert registration.delivery is not None
         assert registration.delivery.raw_token.value not in repr(registration)
 
     asyncio.run(exercise())
@@ -232,6 +234,7 @@ def test_confirm_email_verification_marks_credential_verified(
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_A),
             audit_context=TEST_AUDIT_CONTEXT,
         )
+        assert registration.delivery is not None
         confirmed_at = NOW + timedelta(minutes=5)
         await service.confirm_email_verification(
             raw_token=registration.delivery.raw_token,
@@ -262,6 +265,7 @@ def test_confirm_email_verification_rejects_replay(auth_uow_factory: Any) -> Non
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_A),
             audit_context=TEST_AUDIT_CONTEXT,
         )
+        assert registration.delivery is not None
         raw_token = registration.delivery.raw_token
         await service.confirm_email_verification(
             raw_token=raw_token,
@@ -825,6 +829,7 @@ def test_consume_if_usable_prevents_duplicate_consumption(auth_uow_factory: Any)
             raw_token_factory=deterministic_token_factory(TOKEN_ENTROPY_A),
             audit_context=TEST_AUDIT_CONTEXT,
         )
+        assert registration.delivery is not None
         token_hash = hash_authentication_token(registration.delivery.raw_token)
 
         first = auth_uow_factory()

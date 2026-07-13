@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID, uuid4
 
@@ -13,6 +15,7 @@ from closeros.application.outbox_persistence import (
     OutboxJobRepository,
 )
 from closeros.domain.outbox import (
+    PROCESSOR_LEASE_SECONDS,
     OutboxAttemptOutcome,
     OutboxErrorCode,
     OutboxJob,
@@ -86,41 +89,56 @@ class OutboxProcessorService:
                 error_code=OutboxErrorCode.HANDLER_NOT_IMPLEMENTED,
             )
 
+        renew_stop = asyncio.Event()
+        current_job: list[OutboxJob] = [claimed]
+        renew_task = asyncio.create_task(
+            self._renew_processor_lease_loop(
+                job_holder=current_job,
+                stop_event=renew_stop,
+            )
+        )
         try:
             await handler.handle(job=claimed)
         except Exception as error:
             handler_error = _extract_typed_handler_error(error)
+            active_job = current_job[0]
             if handler_error is not None:
                 if handler_error.permanent:
                     return await self._handle_permanent_failure(
-                        job=claimed,
+                        job=active_job,
                         started_at=started_at,
                         now=now,
                         error_code=handler_error.error_code,
                     )
                 return await self._handle_failure(
-                    job=claimed,
+                    job=active_job,
                     started_at=started_at,
                     now=now,
                     error_code=handler_error.error_code,
                 )
             return await self._handle_failure(
-                job=claimed,
+                job=active_job,
                 started_at=started_at,
                 now=now,
                 error_code=OutboxErrorCode.HANDLER_FAILED,
             )
+        finally:
+            renew_stop.set()
+            renew_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await renew_task
 
+        active_job = current_job[0]
         try:
             updated = await self._outbox_jobs.mark_succeeded(
-                job_id=claimed.id,
-                claim_token=claimed.claim_token,  # type: ignore[arg-type]
+                job_id=active_job.id,
+                claim_token=active_job.claim_token,  # type: ignore[arg-type]
                 now=now,
-                expected_version=claimed.version,
+                expected_version=active_job.version,
             )
         except OutboxClaimMismatchError:
             await self._append_attempt(
-                job=claimed,
+                job=active_job,
                 started_at=started_at,
                 finished_at=now,
                 outcome=OutboxAttemptOutcome.FAILED,
@@ -218,6 +236,34 @@ class OutboxProcessorService:
             raise OutboxProcessorError("outbox retry persistence failed") from error
         return OutboxProcessorResult(job_id=job.id, outcome="retried")
 
+    async def _renew_processor_lease_loop(
+        self,
+        *,
+        job_holder: list[OutboxJob],
+        stop_event: asyncio.Event,
+    ) -> None:
+        interval_seconds = max(PROCESSOR_LEASE_SECONDS // 3, 10)
+        while not stop_event.is_set():
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=interval_seconds)
+                return
+            except TimeoutError:
+                pass
+
+            current = job_holder[0]
+            if current.claim_token is None:
+                return
+
+            try:
+                job_holder[0] = await self._outbox_jobs.renew_processor_claim(
+                    job_id=current.id,
+                    claim_token=current.claim_token,
+                    now=datetime.now(UTC),
+                    expected_version=current.version,
+                )
+            except OutboxClaimMismatchError:
+                return
+
     async def _append_attempt(
         self,
         *,
@@ -245,10 +291,20 @@ def _extract_typed_handler_error(
     error: Exception,
 ) -> _TypedHandlerFailure | None:
     from closeros.application.content_redact_handler import ContentRedactHandlerError
+    from closeros.application.crm_sync_handler import CrmSyncHandlerError
     from closeros.application.csv_import_processor import CsvImportHandlerError
     from closeros.application.knowledge_index_handler import KnowledgeIndexHandlerError
+    from closeros.application.media_fetch_handler import MediaFetchHandlerError
+    from closeros.application.media_scan_handler import MediaScanHandlerError
     from closeros.application.message_analyze_handler import MessageAnalyzeHandlerError
     from closeros.application.metrics_recalculate_handler import MetricsRecalculateHandlerError
+    from closeros.application.notification_deliver_handler import NotificationDeliverHandlerError
+    from closeros.application.optional_feature_handler import OptionalFeatureDisabledHandlerError
+    from closeros.application.provider_message_send_handler import ProviderMessageSendHandlerError
+    from closeros.application.provider_templates_sync_handler import (
+        ProviderTemplatesSyncHandlerError,
+    )
+    from closeros.application.retention_purge_handler import RetentionPurgeHandlerError
     from closeros.application.webhook_normalize_handler import WebhookNormalizeHandlerError
 
     if isinstance(
@@ -256,10 +312,18 @@ def _extract_typed_handler_error(
         (
             WebhookNormalizeHandlerError,
             CsvImportHandlerError,
+            CrmSyncHandlerError,
             ContentRedactHandlerError,
             MetricsRecalculateHandlerError,
             KnowledgeIndexHandlerError,
             MessageAnalyzeHandlerError,
+            NotificationDeliverHandlerError,
+            MediaFetchHandlerError,
+            MediaScanHandlerError,
+            RetentionPurgeHandlerError,
+            ProviderMessageSendHandlerError,
+            ProviderTemplatesSyncHandlerError,
+            OptionalFeatureDisabledHandlerError,
         ),
     ):
         return _TypedHandlerFailure(

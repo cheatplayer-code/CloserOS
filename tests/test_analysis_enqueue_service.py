@@ -15,7 +15,7 @@ from closeros.domain.outbox import (
     OutboxJobState,
     build_outbox_job,
 )
-from closeros_worker.runtime import LM_SUPPORTED_JOB_KINDS
+from closeros_worker.runtime import NOPQ_SUPPORTED_JOB_KINDS, XY_SUPPORTED_JOB_KINDS
 
 from tests.encryption_support import NOW
 
@@ -40,12 +40,16 @@ def _enqueue_candidate() -> object:
     )
 
 
-def test_message_analyze_is_in_nopq_worker_supported_kinds() -> None:
-    assert OutboxJobKind.MESSAGE_ANALYZE in LM_SUPPORTED_JOB_KINDS
+def test_message_analyze_is_in_xy_worker_supported_kinds() -> None:
+    assert OutboxJobKind.MESSAGE_ANALYZE in XY_SUPPORTED_JOB_KINDS
+
+
+def test_notification_deliver_is_in_xy_worker_supported_kinds() -> None:
+    assert OutboxJobKind.NOTIFICATION_DELIVER in XY_SUPPORTED_JOB_KINDS
 
 
 def test_notification_deliver_is_not_in_nopq_worker_supported_kinds() -> None:
-    assert OutboxJobKind.NOTIFICATION_DELIVER not in LM_SUPPORTED_JOB_KINDS
+    assert OutboxJobKind.NOTIFICATION_DELIVER not in NOPQ_SUPPORTED_JOB_KINDS
 
 
 def test_enqueue_candidate_is_tenant_scoped_and_starts_pending() -> None:
@@ -84,7 +88,7 @@ def test_nopq_processor_does_not_claim_unsupported_notification_jobs(
                 outbox_job_attempts=uow.outbox_job_attempts,
                 handlers={},
                 worker_id="analysis-enqueue-test-worker",
-                supported_job_kinds=LM_SUPPORTED_JOB_KINDS,
+                supported_job_kinds=NOPQ_SUPPORTED_JOB_KINDS,
             )
             result = await processor.process_job(job_id=JOB_ID, now=NOW)
             persisted = await uow.outbox_jobs.get_by_id(job_id=JOB_ID)

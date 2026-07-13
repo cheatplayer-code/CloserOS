@@ -49,6 +49,9 @@ class ProviderMediaReferenceRow(Base):
     media_type: Mapped[str] = mapped_column(String(32), nullable=False)
     mime_type: Mapped[str | None] = mapped_column(String(128), nullable=True)
     size_bytes: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    encrypted_content_id: Mapped[uuid.UUID | None] = mapped_column(
+        PostgresUUID(as_uuid=True), nullable=True
+    )
     quarantine_status: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
@@ -67,6 +70,10 @@ class ProviderMediaReferenceRow(Base):
         ForeignKeyConstraint(
             ["tenant_id", "inbound_message_id"],
             ["messages.tenant_id", "messages.id"],
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "encrypted_content_id"],
+            ["encrypted_contents.tenant_id", "encrypted_contents.id"],
         ),
         CheckConstraint(
             f"quarantine_status IN ({_quoted(_MEDIA_QUARANTINE_STATUS_VALUES)})",

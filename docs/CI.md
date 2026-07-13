@@ -1,39 +1,63 @@
 # Continuous Integration
 
-CLS-003 defines two blocking GitHub Actions workflows. They validate the
-repository foundation only; they do not deploy, publish packages, start
-PostgreSQL or Redis, or run external integration tests.
+CloserOS uses blocking GitHub Actions workflows for quality, security, container
+supply chain, and Redis integration tests.
 
 ## Quality workflow
 
 `.github/workflows/quality.yml` runs for pull requests targeting `master`,
-pushes to `master`, and manual dispatches. Its stable branch-protection check
-name is `Quality / quality`.
+pushes to `master`, and manual dispatches. Stable branch-protection check names:
 
-The single Ubuntu job:
+- `Quality / quality`
+- `Quality / redis-integration`
+
+### `quality` job
+
+The Ubuntu job:
 
 1. checks out the repository without persisting credentials;
-2. installs Node.js `24.14.1` and Python `3.12.13` from the repository version
-   files;
+2. installs Node.js `24.14.1` and Python `3.12.13` from repository version files;
 3. enables pnpm `11.11.0` through Corepack and installs uv `0.11.28`;
 4. restores package-manager download caches;
 5. runs `corepack pnpm install --frozen-lockfile`;
 6. runs `uv sync --all-packages --frozen`;
-7. runs `corepack pnpm run quality`.
+7. runs `corepack pnpm run quality` with PostgreSQL and Redis service containers.
 
-The aggregate root command is authoritative. It runs formatting validation,
-ESLint and Ruff, TypeScript and Python type checks, Vitest and pytest, and the
-existing Next.js production build. A failure in installation or any quality
-step fails the job. Checks are not duplicated.
+Service containers supply `TEST_DATABASE_URL` and `TEST_REDIS_URL` for integration
+tests embedded in the aggregate gate.
 
-The pnpm store cache key includes the `pnpm-lock.yaml` hash. The uv action cache
-tracks `uv.lock`. Cache misses are safe and only cause dependencies to be
-downloaded again. `node_modules`, virtual environments, environment files,
-application outputs, and runtime data are not cached.
+### `redis-integration` job
 
-`AI_EXTERNAL_CALLS_ENABLED` is explicitly `false`. No provider key or
-repository secret is supplied. Current tests are local-only and external calls
-remain opt-in. The workflow has no PostgreSQL or Redis service containers.
+Dedicated job running:
+
+```bash
+uv run pytest -m redis_integration -ra
+```
+
+against a Redis `8.8.0-trixie` service container. Fails if stream queue regressions
+slip past the broader gate.
+
+`AI_EXTERNAL_CALLS_ENABLED` is explicitly `false`. No provider key or repository
+secret is supplied for default test runs.
+
+## Containers workflow
+
+`.github/workflows/containers.yml` (Block XY) builds `api`, `worker`, and `web`
+images on `ubuntu-24.04` using `infra/docker/Dockerfile.*` and the Docker CLI
+already present on the runner. No Docker Action wrappers are used.
+
+For each image:
+
+1. `docker buildx build --load` (no registry push on ordinary CI);
+2. SPDX SBOM generation via pinned standalone `syft` (`scripts/ci/security-tools.lock`);
+3. Grype vulnerability scan — fails on fixable `HIGH` and `CRITICAL` findings
+   (`--only-fixed`, equivalent to the prior `ignore-unfixed: true` policy);
+4. SBOM and vulnerability JSON uploaded as a single workflow artifact.
+
+The `publish-on-tag` job pushes immutable tags to `ghcr.io` **only** when the ref
+matches `v*`. It does not publish `latest`.
+
+Stable branch-protection check name: `Containers / build-and-scan`.
 
 ## Security workflow
 
@@ -81,7 +105,15 @@ release tag in a comment:
 - `trufflesecurity/trufflehog` at
   `27b0417c16317ca9a472a9a8092acce143b49c55` (`v3.95.9`);
 - `actions/dependency-review-action` at
-  `a1d282b36b6f3519aa1f3fc636f609c47dddb294` (`v5.0.0`).
+  `a1d282b36b6f3519aa1f3fc636f609c47dddb294` (`v5.0.0`);
+- `actions/upload-artifact` at
+  `ea165f8d65b6e75b540449e92b4886f43607fa02` (`v4.6.2`).
+
+Container security tools are pinned in `scripts/ci/security-tools.lock` and
+installed by `scripts/ci/install_security_tools.sh` with committed SHA-256
+verification before extraction. External action pins are also recorded in
+`.github/action-pins.json` and validated offline by
+`scripts/ci/validate_action_pins.py`.
 
 Action upgrades require reviewing the official release, resolving its tag to a
 commit through the official GitHub repository, updating the SHA and tag comment
@@ -99,7 +131,8 @@ A repository administrator must complete these GitHub settings after pushing:
    rerun from **Actions**, by opening the run and selecting **Re-run failed
    jobs** after the cause is corrected.
 3. In the branch ruleset or branch-protection rule for `master`, require a pull
-   request and require `Quality / quality`, `Security / secret-scan`, and
+   request and require `Quality / quality`, `Quality / redis-integration`,
+   `Containers / build-and-scan`, `Security / secret-scan`, and
    `Security / dependency-review` before merge.
 4. Verify with a real pull request that a failing required check blocks merge
    and a corrected rerun permits it.

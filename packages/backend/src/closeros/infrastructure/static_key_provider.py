@@ -20,6 +20,10 @@ class ProductionKeyProviderRequiredError(RuntimeError):
     """Raised when production composition lacks an explicit key-provider adapter."""
 
 
+class ProductionStaticKeyProviderRejectedError(RuntimeError):
+    """Raised when production composition attempts to use StaticKeyProvider."""
+
+
 class StaticKeyProvider:
     """Development/test AES-GCM key provider backed by in-memory 32-byte keys."""
 
@@ -175,5 +179,11 @@ def require_production_key_provider(provider: object | None) -> object:
         raise ProductionKeyProviderRequiredError(
             "production requires an explicit key-provider adapter"
         )
-
+    reject_static_key_provider_in_production(provider)
     return provider
+
+
+def reject_static_key_provider_in_production(provider: object) -> None:
+    """Fail closed when production composition injects StaticKeyProvider."""
+    if isinstance(provider, StaticKeyProvider):
+        raise ProductionStaticKeyProviderRejectedError("production must not use StaticKeyProvider")

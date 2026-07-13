@@ -72,11 +72,24 @@ class EncryptedContentRepository(Protocol):
         limit: int = 100,
     ) -> tuple[EncryptedContent, ...]: ...
 
+    async def count_due_for_retention(
+        self,
+        *,
+        query_filter: EncryptedContentRetentionFilter,
+    ) -> int: ...
+
     async def list_due_for_retention(
         self,
         *,
         query_filter: EncryptedContentRetentionFilter,
     ) -> tuple[EncryptedContent, ...]: ...
+
+    async def delete(
+        self,
+        *,
+        tenant_id: UUID,
+        content_id: UUID,
+    ) -> None: ...
 
 
 class EncryptedContentUnitOfWork(Protocol):

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Protocol
+from typing import BinaryIO, Protocol
 from uuid import UUID
 
 from closeros.domain.encrypted_content import (
@@ -28,11 +28,17 @@ def _validate_timezone_aware_datetime(value: object, field_name: str) -> datetim
     return value
 
 
+NOTIFICATION_PAYLOAD_RETENTION_DAYS = 7
+
+
 def _retention_days_for_kind(
     *,
     kind: EncryptedContentKind,
     policy: RetentionPolicy,
 ) -> int:
+    if kind is EncryptedContentKind.NOTIFICATION_PAYLOAD:
+        return NOTIFICATION_PAYLOAD_RETENTION_DAYS
+
     if kind is EncryptedContentKind.SANITIZED_MESSAGE:
         return policy.sanitized_message_days
 
@@ -123,6 +129,21 @@ class DataKeyCryptography(Protocol):
         kind: EncryptedContentKind,
         encoding: ContentEncoding,
         plaintext: bytes,
+        created_at: datetime,
+        expires_at: datetime,
+        aad_version: int = CONTENT_AAD_VERSION,
+    ) -> EncryptedContent: ...
+
+    def encrypt_plaintext_stream(
+        self,
+        *,
+        content_id: UUID,
+        tenant_id: UUID,
+        kind: EncryptedContentKind,
+        encoding: ContentEncoding,
+        stream: BinaryIO,
+        plaintext_byte_length: int,
+        max_plaintext_bytes: int,
         created_at: datetime,
         expires_at: datetime,
         aad_version: int = CONTENT_AAD_VERSION,

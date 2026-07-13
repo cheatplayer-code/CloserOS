@@ -384,6 +384,7 @@ async def _seed_verified_credential(state: FakeState) -> RawAuthenticationToken:
         raw_token_factory=deterministic_token_factory(bytes(range(32))),
         audit_context=TEST_AUDIT_CONTEXT,
     )
+    assert registration.delivery is not None
     await service.confirm_email_verification(
         raw_token=registration.delivery.raw_token,
         confirmed_at=NOW + timedelta(minutes=1),

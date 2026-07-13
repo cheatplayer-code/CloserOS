@@ -4,15 +4,21 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import cast
 from uuid import UUID
 
 from closeros.application.analysis_enqueue_service import AnalysisEnqueueService
 from closeros.application.analysis_query_service import AnalysisQueryService
+from closeros.application.atomic_authentication_notification_issuance import (
+    AtomicAuthenticationNotificationIssuer,
+)
 from closeros.application.atomic_content_commands import AtomicContentCommandService
 from closeros.application.audit_persistence import AuditUnitOfWork
 from closeros.application.audit_queries import TenantAuditQueryService
+from closeros.application.auth_notification_outbox import (
+    PassthroughAuthenticationNotificationPublisher,
+)
 from closeros.application.authentication_persistence import AuthenticationUnitOfWork
 from closeros.application.authentication_workflows import (
     AuthenticationWorkflowService,
@@ -21,12 +27,17 @@ from closeros.application.authentication_workflows import (
 )
 from closeros.application.content_encryption_service import ContentEncryptionService
 from closeros.application.conversation_query_service import ConversationQueryService
+from closeros.application.crm_connection_service import CrmConnectionService
+from closeros.application.crm_ports import CrmAdapter, CrmCredentialResolver
+from closeros.application.crm_reconciliation_service import CrmReconciliationService
+from closeros.application.crm_sync_service import CrmSyncService
 from closeros.application.csv_import_service import CsvImportService
 from closeros.application.dashboard_query_service import DashboardQueryService
-from closeros.application.encryption_ports import RetentionExpiryCalculator
+from closeros.application.encryption_ports import KeyProvider, RetentionExpiryCalculator
 from closeros.application.follow_up_task_service import FollowUpTaskService
 from closeros.application.integrated_unit_of_work import IntegratedUnitOfWork
 from closeros.application.knowledge_service import KnowledgeService
+from closeros.application.legal_hold_service import LegalHoldService
 from closeros.application.metrics_enqueue_service import MetricsEnqueueService
 from closeros.application.metrics_query_service import MetricsQueryService
 from closeros.application.outbound_message_service import OutboundMessageService
@@ -38,6 +49,7 @@ from closeros.application.provider_ports import (
     WebhookRateLimiter,
     WhatsAppCredentialResolver,
 )
+from closeros.application.retention_purge_service import RetentionPurgeService
 from closeros.application.scorecard_query_service import ScorecardQueryService
 from closeros.application.tenant_context import TenantContextResolver, TenantListingService
 from closeros.application.tenant_persistence import TenantUnitOfWork
@@ -46,15 +58,18 @@ from closeros.application.whatsapp_connection_service import WhatsAppConnectionS
 from closeros.application.whatsapp_webhook_verification_service import (
     WhatsAppWebhookVerificationService,
 )
+from closeros.domain.crm_provider import CrmProviderCode
 from closeros.domain.provider_credentials import SecretBytes
 from closeros.infrastructure.aes_gcm_encryption import AesGcmContentCryptography
 from closeros.infrastructure.audit_unit_of_work import SqlAlchemyAuditUnitOfWork
 from closeros.infrastructure.authentication_unit_of_work import SqlAlchemyAuthenticationUnitOfWork
+from closeros.infrastructure.bitrix24_adapter import Bitrix24Adapter
 from closeros.infrastructure.database import (
     create_authentication_engine,
     create_authentication_sessionmaker,
     normalize_database_url,
 )
+from closeros.infrastructure.env_crm_credential_resolver import EnvCrmCredentialResolver
 from closeros.infrastructure.env_whatsapp_credential_resolver import (
     EnvWhatsAppCredentialResolver,
 )
@@ -63,6 +78,20 @@ from closeros.infrastructure.integrated_unit_of_work import SqlAlchemyIntegrated
 from closeros.infrastructure.noop_import_content_scanner import NoOpImportContentScanner
 from closeros.infrastructure.password_hashing import Argon2idPasswordHasher
 from closeros.infrastructure.platform_unit_of_work import SqlAlchemyPlatformUnitOfWork
+from closeros.infrastructure.production_feature_capabilities import (
+    ProductionFeatureCapabilities,
+    resolve_production_feature_capabilities,
+)
+from closeros.infrastructure.production_runtime import (
+    build_production_adapter_registry,
+    build_production_import_scanner,
+    build_production_mfa_policy,
+    build_production_mfa_verifier,
+    build_production_shared_runtime,
+    require_crm_configured,
+)
+from closeros.infrastructure.redis_distributed_rate_limiter import RedisDistributedRateLimiter
+from closeros.infrastructure.redis_rate_limiter import RedisWebhookRateLimiter
 from closeros.infrastructure.secure_random import OsSecureRandom
 from closeros.infrastructure.static_key_provider import (
     StaticKeyProvider,
@@ -71,6 +100,7 @@ from closeros.infrastructure.static_key_provider import (
 from closeros.infrastructure.synthetic_hmac_adapter import SyntheticHmacWebhookAdapter
 from closeros.infrastructure.tenant_unit_of_work import SqlAlchemyTenantUnitOfWork
 from closeros.infrastructure.whatsapp_cloud_adapter import WhatsAppCloudWebhookAdapter
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from closeros_api.auth_ports import (
@@ -79,6 +109,7 @@ from closeros_api.auth_ports import (
     Clock,
     ConfigurableMfaRequirementPolicy,
     InMemoryRateLimiter,
+    NoOpNotificationDispatcher,
     NotificationDispatcher,
     RandomUuidFactory,
     RateLimiter,
@@ -86,6 +117,7 @@ from closeros_api.auth_ports import (
     UuidFactory,
 )
 from closeros_api.auth_security import SessionCookieConfig, session_cookie_config
+from closeros_api.observability_router import ProductionReadinessProbe, RuntimeReadinessProbe
 from closeros_api.settings import ApiSettings
 
 _DEV_KEK_V1 = bytes(range(32))
@@ -102,6 +134,23 @@ class ProductionImportContentScannerRequiredError(RuntimeError):
 
 class ProductionWebhookRateLimiterRequiredError(RuntimeError):
     """Raised when production composition lacks an explicit webhook rate limiter."""
+
+
+class ProductionRateLimiterConfigurationError(RuntimeError):
+    """Raised when production Redis rate limiter settings are missing."""
+
+
+def _production_redis_rate_limiter() -> RedisDistributedRateLimiter:
+    redis_url = os.environ.get("REDIS_URL", "").strip()
+    hmac_secret_raw = os.environ.get("REDIS_RATE_LIMIT_HMAC_SECRET", "").strip()
+    if not redis_url:
+        raise ProductionRateLimiterConfigurationError("REDIS_URL is not set")
+    if not hmac_secret_raw:
+        raise ProductionRateLimiterConfigurationError("REDIS_RATE_LIMIT_HMAC_SECRET is not set")
+    return RedisDistributedRateLimiter(
+        redis=Redis.from_url(redis_url, decode_responses=False),
+        hmac_secret=hmac_secret_raw.encode("utf-8"),
+    )
 
 
 def require_production_provider_adapters(
@@ -180,7 +229,7 @@ def _build_development_adapter_registry(
 def _build_content_encryption_service(
     *,
     uow_factory: Callable[[], SqlAlchemyIntegratedUnitOfWork],
-    key_provider: StaticKeyProvider,
+    key_provider: KeyProvider,
 ) -> ContentEncryptionService:
     return ContentEncryptionService(
         data_key_cryptography=AesGcmContentCryptography(
@@ -210,7 +259,7 @@ class ApiRuntimeOverrides:
     mfa_verifier: MfaVerifier | None = None
     notification_dispatcher: NotificationDispatcher | None = None
     rate_limiter: RateLimiter | None = None
-    key_provider: StaticKeyProvider | None = None
+    key_provider: KeyProvider | None = None
     adapter_registry: ProviderAdapterRegistry | None = None
     webhook_rate_limiter: WebhookRateLimiter | None = None
     content_scanner: ImportContentScanner | None = None
@@ -231,6 +280,12 @@ class ApiRuntimeOverrides:
     whatsapp_connection_service: WhatsAppConnectionService | None = None
     outbound_message_service: OutboundMessageService | None = None
     whatsapp_webhook_verification_service: WhatsAppWebhookVerificationService | None = None
+    crm_credential_resolver: CrmCredentialResolver | None = None
+    crm_connection_service: CrmConnectionService | None = None
+    crm_sync_service: CrmSyncService | None = None
+    crm_reconciliation_service: CrmReconciliationService | None = None
+    legal_hold_service: LegalHoldService | None = None
+    retention_purge_service: RetentionPurgeService | None = None
     engine: AsyncEngine | None = None
     session_factory: async_sessionmaker[AsyncSession] | None = None
 
@@ -274,6 +329,13 @@ class ApiRuntime:
     whatsapp_connection_service: WhatsAppConnectionService | None
     outbound_message_service: OutboundMessageService | None
     whatsapp_webhook_verification_service: WhatsAppWebhookVerificationService | None
+    crm_connection_service: CrmConnectionService | None
+    crm_sync_service: CrmSyncService | None
+    crm_reconciliation_service: CrmReconciliationService | None
+    legal_hold_service: LegalHoldService | None
+    retention_purge_service: RetentionPurgeService | None
+    capabilities: ProductionFeatureCapabilities | None = None
+    readiness_probe: RuntimeReadinessProbe | ProductionReadinessProbe | None = None
 
     async def dispose(self) -> None:
         if self.engine is not None:
@@ -407,12 +469,62 @@ class _UnconfiguredAtomicContentCommands:
         raise RuntimeError("atomic content commands are not configured")
 
 
+def _merge_production_api_overrides(
+    settings: ApiSettings,
+    overrides: ApiRuntimeOverrides | None,
+) -> ApiRuntimeOverrides:
+    base = overrides or ApiRuntimeOverrides()
+    if not settings.is_production:
+        return base
+    if overrides is not None:
+        return base
+
+    shared = build_production_shared_runtime(
+        database_url=settings.database_url,
+        ingestion_service_id=settings.ingestion_service_id,
+    )
+    require_crm_configured(capabilities=shared.capabilities)
+    uuid_factory = base.uuid_factory or RandomUuidFactory()
+    integrated_uow_factory = base.integrated_uow_factory or shared.integrated_uow_factory
+    content_encryption = base.content_encryption or shared.content_encryption
+    return replace(
+        base,
+        engine=base.engine or shared.engine,
+        session_factory=base.session_factory or shared.session_factory,
+        integrated_uow_factory=integrated_uow_factory,
+        key_provider=base.key_provider or shared.key_provider,
+        content_encryption=content_encryption,
+        rate_limiter=cast(RateLimiter, base.rate_limiter or shared.rate_limiter),
+        webhook_rate_limiter=base.webhook_rate_limiter or shared.rate_limiter,
+        mfa_verifier=base.mfa_verifier
+        or build_production_mfa_verifier(
+            integrated_uow_factory=integrated_uow_factory,
+            content_encryption=content_encryption,
+            service_actor_id=settings.ingestion_service_id,
+            uuid_factory=uuid_factory,
+        ),
+        mfa_requirement_policy=base.mfa_requirement_policy
+        or build_production_mfa_policy(integrated_uow_factory=integrated_uow_factory),
+        adapter_registry=base.adapter_registry
+        or build_production_adapter_registry(
+            integrated_uow_factory=integrated_uow_factory,
+            capabilities=shared.capabilities,
+        ),
+        content_scanner=base.content_scanner
+        or build_production_import_scanner(capabilities=shared.capabilities),
+        notification_dispatcher=base.notification_dispatcher or NoOpNotificationDispatcher(),
+    )
+
+
 def build_api_runtime(
     settings: ApiSettings,
     overrides: ApiRuntimeOverrides | None = None,
 ) -> ApiRuntime:
-    override_values = overrides or ApiRuntimeOverrides()
     settings.validate_for_runtime()
+    override_values = _merge_production_api_overrides(settings, overrides)
+    capabilities: ProductionFeatureCapabilities | None = (
+        resolve_production_feature_capabilities() if settings.is_production else None
+    )
 
     engine = override_values.engine
     session_factory = override_values.session_factory
@@ -428,32 +540,50 @@ def build_api_runtime(
     whatsapp_credential_resolver = (
         override_values.whatsapp_credential_resolver or EnvWhatsAppCredentialResolver()
     )
+    crm_credential_resolver = override_values.crm_credential_resolver or EnvCrmCredentialResolver()
     whatsapp_connection_service: WhatsAppConnectionService | None = None
     outbound_message_service: OutboundMessageService | None = None
     whatsapp_webhook_verification_service: WhatsAppWebhookVerificationService | None = None
+    crm_connection_service: CrmConnectionService | None = None
+    crm_sync_service: CrmSyncService | None = None
+    crm_reconciliation_service: CrmReconciliationService | None = None
+    legal_hold_service: LegalHoldService | None = None
+    retention_purge_service: RetentionPurgeService | None = None
     dev_adapter_registry: ProviderAdapterRegistry | None = override_values.adapter_registry
+
+    mfa_policy: MfaRequirementPolicy
+    mfa_verifier: MfaVerifier
+    dispatcher: NotificationDispatcher
+    rate_limiter: RateLimiter
+    webhook_rate_limiter: WebhookRateLimiter
 
     if settings.is_production:
         if override_values.mfa_requirement_policy is None:
             raise RuntimeError("production MFA requirement policy must be configured explicitly")
-        if override_values.notification_dispatcher is None:
-            raise RuntimeError("production notification dispatcher must be configured explicitly")
-        if override_values.rate_limiter is None:
-            raise RuntimeError("production rate limiter must be configured explicitly")
         mfa_policy = override_values.mfa_requirement_policy
-        mfa_verifier = override_values.mfa_verifier or AcceptingMfaVerifier()
-        dispatcher = override_values.notification_dispatcher
-        rate_limiter = override_values.rate_limiter
+        if override_values.mfa_verifier is None:
+            raise RuntimeError("production MFA verifier must be configured explicitly")
+        mfa_verifier = override_values.mfa_verifier
+        if override_values.notification_dispatcher is None:
+            dispatcher = NoOpNotificationDispatcher()
+        else:
+            dispatcher = override_values.notification_dispatcher
+        if override_values.rate_limiter is None:
+            distributed_rate_limiter = _production_redis_rate_limiter()
+            rate_limiter = cast(RateLimiter, distributed_rate_limiter)
+            webhook_rate_limiter = override_values.webhook_rate_limiter or distributed_rate_limiter
+        else:
+            rate_limiter = override_values.rate_limiter
+            if override_values.webhook_rate_limiter is None:
+                raise ProductionWebhookRateLimiterRequiredError(
+                    "production webhook rate limiter must be configured explicitly"
+                )
+            webhook_rate_limiter = override_values.webhook_rate_limiter
         key_provider = cast(
-            StaticKeyProvider,
+            KeyProvider,
             require_production_key_provider(override_values.key_provider),
         )
         adapter_registry = require_production_provider_adapters(override_values.adapter_registry)
-        if override_values.webhook_rate_limiter is None:
-            raise ProductionWebhookRateLimiterRequiredError(
-                "production webhook rate limiter must be configured explicitly"
-            )
-        webhook_rate_limiter = override_values.webhook_rate_limiter
         if override_values.content_scanner is None:
             raise ProductionImportContentScannerRequiredError(
                 "production CSV content scanner must be configured explicitly"
@@ -465,7 +595,16 @@ def build_api_runtime(
         dispatcher = override_values.notification_dispatcher or CaptureNotificationDispatcher()
         rate_limiter = override_values.rate_limiter or InMemoryRateLimiter()
         key_provider = override_values.key_provider or _development_key_provider()
-        webhook_rate_limiter = override_values.webhook_rate_limiter or InMemoryWebhookRateLimiter()
+        if override_values.webhook_rate_limiter is not None:
+            webhook_rate_limiter = override_values.webhook_rate_limiter
+        else:
+            redis_url = os.environ.get("REDIS_URL", "").strip()
+            if redis_url:
+                webhook_rate_limiter = RedisWebhookRateLimiter(
+                    redis=Redis.from_url(redis_url, decode_responses=False),
+                )
+            else:
+                webhook_rate_limiter = InMemoryWebhookRateLimiter()
         content_scanner = override_values.content_scanner or NoOpImportContentScanner()
         if dev_adapter_registry is not None:
             adapter_registry = dev_adapter_registry
@@ -645,6 +784,63 @@ def build_api_runtime(
                 credential_resolver=whatsapp_credential_resolver,
             )
         )
+        crm_adapters: dict[CrmProviderCode, CrmAdapter] = {
+            CrmProviderCode.BITRIX24: Bitrix24Adapter(),
+        }
+        crm_connection_service = override_values.crm_connection_service or CrmConnectionService(
+            uow_factory=integrated_port_factory,
+            credential_resolver=crm_credential_resolver,
+            adapters=crm_adapters,
+            uuid_factory=uuid_factory,
+            clock=clock.now,
+        )
+        crm_sync_service = override_values.crm_sync_service or CrmSyncService(
+            uow_factory=integrated_port_factory,
+            credential_resolver=crm_credential_resolver,
+            adapters=crm_adapters,
+            uuid_factory=uuid_factory,
+            clock=clock.now,
+        )
+        crm_reconciliation_service = (
+            override_values.crm_reconciliation_service
+            or CrmReconciliationService(
+                uow_factory=integrated_port_factory,
+                sync_service=crm_sync_service,
+            )
+        )
+        legal_hold_service = override_values.legal_hold_service or LegalHoldService(
+            uow_factory=integrated_port_factory,
+            uuid_factory=uuid_factory,
+        )
+        retention_purge_service = override_values.retention_purge_service or RetentionPurgeService(
+            uow_factory=integrated_port_factory,
+            uuid_factory=uuid_factory,
+            legal_hold_service=legal_hold_service,
+        )
+        if override_values.workflow_service is None and settings.is_production:
+            notification_issuer = AtomicAuthenticationNotificationIssuer(
+                content_encryption=content_encryption,
+                uuid_factory=uuid_factory,
+                verification_base_url=os.environ.get(
+                    "AUTH_VERIFICATION_BASE_URL",
+                    "http://127.0.0.1:3000/verify",
+                ).rstrip("/"),
+                reset_base_url=os.environ.get(
+                    "AUTH_PASSWORD_RESET_BASE_URL",
+                    "http://127.0.0.1:3000/reset",
+                ).rstrip("/"),
+            )
+            workflows = replace(
+                workflows,
+                uow_factory=cast(Callable[[], AuthenticationUnitOfWork], integrated_port_factory),
+                notification_issuer=notification_issuer,
+                notification_publisher=None,
+            )
+        elif override_values.workflow_service is None:
+            workflows = replace(
+                workflows,
+                notification_publisher=PassthroughAuthenticationNotificationPublisher(),
+            )
     else:
         content_encryption = cast(
             ContentEncryptionService,
@@ -708,6 +904,18 @@ def build_api_runtime(
             override_values.whatsapp_webhook_verification_service
             or whatsapp_webhook_verification_service
         )
+        crm_connection_service = override_values.crm_connection_service or crm_connection_service
+        crm_sync_service = override_values.crm_sync_service or crm_sync_service
+        crm_reconciliation_service = (
+            override_values.crm_reconciliation_service or crm_reconciliation_service
+        )
+        legal_hold_service = override_values.legal_hold_service or legal_hold_service
+        retention_purge_service = override_values.retention_purge_service or retention_purge_service
+        if override_values.workflow_service is None and integrated_uow_factory is not None:
+            workflows = replace(
+                workflows,
+                notification_publisher=PassthroughAuthenticationNotificationPublisher(),
+            )
 
     tenant_context_resolver = override_values.tenant_context_resolver
     if tenant_context_resolver is None:
@@ -744,6 +952,23 @@ def build_api_runtime(
                 _UnconfiguredTenantAuditQueryService(),
             )
 
+    redis_client: Redis | None = None
+    if isinstance(rate_limiter, RedisDistributedRateLimiter):
+        redis_client = rate_limiter.redis
+
+    if settings.is_production and capabilities is not None:
+        readiness_probe: RuntimeReadinessProbe | ProductionReadinessProbe = (
+            ProductionReadinessProbe(
+                session_factory=session_factory,
+                redis=redis_client,
+                capabilities=capabilities,
+                adapter_registry=adapter_registry,
+                key_provider_configured=True,
+            )
+        )
+    else:
+        readiness_probe = RuntimeReadinessProbe(session_factory=session_factory)
+
     return ApiRuntime(
         settings=settings,
         workflows=workflows,
@@ -779,6 +1004,13 @@ def build_api_runtime(
         whatsapp_connection_service=whatsapp_connection_service,
         outbound_message_service=outbound_message_service,
         whatsapp_webhook_verification_service=whatsapp_webhook_verification_service,
+        crm_connection_service=crm_connection_service,
+        crm_sync_service=crm_sync_service,
+        crm_reconciliation_service=crm_reconciliation_service,
+        legal_hold_service=legal_hold_service,
+        retention_purge_service=retention_purge_service,
+        capabilities=capabilities,
+        readiness_probe=readiness_probe,
     )
 
 

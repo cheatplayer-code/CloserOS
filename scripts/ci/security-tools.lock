@@ -1,0 +1,16 @@
+# Pinned standalone container-security tools for the Containers workflow.
+#
+# Values are resolved from official Anchore GitHub release assets and their
+# published *_checksums.txt files, then committed here after review. The CI
+# installer downloads the linux_amd64 archive and verifies it against the
+# SHA-256 below BEFORE extraction. The workflow must never fetch a checksum at
+# runtime and trust it within the same run.
+#
+# Resolved 2026-07-13 from:
+#   https://github.com/anchore/syft/releases/download/v1.46.0/syft_1.46.0_checksums.txt
+#   https://github.com/anchore/grype/releases/download/v0.115.0/grype_0.115.0_checksums.txt
+
+SYFT_VERSION=1.46.0
+SYFT_LINUX_AMD64_SHA256=d654f678b709eb53c393d38519d5ed7d2e57205529404018614cfefa0fb2b5ca
+GRYPE_VERSION=0.115.0
+GRYPE_LINUX_AMD64_SHA256=3fad92940650e514c0aa2dad83526942a055e210cec09a8a59d9c024adc2b90e

@@ -205,9 +205,10 @@ async def register(
             registered_at=runtime.clock.now(),
             audit_context=_audit_context(request),
         )
-        await _dispatch_safely(
-            runtime.notification_dispatcher.dispatch_email_verification(result.delivery)
-        )
+        if result.delivery is not None:
+            await _dispatch_safely(
+                runtime.notification_dispatcher.dispatch_email_verification(result.delivery)
+            )
     except RegistrationUnavailableError:
         pass
 

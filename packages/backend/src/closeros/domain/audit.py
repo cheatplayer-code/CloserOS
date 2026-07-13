@@ -76,6 +76,9 @@ _ALLOWED_METADATA_KEYS: frozenset[str] = frozenset(
         "task_count",
         "overdue_count",
         "score_formula_version",
+        "crm_object_type",
+        "sync_direction",
+        "conflict_count",
     }
 )
 
@@ -176,6 +179,15 @@ class AuditAction(StrEnum):
     OUTBOUND_DELIVERY_UNKNOWN = "outbound_message.delivery_unknown"
     OUTBOUND_DELIVERY_FAILED = "outbound_message.delivery_failed"
     WHATSAPP_RECONCILIATION_COMPLETED = "whatsapp.reconciliation.completed"
+    CRM_CONNECTION_CREATED = "crm.connection.created"
+    CRM_CONNECTION_UPDATED = "crm.connection.updated"
+    CRM_CONNECTION_VERIFIED = "crm.connection.verified"
+    CRM_CONNECTION_DISABLED = "crm.connection.disabled"
+    CRM_FIELD_MAPPING_CHANGED = "crm.field_mapping.changed"
+    CRM_SYNC_COMPLETED = "crm.sync.completed"
+    CRM_SYNC_FAILED = "crm.sync.failed"
+    CRM_RECONCILIATION_COMPLETED = "crm.reconciliation.completed"
+    CRM_CONFLICT_RESOLVED = "crm.conflict.resolved"
 
 
 class AuditTargetType(StrEnum):
@@ -208,6 +220,10 @@ class AuditTargetType(StrEnum):
     OUTBOUND_MESSAGE = "outbound_message"
     PROVIDER_TEMPLATE = "provider_template"
     PROVIDER_MEDIA_REFERENCE = "provider_media_reference"
+    CRM_CONNECTION = "crm_connection"
+    CRM_FIELD_MAPPING = "crm_field_mapping"
+    CRM_SYNC_ATTEMPT = "crm_sync_attempt"
+    CRM_CONFLICT = "crm_conflict"
 
 
 class AuditMetadataError(ValueError):

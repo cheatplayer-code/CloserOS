@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://closeros.ai/schemas/v1/crm-connection.json",
+  "title": "CrmConnectionV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "provider",
+    "portal_domain",
+    "client_id_ref",
+    "client_secret_ref",
+    "access_token_ref",
+    "refresh_token_ref",
+    "status",
+    "created_at",
+    "updated_at",
+    "last_verified_at",
+    "last_successful_sync_at",
+    "version"
+  ],
+  "properties": {
+    "id": { "type": "string", "format": "uuid" },
+    "provider": { "const": "bitrix24" },
+    "portal_domain": { "type": ["string", "null"], "maxLength": 255 },
+    "client_id_ref": { "type": ["string", "null"], "maxLength": 64 },
+    "client_secret_ref": { "type": ["string", "null"], "maxLength": 64 },
+    "access_token_ref": { "type": ["string", "null"], "maxLength": 64 },
+    "refresh_token_ref": { "type": ["string", "null"], "maxLength": 64 },
+    "status": {
+      "enum": [
+        "draft",
+        "active",
+        "degraded",
+        "reauthorization_required",
+        "revoked",
+        "disabled"
+      ]
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "last_verified_at": { "type": ["string", "null"], "format": "date-time" },
+    "last_successful_sync_at": {
+      "type": ["string", "null"],
+      "format": "date-time"
+    },
+    "version": { "type": "integer", "minimum": 1 }
+  }
+}

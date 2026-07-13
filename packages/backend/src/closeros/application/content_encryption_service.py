@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import NoReturn
+from typing import BinaryIO, NoReturn
 from uuid import UUID
 
 from closeros.application.audit_recording import AuditContext, append_required_audit_event
@@ -23,6 +23,7 @@ from closeros.application.encryption_ports import (
 from closeros.application.integrated_unit_of_work import IntegratedUnitOfWork
 from closeros.domain.audit import AuditActorType
 from closeros.domain.encrypted_content import (
+    PROVIDER_MEDIA_BINARY_MAX_PLAINTEXT_BYTES,
     ContentAccessPurpose,
     ContentEncoding,
     ContentUnavailableError,
@@ -102,6 +103,24 @@ _PURPOSES_BY_KIND: dict[EncryptedContentKind, frozenset[ContentAccessPurpose]] =
         {
             ContentAccessPurpose.OUTBOUND_SEND,
             ContentAccessPurpose.AUDIT_REVIEW,
+            ContentAccessPurpose.RETENTION_DELETION,
+        }
+    ),
+    EncryptedContentKind.NOTIFICATION_PAYLOAD: frozenset(
+        {
+            ContentAccessPurpose.NOTIFICATION_DELIVERY,
+            ContentAccessPurpose.RETENTION_DELETION,
+        }
+    ),
+    EncryptedContentKind.PROVIDER_MEDIA_BINARY: frozenset(
+        {
+            ContentAccessPurpose.MEDIA_SCAN,
+            ContentAccessPurpose.RETENTION_DELETION,
+        }
+    ),
+    EncryptedContentKind.MFA_TOTP_SECRET: frozenset(
+        {
+            ContentAccessPurpose.MFA_TOTP_VERIFY,
             ContentAccessPurpose.RETENTION_DELETION,
         }
     ),
@@ -193,6 +212,59 @@ class ContentEncryptionService:
                 kind=kind,
                 encoding=encoding,
                 plaintext=validated_plaintext,
+                created_at=validated_created_at,
+                expires_at=expires_at,
+            )
+            await uow.encrypted_contents.add(encrypted)
+        except ContentEncryptionError:
+            raise
+        except Exception as error:
+            raise ContentEncryptionUnavailableError(
+                "encrypted content persistence failed"
+            ) from error
+
+        return encrypted
+
+    async def encrypt_and_persist_stream(
+        self,
+        uow: IntegratedUnitOfWork,
+        *,
+        content_id: UUID,
+        tenant_id: UUID,
+        kind: EncryptedContentKind,
+        encoding: ContentEncoding,
+        stream: BinaryIO,
+        plaintext_byte_length: int,
+        max_plaintext_bytes: int = PROVIDER_MEDIA_BINARY_MAX_PLAINTEXT_BYTES,
+        created_at: datetime,
+    ) -> EncryptedContent:
+        validated_content_id = _validate_uuid(content_id, "content_id")
+        validated_tenant_id = _validate_uuid(tenant_id, "tenant_id")
+        validated_created_at = _validate_timezone_aware_datetime(created_at, "created_at")
+
+        if not isinstance(kind, EncryptedContentKind):
+            raise TypeError("kind must be an EncryptedContentKind")
+        if not isinstance(encoding, ContentEncoding):
+            raise TypeError("encoding must be a ContentEncoding")
+        if plaintext_byte_length < 0:
+            raise ValueError("plaintext_byte_length must be non-negative")
+
+        tenant = await _load_active_tenant(uow, tenant_id=validated_tenant_id)
+        expires_at = self.retention_expiry_calculator.calculate_expires_at(
+            kind=kind,
+            created_at=validated_created_at,
+            policy=tenant.retention_policy,
+        )
+
+        try:
+            encrypted = self.data_key_cryptography.encrypt_plaintext_stream(
+                content_id=validated_content_id,
+                tenant_id=validated_tenant_id,
+                kind=kind,
+                encoding=encoding,
+                stream=stream,
+                plaintext_byte_length=plaintext_byte_length,
+                max_plaintext_bytes=max_plaintext_bytes,
                 created_at=validated_created_at,
                 expires_at=expires_at,
             )
