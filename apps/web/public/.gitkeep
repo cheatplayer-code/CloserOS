@@ -1,0 +1,1 @@
+# Keep an empty public directory so production image COPY remains valid.
