@@ -134,7 +134,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          uv run python scripts/ci/validate_grype_exceptions.py
+          python3 scripts/ci/validate_grype_exceptions.py
 
       - name: Scan image with Grype
         shell: bash
