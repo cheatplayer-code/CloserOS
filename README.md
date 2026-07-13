@@ -6,15 +6,20 @@ It connects to official business messaging and CRM APIs, observes bot and manage
 
 ## Repository status
 
-CLS-001 provides an executable monorepo foundation. CLS-002 adds local-only
-PostgreSQL and Redis containers without connecting them to application code.
-CLS-003 adds local CI configuration; remote workflow and branch-protection
-verification remains pending. The repository still contains no product
-features, provider integrations, external AI calls, schemas, migrations, or
-production infrastructure.
+CloserOS AI is an executable multi-tenant modular monolith: FastAPI API,
+background worker, Next.js workspace, PostgreSQL persistence, and Redis outbox
+delivery.
+
+**Implementation blocks FG through XY are merged on `master`.** GitHub PR #18
+(Block XY) CI passed. **Block Z0** (this branch) adds operator bootstrap, synthetic
+demo seeding, and HTTP smoke tooling. **Block Z** remains for live provider
+sandbox verification, production KMS vendor sign-off, and staging/production
+deployment — not claimed complete here.
 
 Read `AGENTS.md`, accepted ADRs, `TASKS.md`, and `PROJECT_STATUS.md` before
 making changes. Work on one task ID at a time.
+
+Synthetic staging without live integrations: `docs/SYNTHETIC_STAGING_SMOKE.md`.
 
 ## Prerequisites
 
@@ -43,23 +48,25 @@ corepack pnpm run setup
 
 ```text
 apps/
-  web/       Next.js executable scaffold
-  api/       thin FastAPI executable
-  worker/    thin no-op worker executable
+  web/       Next.js product workspace
+  api/       FastAPI HTTP API
+  worker/    outbox publisher and processor
 packages/
-  backend/   shared Python modular-monolith boundaries
-  contracts/ documented placeholder; no generated client
-  ui/        minimal shared React package
+  backend/   shared Python modular-monolith (domain/application/infrastructure)
+  contracts/ versioned API/event schemas
+  ui/        shared React components
 infra/
-  docker/    local-only PostgreSQL and Redis Compose environment
+  docker/    local PostgreSQL and Redis Compose; production Dockerfiles
 docs/
   adr/       accepted architecture decisions
-tests/       Python scaffold tests
+scripts/ops/ operator bootstrap, seed, smoke, migration helpers
+tests/       Python and TypeScript tests
 ```
 
-The shared backend package contains the `domain`, `application`,
-`infrastructure`, and `interfaces` boundaries. They intentionally contain no
-business logic in CLS-001.
+The shared backend implements encrypted content, canonical conversations,
+ingestion, redaction, metrics, AI analysis (synthetic provider in dev/CI),
+product workspace queries, WhatsApp Cloud and Bitrix24 adapters (disabled by
+default), and production operations hardening from Block XY.
 
 ## Root commands
 
@@ -85,7 +92,7 @@ Run commands through the root `package.json` interface:
   `http://localhost:3000`;
 - `corepack pnpm run dev:api` — FastAPI development server on
   `http://localhost:8000` (match the frontend hostname family for browser auth);
-- `corepack pnpm run dev:worker` — safe no-op worker execution.
+- `corepack pnpm run dev:worker` — outbox publisher and processor (`closeros-worker all`);
 
 The API exposes `GET /health`, authentication routes at `/api/v1/auth/*`, and
 database readiness at `/ready`. The web app calls the API directly from the
@@ -96,7 +103,35 @@ For local browser authentication testing:
 
 1. copy `.env.example` to `.env` and keep `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000`;
 2. set `AUTH_ALLOWED_ORIGINS=http://localhost:3000` (avoid mixing `127.0.0.1` and `localhost`);
-3. start PostgreSQL, run API migrations separately, then run `dev:api` and `dev:web`.
+3. start PostgreSQL (or use managed `DATABASE_URL`), run migrations, then run
+   `dev:api`, `dev:worker`, and `dev:web`.
+
+## Operator commands (synthetic staging)
+
+After a verified user exists and migrations are at head:
+
+```bash
+uv run python scripts/ops/bootstrap_tenant.py \
+  --owner-email owner@example.invalid \
+  --tenant-name "Demo" \
+  --time-zone Asia/Almaty \
+  --confirm
+
+uv run python scripts/ops/seed_synthetic_demo.py \
+  --tenant-id <TENANT_UUID> \
+  --confirm-synthetic-only
+```
+
+HTTP smoke (password via environment only):
+
+```bash
+STAGING_API_URL=http://localhost:8000 \
+SMOKE_USER_EMAIL=owner@example.invalid \
+SMOKE_USER_PASSWORD=... \
+uv run python scripts/ops/synthetic_smoke.py
+```
+
+Full procedure: `docs/SYNTHETIC_STAGING_SMOKE.md`.
 
 ## Local infrastructure
 

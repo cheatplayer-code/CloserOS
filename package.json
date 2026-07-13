@@ -33,7 +33,7 @@
     "infra:clean-checkout": "node infra/docker/clean-checkout.mjs",
     "dev:web": "corepack pnpm --filter @closeros/web dev",
     "dev:api": "uv run closeros-api",
-    "dev:worker": "uv run closeros-worker"
+    "dev:worker": "uv run closeros-worker all"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

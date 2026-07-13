@@ -2,15 +2,15 @@
 
 ## Current phase
 
-**Block XY — implemented locally** (branch `feat/xy-production-operations`;
+**Block Z0 — staging bootstrap and synthetic smoke** (branch `feat/z0-staging-bootstrap`;
 **not** production-ready)
 
 | Status | Detail |
 |--------|--------|
-| Implemented locally | XY final closure + CI supply-chain repair + container vulnerability remediation (Python 3.13.14, digest-pinned bases, Next.js standalone runtime, reviewed Grype VEX for CVE-2026-15308) |
-| Verified locally | `corepack pnpm run quality` on Python **3.13.14** — **1538** Python tests passed, **104** TS tests passed (1 skipped), mypy clean, Next.js standalone build OK |
-| Remote PR CI | **Pending** — not claimed green; no staging deployment from this laptop |
-| Live providers | **None** — no Docker executed; no live Meta, Bitrix24, DeepSeek, SMTP, KMS, Supabase, Railway, or Vercel calls |
+| Merged on master | Blocks **FG** through **XY** including PR **#18** (Block XY) — CI passed |
+| Z0 (this branch) | Operator bootstrap CLI, synthetic demo seed, HTTP smoke script, runbook, documentation truth pass |
+| Verified locally (Z0) | 18 targeted PostgreSQL/HTTP tests passed; full `corepack pnpm run quality` pending this session |
+| Live providers | **None** in Z0 — no Docker executed locally; no live Meta, Bitrix24, DeepSeek, SMTP, KMS, Supabase, Railway, or Vercel |
 | Requires live staging (Z) | Meta WhatsApp sandbox, Bitrix24 sandbox, production KMS vendor, SMTP provider, Kazakhstan hosting, legal/compliance sign-off |
 
 ## Completed implementation blocks
@@ -24,7 +24,8 @@
 | **NOPQ** | AI gateway, knowledge base, analysis | Implemented locally |
 | **RSTU** | Dashboard, conversations, scorecards, tasks | Implemented locally |
 | **VW** | WhatsApp Cloud provider | Implemented locally |
-| **XY** | CRM, staging ops, production hardening | **Implemented locally; local quality passed; remote CI + Z verification pending** |
+| **XY** | CRM, staging ops, production hardening | **Merged (PR #18 CI passed)** |
+| **Z0** | Staging bootstrap, synthetic demo, smoke runbook | **In progress on `feat/z0-staging-bootstrap`** |
 
 ## Remaining block
 
@@ -32,8 +33,8 @@
 staging/production deployment (Supabase/Railway/Vercel), backup/restore drill,
 security release gate, legal/compliance approval, design-partner pilot, go/no-go.
 
-XY application code (notifications, KMS adapter, media scanning, Redis limiter,
-retention execution, CRM sync, worker operations) is **not** deferred to Z.
+Z0 operator tooling (`scripts/ops/bootstrap_tenant.py`, `seed_synthetic_demo.py`,
+`synthetic_smoke.py`) supports synthetic verification **without** live providers.
 No production readiness claim.
 
 ## Current capabilities
@@ -48,7 +49,8 @@ No production readiness claim.
   SPDX SBOM (pinned Syft) and Grype vulnerability scan with committed checksum verification.
 - Staging reference architecture: Vercel (web), Railway (API/worker/Redis),
   Supabase (PostgreSQL only).
-- Operations scripts (`scripts/ops/`) and runbooks under `docs/`.
+- Operations scripts (`scripts/ops/`) including tenant bootstrap, synthetic demo
+  seed, HTTP smoke, and migration helpers; runbooks under `docs/`.
 - ADR-0017 production operations and staging architecture.
 
 ## What XY final closure added (2026-07-13)
@@ -84,6 +86,15 @@ No production readiness claim.
 - PR branch history squash planned to remove credentialed URI literals from commit range
   (root cause: commits `5767622`, `6eb16de`, `bd37804`, initial `quality.yml` workflow URL).
 
+## What Z0 adds (staging bootstrap)
+
+- `scripts/ops/bootstrap_tenant.py` — attach first tenant + OWNER to verified user (CLI only).
+- `scripts/ops/seed_synthetic_demo.py` — synthetic demo graph through encrypted content,
+  outbox, redaction, synthetic AI, metrics, and audit boundaries.
+- `scripts/ops/synthetic_smoke.py` — public HTTP smoke via `STAGING_API_URL` and env credentials.
+- `docs/SYNTHETIC_STAGING_SMOKE.md` runbook; `dev:worker` runs `closeros-worker all`.
+- PostgreSQL integration tests for bootstrap, seed, and smoke flows.
+
 ## Not complete (Z-only live verification)
 
 - Live Meta WhatsApp sandbox verification.
@@ -92,12 +103,12 @@ No production readiness claim.
 - Production SMTP provider activation.
 - Production Kazakhstan hosting sign-off.
 - Autonomous outbound messaging.
-- Remote GitHub PR CI green claim.
+- Remote GitHub PR CI green claim for Z0 branch (XY PR #18 passed).
 - Staging/production deployment.
 
 ## Last updated
 
-2026-07-13 (Block XY final local closure — quality passed; remote CI pending)
+2026-07-13 (Block Z0 staging bootstrap — targeted tests passed; quality gate pending)
 
 ## Open decisions requiring owner input
 
