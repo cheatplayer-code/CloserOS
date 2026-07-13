@@ -15,10 +15,11 @@ and `PROJECT_STATUS.md`.
 6. **RSTU** — owner dashboard + conversation review + manager scorecards + follow-up task queue
 7. **VW** — design-partner/provider decision package + first official messaging provider
 8. **XY** — first CRM integration + production hardening
-9. **Z** — compliance, security release gate and paid production pilot
+9. **Z0** — staging bootstrap, synthetic demo seeding, HTTP smoke runbook
+10. **Z** — compliance, security release gate and paid production pilot
 
 **Roadmap consolidation (accepted):** future execution order after LM is
-**LM → NOPQ → RSTU → VW → XY → Z**. Blocks NO/PQ and RS/TU are merged into NOPQ
+**LM → NOPQ → RSTU → VW → XY → Z0 → Z**. Blocks NO/PQ and RS/TU are merged into NOPQ
 and RSTU respectively; do not split or reorder them without an explicit accepted
 update to this file and `PROJECT_STATUS.md`.
 
@@ -76,7 +77,7 @@ update to this file and `PROJECT_STATUS.md`.
 - No external AI gateway, `message.analyze` handler, name/address NER, or
   production DLP/scanner adapters yet.
 
-## Block NOPQ scope (implemented locally; PR verification pending)
+## Block NOPQ scope (merged on master)
 
 - Provider-neutral AI application ports with hidden-repr request/response payloads.
 - Governed `AiGateway` orchestration with fail-closed purpose, sanitization,
@@ -99,12 +100,11 @@ update to this file and `PROJECT_STATUS.md`.
 - Alembic revision `e3b7c9d1f5a2` for AI policy/usage, analysis runs/findings, and
   knowledge retrieval schema.
 
-Next block: **VW** — design-partner/provider decision package + first official
-messaging provider.
+Next block at time of NOPQ merge: **RSTU** (now merged).
 
 ### Block RSTU — product workspace and follow-up management
 
-Status: **Implemented locally; PR verification pending.**
+Status: **Merged on master.**
 
 Scope delivered:
 
@@ -130,15 +130,11 @@ Authorization matrix (server-enforced):
 | Tasks read | yes | yes | yes | own assigned | no |
 | Tasks write | yes | yes | no | limited PATCH | no |
 
-Verification (local):
+Verification:
 
-- `corepack pnpm run quality` — pending final gate run in this session.
-- Targeted tests: follow-up domain, product metrics formulas, RSTU migration u/d/u,
-  product API auth/CSRF/roles/cross-tenant denial, contracts fixtures, web product client.
+- Product API, migration, contracts, and web workspace tests in CI quality gate.
 
-Next block: **VW** — design-partner/provider package and first official messaging provider.
-
-## Block VW scope (implemented locally; PR verification pending)
+## Block VW scope (merged on master)
 
 - Meta WhatsApp Cloud as first official messaging provider (`ProviderKind.WHATSAPP_CLOUD`).
 - `WhatsAppCloudWebhookAdapter` with HMAC verification and canonical normalization.
@@ -150,11 +146,9 @@ Next block: **VW** — design-partner/provider package and first official messag
   `docs/PROVIDER_CAPABILITY_MATRIX.md`.
 - Fabricated CI tests (`tests/vw_support.py` and VW pytest modules).
 - Graph API version **v21.0**; documentation review date **2026-07-12**.
-- Live Meta sandbox verification: **NOT completed**.
+- Live Meta sandbox verification: **Z only**.
 
-Next block: **Z** — compliance, security release gate, and paid production pilot.
-
-## Block XY scope (implemented locally; local quality passed; remote CI pending)
+## Block XY scope (merged on master; PR #18 CI passed)
 
 - Multi-stage production Dockerfiles for API, worker, and web (`infra/docker/`).
 - Root `.dockerignore` and `docker-compose.staging.yml.example` (reference only).
@@ -173,6 +167,14 @@ Next block: **Z** — compliance, security release gate, and paid production pil
   upgrade→downgrade→upgrade tests.
 - No staging deployment and no live provider/KMS/SMTP/DeepSeek calls from local closure.
 - Live sandbox verification: **Z only**.
+
+## Block Z0 scope (staging bootstrap; in progress)
+
+- `scripts/ops/bootstrap_tenant.py` — first-tenant OWNER bootstrap for verified users.
+- `scripts/ops/seed_synthetic_demo.py` — synthetic demo through application boundaries.
+- `scripts/ops/synthetic_smoke.py` — HTTP smoke against public API.
+- `docs/SYNTHETIC_STAGING_SMOKE.md` runbook; root `dev:worker` → `closeros-worker all`.
+- No live providers; no bootstrap HTTP route; synthetic `example.invalid` data only.
 
 Next block: **Z only** — compliance, security release gate, and paid production pilot.
 

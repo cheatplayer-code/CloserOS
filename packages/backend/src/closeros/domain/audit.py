@@ -82,7 +82,7 @@ _ALLOWED_METADATA_KEYS: frozenset[str] = frozenset(
     }
 )
 
-_FRAGMENT_EXEMPT_METADATA_KEYS: frozenset[str] = frozenset({"content_kind"})
+_FRAGMENT_EXEMPT_METADATA_KEYS: frozenset[str] = frozenset({"content_kind", "token_count"})
 
 
 class AuditActorType(StrEnum):
@@ -211,7 +211,7 @@ class AuditTargetType(StrEnum):
     TENANT_AI_POLICY = "tenant_ai_policy"
     KNOWLEDGE_DOCUMENT = "knowledge_document"
     KNOWLEDGE_DOCUMENT_VERSION = "knowledge_document_version"
-    CONVERSATION_ANALYSIS_RUN = "conversation_analysis_run"
+    CONVERSATION_ANALYSIS_RUN = "analysis_run"
     FOLLOW_UP_TASK = "follow_up_task"
     CONVERSATION_THREAD = "conversation_thread"
     DASHBOARD = "dashboard"

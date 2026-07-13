@@ -75,7 +75,11 @@ def pytest_configure(config: pytest.Config) -> None:
     )
     config.addinivalue_line(
         "markers",
-        "crm_persistence: PostgreSQL CRM integration tests",
+        "crm_persistence: PostgreSQL Bitrix24 CRM integration tests",
+    )
+    config.addinivalue_line(
+        "markers",
+        "z0_persistence: PostgreSQL Z0 bootstrap and synthetic demo integration tests",
     )
 
 
@@ -331,6 +335,7 @@ def _requires_persistence_reset(request: pytest.FixtureRequest) -> bool:
         or request.node.get_closest_marker("rstu_persistence") is not None
         or request.node.get_closest_marker("vw_persistence") is not None
         or request.node.get_closest_marker("crm_persistence") is not None
+        or request.node.get_closest_marker("z0_persistence") is not None
     )
 
 

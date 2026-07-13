@@ -49,6 +49,7 @@ image issues; CI is authoritative for remote builds.
 
 ## Operations
 
+- `docs/SYNTHETIC_STAGING_SMOKE.md` — synthetic bootstrap, seed, and HTTP smoke (no live providers)
 - `docs/MIGRATION_RUNBOOK.md`
 - `docs/BACKUP_RESTORE.md`
 - `docs/WORKER_OPERATIONS.md`

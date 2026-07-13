@@ -42,12 +42,25 @@ Canonical reference for CloserOS configuration. Safe defaults live in
 
 ## Encryption and KMS
 
-| Variable | Required (prod) | Description |
-|----------|-----------------|-------------|
-| `APP_ENCRYPTION_KEY` | yes | Local envelope encryption key |
-| `KMS_PROVIDER` | no | Future KMS adapter id |
-| `KMS_KEY_ARN` | no | Future KMS key reference |
-| `KMS_REGION` | no | KMS region |
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `APP_ENCRYPTION_KEY` | development / transitional | Local envelope encryption key material. Development API/worker composition and operator scripts use deterministic `dev-kek-v1` when unset. **Not** a substitute for production remote KMS. |
+| `KMS_BASE_URL` | production KMS | HTTPS base URL for remote KMS adapter |
+| `KMS_API_TOKEN_REF` | production KMS | Secret reference for KMS API token (e.g. `env:KMS_API_TOKEN`) |
+| `KMS_ACTIVE_KEY_VERSION` | production KMS | Active key encryption key version id |
+| `KMS_KEY_VERSIONS` | production KMS | Comma-separated KEK versions known to the runtime |
+| `KNOWLEDGE_SEARCH_KEY_REF` | production | Secret reference for knowledge lexical search key |
+| `KNOWLEDGE_SEARCH_KEY_VERSION` | no | Search key version label (default from code) |
+| `CLOSEROS_DEV_KNOWLEDGE_SEARCH_KEY_HEX` | dev only | Deterministic 64-hex dev search key |
+
+## Optional production feature gates
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `WHATSAPP_ENABLED` | `false` | Register WhatsApp Cloud webhook adapter |
+| `CRM_ENABLED` | `false` | Enable CRM sync handlers |
+| `NOTIFICATIONS_ENABLED` | `false` | Enable SMTP notification delivery |
+| `MEDIA_SCANNER_ENABLED` | `false` | Enable ClamAV media scanning pipeline |
 
 ## Worker / outbox
 
@@ -79,6 +92,15 @@ Canonical reference for CloserOS configuration. Safe defaults live in
 | `OPENAI_COMPATIBLE_*` | optional | Alternate provider |
 | `CLOSEROS_DEV_KNOWLEDGE_SEARCH_KEY_HEX` | dev only | Deterministic dev search |
 
+## Synthetic staging smoke (Z0)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `STAGING_API_URL` | smoke script | Public API base URL |
+| `SMOKE_USER_EMAIL` | smoke script | Synthetic test user email |
+| `SMOKE_USER_PASSWORD` | smoke script | Password (env only — never CLI flag) |
+| `SMOKE_EXPECTED_TENANT_ID` | optional | Expected tenant UUID |
+
 ## WhatsApp (VW)
 
 | Variable | Required when connected | Description |
@@ -90,23 +112,27 @@ Canonical reference for CloserOS configuration. Safe defaults live in
 
 ## CRM — Bitrix24 (XY)
 
-| Variable | Required when connected | Description |
-|----------|-------------------------|-------------|
-| `BITRIX24_CLIENT_ID` | yes | OAuth client id |
-| `BITRIX24_CLIENT_SECRET` | yes | OAuth secret |
-| `BITRIX24_WEBHOOK_SECRET` | yes | Inbound webhook verification |
-| `BITRIX24_BASE_URL` | yes | Tenant portal base URL |
+Runtime production checks use portal domain and access-token references (not OAuth
+client env vars on the worker hot path):
+
+| Variable | Required when `CRM_ENABLED=true` | Description |
+|----------|--------------------------------|-------------|
+| `BITRIX24_PORTAL_DOMAIN` | yes | Tenant portal host (SSRF-validated) |
+| `BITRIX24_ACCESS_TOKEN_REF` | yes | Secret reference for inbound API token |
+
+Per-tenant OAuth and webhook configuration is stored in tenant-scoped connection
+rows. See `docs/CRM_INTEGRATION.md` for adapter behavior.
 
 ## Email (SMTP)
 
-| Variable | Required (prod) | Description |
-|----------|-----------------|-------------|
-| `SMTP_HOST` | when email enabled | SMTP server |
-| `SMTP_PORT` | no | Default `587` |
-| `SMTP_USERNAME` | optional | Auth user |
-| `SMTP_PASSWORD` | optional | Auth password |
-| `SMTP_FROM` | yes | From address |
-| `SMTP_TLS` | no | `true` default |
+| Variable | Required when `NOTIFICATIONS_ENABLED=true` | Description |
+|----------|--------------------------------------------|-------------|
+| `SMTP_HOST` | yes | SMTP server hostname |
+| `SMTP_PORT` | yes | SMTP port |
+| `SMTP_FROM_ADDRESS` | yes | From address |
+| `SMTP_USERNAME_REF` | optional | Secret reference for SMTP username |
+| `SMTP_PASSWORD_REF` | optional | Secret reference for SMTP password |
+| `SMTP_TRANSPORT` | no | `starttls` (default) or `tls` |
 
 ## Media scanning (placeholders)
 
@@ -122,3 +148,4 @@ Canonical reference for CloserOS configuration. Safe defaults live in
 - `docs/SECRET_MANAGEMENT.md`
 - `docs/STAGING_DEEPSEEK.md`
 - `docs/CRM_INTEGRATION.md`
+- `docs/SYNTHETIC_STAGING_SMOKE.md`
