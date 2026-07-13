@@ -16,7 +16,7 @@ pushes to `master`, and manual dispatches. Stable branch-protection check names:
 The Ubuntu job:
 
 1. checks out the repository without persisting credentials;
-2. installs Node.js `24.14.1` and Python `3.12.13` from repository version files;
+2. installs Node.js `24.14.1` and Python `3.13.14` from repository version files;
 3. enables pnpm `11.11.0` through Corepack and installs uv `0.11.28`;
 4. restores package-manager download caches;
 5. runs `corepack pnpm install --frozen-lockfile`;

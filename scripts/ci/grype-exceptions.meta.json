@@ -1,0 +1,19 @@
+{
+  "verified_at": "2026-07-13",
+  "owner": "closeros-security",
+  "entries": [
+    {
+      "vulnerability": "CVE-2026-15308",
+      "images": ["closeros-api:ci", "closeros-worker:ci"],
+      "package": {
+        "name": "python",
+        "version": "3.13.14"
+      },
+      "evidence": "tests/test_container_cve_reachability.py::test_html_parser_not_used_in_runtime_paths",
+      "owner": "closeros-security",
+      "created_on": "2026-07-13",
+      "expires_on": "2026-08-12",
+      "technical_justification": "No production code path feeds untrusted HTML into stdlib HTMLParser; fix unavailable in stable Python releases."
+    }
+  ]
+}

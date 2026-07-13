@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "closeros-backend"
 version = "0.0.0"
 description = "Shared modular-monolith backend boundaries for CloserOS AI"
-requires-python = "==3.12.13"
+requires-python = "==3.13.14"
 dependencies = [
     "alembic==1.18.5",
     "argon2-cffi==25.1.0",

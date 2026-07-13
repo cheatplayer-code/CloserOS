@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "closeros-api"
 version = "0.0.0"
 description = "Thin FastAPI executable entry point for CloserOS AI"
-requires-python = "==3.12.13"
+requires-python = "==3.13.14"
 dependencies = [
   "closeros-backend",
   "fastapi==0.139.0",

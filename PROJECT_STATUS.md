@@ -7,8 +7,8 @@
 
 | Status | Detail |
 |--------|--------|
-| Implemented locally | XY final closure + CI supply-chain repair: direct Docker buildx CLI, pinned standalone Syft/Grype with committed SHA-256 verification, action pin validator, workflow URI runtime composition, historical secret-scan root cause documented |
-| Verified locally | `corepack pnpm run quality` — **1526** Python tests passed, **104** TS tests passed (1 skipped), mypy clean, Next.js build OK; action pin validator + 17 workflow static tests passed; `git diff --check` clean |
+| Implemented locally | XY final closure + CI supply-chain repair + container vulnerability remediation (Python 3.13.14, digest-pinned bases, Next.js standalone runtime, reviewed Grype VEX for CVE-2026-15308) |
+| Verified locally | `corepack pnpm run quality` on Python **3.13.14** — **1538** Python tests passed, **104** TS tests passed (1 skipped), mypy clean, Next.js standalone build OK |
 | Remote PR CI | **Pending** — not claimed green; no staging deployment from this laptop |
 | Live providers | **None** — no Docker executed; no live Meta, Bitrix24, DeepSeek, SMTP, KMS, Supabase, Railway, or Vercel calls |
 | Requires live staging (Z) | Meta WhatsApp sandbox, Bitrix24 sandbox, production KMS vendor, SMTP provider, Kazakhstan hosting, legal/compliance sign-off |

@@ -22,7 +22,7 @@ PostgreSQL is the system of record. Redis carries outbox job UUIDs only.
 |-------|------------|-----------------|
 | API | `infra/docker/Dockerfile.api` | `uvicorn closeros_api.app:app` |
 | Worker | `infra/docker/Dockerfile.worker` | `closeros-worker all` |
-| Web | `infra/docker/Dockerfile.web` | `next start` via pnpm filter |
+| Web | `infra/docker/Dockerfile.web` | `node apps/web/server.js` (Next.js standalone) |
 
 Images are built in GitHub Actions (`.github/workflows/containers.yml`) on every
 PR and push to `master`. Images push to GHCR **only** on `v*` release tags.

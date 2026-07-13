@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Remote CI and staging/production worker image. Do not use for local development.
 
-FROM python:3.12.13-slim-bookworm AS builder
+FROM python:3.13.14-slim-bookworm@sha256:fcbd8dfc2605ba7c2eca646846c5e892b2931e41f6227985154a596f26ab8ed7 AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -26,14 +26,17 @@ COPY packages/backend packages/backend
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --all-packages --frozen --no-dev
 
-FROM python:3.12.13-slim-bookworm AS runtime
+FROM python:3.13.14-slim-bookworm@sha256:fcbd8dfc2605ba7c2eca646846c5e892b2931e41f6227985154a596f26ab8ed7 AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     APP_ENV=production \
     PATH="/app/.venv/bin:${PATH}"
 
-RUN groupadd --system --gid 10001 closeros \
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 10001 closeros \
     && useradd --system --uid 10001 --gid closeros --home-dir /app --shell /usr/sbin/nologin closeros
 
 WORKDIR /app

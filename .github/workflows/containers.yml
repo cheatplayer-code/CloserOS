@@ -130,12 +130,19 @@ jobs:
           print(f"SBOM {sbom_path} is valid and references {image_name}")
           PY
 
+      - name: Validate reviewed Grype exceptions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          uv run python scripts/ci/validate_grype_exceptions.py
+
       - name: Scan image with Grype
         shell: bash
         run: |
           set -Eeuo pipefail
           mkdir -p artifacts
           grype "docker:${IMAGE_TAG}" \
+            --config scripts/ci/grype-exceptions.yaml \
             --only-fixed \
             --fail-on high \
             --output table \

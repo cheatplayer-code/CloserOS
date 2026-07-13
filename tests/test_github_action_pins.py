@@ -184,6 +184,14 @@ def test_containers_workflow_uses_standalone_syft_and_grype() -> None:
     assert "--fail-on high" in text
 
 
+def test_containers_workflow_uses_grype_exceptions_config() -> None:
+    text = _containers_text()
+    assert "validate_grype_exceptions.py" in text
+    assert "--config scripts/ci/grype-exceptions.yaml" in text
+    assert "--only-fixed" in text
+    assert "--fail-on high" in text
+
+
 def test_containers_workflow_uploads_combined_security_artifacts() -> None:
     text = _containers_text()
     assert "container-security-${{ matrix.name }}" in text

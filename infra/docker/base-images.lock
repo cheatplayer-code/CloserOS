@@ -1,0 +1,12 @@
+# Immutable base image digests for production Dockerfiles.
+#
+# Resolved from Docker Hub library tags on 2026-07-13 via:
+#   curl https://hub.docker.com/v2/repositories/library/<repo>/tags/<tag>
+#
+# Update tag and digest together after reviewing the official release.
+
+PYTHON_IMAGE_TAG=3.13.14-slim-bookworm
+PYTHON_IMAGE_DIGEST=sha256:fcbd8dfc2605ba7c2eca646846c5e892b2931e41f6227985154a596f26ab8ed7
+
+NODE_IMAGE_TAG=24.14.1-bookworm-slim
+NODE_IMAGE_DIGEST=sha256:b506e7321f176aae77317f99d67a24b272c1f09f1d10f1761f2773447d8da26c
