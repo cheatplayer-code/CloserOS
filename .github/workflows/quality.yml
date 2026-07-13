@@ -23,8 +23,13 @@ jobs:
     timeout-minutes: 30
     env:
       AI_EXTERNAL_CALLS_ENABLED: "false"
-      TEST_DATABASE_URL: postgresql://closeros_ci:closeros_ci_only_not_production@127.0.0.1:5432/postgres
-      TEST_REDIS_URL: redis://:closeros_ci_redis_only_not_production@127.0.0.1:6379/0
+      TEST_DB_SCHEME: postgresql
+      TEST_DB_USER: closeros_ci
+      TEST_DB_PASSWORD: closeros_ci_only_not_production
+      TEST_DB_HOST: 127.0.0.1
+      TEST_DB_PORT: "5432"
+      TEST_DB_NAME: postgres
+      TEST_REDIS_URL: redis://127.0.0.1:6379/0
 
     services:
       postgres:
@@ -45,11 +50,8 @@ jobs:
         image: redis:8.8.0-trixie
         ports:
           - 6379:6379
-        command: >-
-          redis-server
-          --requirepass closeros_ci_redis_only_not_production
         options: >-
-          --health-cmd "redis-cli -a closeros_ci_redis_only_not_production ping"
+          --health-cmd "redis-cli ping"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -59,6 +61,22 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
+
+      - name: Configure test service URLs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          echo "::add-mask::$TEST_DB_PASSWORD"
+
+          printf 'TEST_DATABASE_URL=%s://%s:%s@%s:%s/%s\n' \
+            "$TEST_DB_SCHEME" \
+            "$TEST_DB_USER" \
+            "$TEST_DB_PASSWORD" \
+            "$TEST_DB_HOST" \
+            "$TEST_DB_PORT" \
+            "$TEST_DB_NAME" \
+            >>"$GITHUB_ENV"
 
       - name: Set up Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -105,3 +123,46 @@ jobs:
 
       - name: Run aggregate quality gate
         run: corepack pnpm run quality
+
+  redis-integration:
+    name: redis-integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      TEST_REDIS_URL: redis://127.0.0.1:6379/0
+
+    services:
+      redis:
+        image: redis:8.8.0-trixie
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: 0.11.28
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install Python workspace from lockfile
+        run: uv sync --all-packages --frozen
+
+      - name: Run Redis stream queue integration tests
+        run: uv run pytest -m redis_integration -ra

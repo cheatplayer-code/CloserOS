@@ -30,6 +30,7 @@ class ProviderMediaReferenceRecord:
     media_type: str
     mime_type: str | None
     size_bytes: int | None
+    encrypted_content_id: UUID | None
     quarantine_status: MediaQuarantineStatus
     created_at: datetime
     updated_at: datetime
@@ -52,3 +53,23 @@ class ProviderMediaReferenceRepository(Protocol):
         tenant_id: UUID,
         conversation_thread_id: UUID,
     ) -> tuple[ProviderMediaReferenceRecord, ...]: ...
+
+    async def get_by_id(
+        self,
+        *,
+        tenant_id: UUID,
+        media_reference_id: UUID,
+    ) -> ProviderMediaReferenceRecord | None: ...
+
+    async def update_status(
+        self,
+        *,
+        tenant_id: UUID,
+        media_reference_id: UUID,
+        quarantine_status: MediaQuarantineStatus,
+        updated_at: datetime,
+        mime_type: str | None = None,
+        size_bytes: int | None = None,
+        encrypted_content_id: UUID | None = None,
+        clear_encrypted_content_id: bool = False,
+    ) -> None: ...

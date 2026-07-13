@@ -1,0 +1,15 @@
+# Railway config-as-code for managed Redis (staging).
+# Prefer Railway's Redis template or an equivalent managed offering.
+# Redis is queue/cache only; PostgreSQL remains the source of truth.
+
+[build]
+builder = "RAILPACK"
+buildCommand = "echo 'Redis uses the platform template image; no application build required.'"
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
+numReplicas = 1
+
+# Configure REDIS_URL on API and worker services to point at this instance.
+# Use TLS and password authentication in staging and production.

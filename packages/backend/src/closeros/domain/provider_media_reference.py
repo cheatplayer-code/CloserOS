@@ -12,13 +12,50 @@ _MEDIA_TYPE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 _MIME_TYPE_PATTERN = re.compile(r"^[a-z][a-z0-9.+-]{0,127}$")
 _MAX_PROVIDER_MEDIA_ID_LENGTH = 128
 _MAX_SIZE_BYTES = 100 * 1024 * 1024
+_SUPPORTED_PROVIDER_MEDIA_MIME_TYPES: frozenset[str] = frozenset(
+    {
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "audio/aac",
+        "audio/mp4",
+        "audio/mpeg",
+        "audio/amr",
+        "audio/ogg",
+        "video/mp4",
+        "video/3gpp",
+        "application/pdf",
+        "application/vnd.ms-powerpoint",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "text/plain",
+    }
+)
+
+
+def is_supported_provider_media_mime(mime_type: str | None) -> bool:
+    if mime_type is None:
+        return False
+    if not isinstance(mime_type, str):
+        raise TypeError("mime_type must be a string")
+    normalized = mime_type.strip().lower()
+    if not normalized:
+        return False
+    return normalized in _SUPPORTED_PROVIDER_MEDIA_MIME_TYPES
 
 
 class MediaQuarantineStatus(StrEnum):
+    FETCHING = "fetching"
+    FETCH_FAILED = "fetch_failed"
+    FETCH_UNAVAILABLE = "fetch_unavailable"
     QUARANTINED_PENDING_SCAN = "quarantined_pending_scan"
+    SCANNING = "scanning"
+    CLEAN = "clean"
+    INFECTED = "infected"
     SCAN_PASSED = "scan_passed"
     SCAN_FAILED = "scan_failed"
-    FETCH_UNAVAILABLE = "fetch_unavailable"
 
 
 def _validate_uuid(value: object, field_name: str) -> UUID:
@@ -134,4 +171,8 @@ class ProviderMediaReference:
         )
 
 
-__all__ = ["MediaQuarantineStatus", "ProviderMediaReference"]
+__all__ = [
+    "MediaQuarantineStatus",
+    "ProviderMediaReference",
+    "is_supported_provider_media_mime",
+]

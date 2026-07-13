@@ -23,7 +23,8 @@ from closeros.infrastructure.database import (
     create_authentication_engine,
 )
 from closeros_worker.runtime import (
-    LM_SUPPORTED_JOB_KINDS,
+    VW_SUPPORTED_JOB_KINDS,
+    XY_SUPPORTED_JOB_KINDS,
     WorkerRuntimeOverrides,
     build_worker_runtime,
 )
@@ -56,10 +57,10 @@ class RecordingQueuePublisher:
 
 
 def test_lm_supported_job_kinds_include_redaction_and_metrics() -> None:
-    assert OutboxJobKind.CONTENT_REDACT in LM_SUPPORTED_JOB_KINDS
-    assert OutboxJobKind.METRICS_RECALCULATE in LM_SUPPORTED_JOB_KINDS
-    assert OutboxJobKind.WEBHOOK_NORMALIZE in LM_SUPPORTED_JOB_KINDS
-    assert OutboxJobKind.CSV_IMPORT in LM_SUPPORTED_JOB_KINDS
+    assert OutboxJobKind.CONTENT_REDACT in XY_SUPPORTED_JOB_KINDS
+    assert OutboxJobKind.METRICS_RECALCULATE in XY_SUPPORTED_JOB_KINDS
+    assert OutboxJobKind.WEBHOOK_NORMALIZE in XY_SUPPORTED_JOB_KINDS
+    assert OutboxJobKind.CSV_IMPORT in XY_SUPPORTED_JOB_KINDS
 
 
 def test_lm_worker_runtime_registers_redact_and_recalculate_handlers(
@@ -77,6 +78,8 @@ def test_lm_worker_runtime_registers_redact_and_recalculate_handlers(
         polling_interval_seconds=1.0,
         publish_batch_size=25,
         processor_block_ms=5_000,
+        max_parallel_jobs=4,
+        shutdown_grace_seconds=30.0,
     )
 
     async def exercise() -> None:
@@ -143,7 +146,7 @@ def test_lm_processor_leaves_unsupported_job_kind_unclaimed(integrated_uow_facto
                 outbox_job_attempts=process_uow.outbox_job_attempts,
                 handlers={},
                 worker_id="lm-processor-test",
-                supported_job_kinds=LM_SUPPORTED_JOB_KINDS,
+                supported_job_kinds=VW_SUPPORTED_JOB_KINDS,
             )
             result = await processor.process_job(job_id=UNSUPPORTED_JOB_ID, now=NOW)
             restored = await process_uow.outbox_jobs.get_by_id(job_id=UNSUPPORTED_JOB_ID)

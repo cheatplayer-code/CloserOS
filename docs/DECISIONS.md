@@ -134,3 +134,12 @@ Status: accepted
 File: `docs/adr/ADR-0015-governed-ai-gateway-and-knowledge-retrieval.md`
 
 NOPQ introduces a fail-closed AI gateway with strict input/output governance, synthetic-first provider testing, tenant-scoped lexical knowledge indexing/retrieval, and migration baseline `e3b7c9d1f5a2` for AI policy/analysis/knowledge persistence.
+
+### ADR-0017 — Production operations and staging architecture
+
+Status: accepted
+File: `docs/adr/ADR-0017-production-operations-and-staging-architecture.md`
+
+Block XY documents staging topology (Vercel web, Railway API/worker/Redis, Supabase
+PostgreSQL), remote-only container builds, CI supply-chain scanning, and operational
+runbooks without claiming Block Z release-gate completion.

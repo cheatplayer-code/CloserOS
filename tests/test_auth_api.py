@@ -14,7 +14,11 @@ import pytest
 from closeros.application.authentication_workflows import AuthenticationWorkflowService
 from closeros.security.authentication_tokens import RawAuthenticationToken
 from closeros_api.app import create_app
-from closeros_api.auth_ports import CaptureNotificationDispatcher, InMemoryRateLimiter
+from closeros_api.auth_ports import (
+    CallableMfaVerifier,
+    CaptureNotificationDispatcher,
+    InMemoryRateLimiter,
+)
 from closeros_api.auth_schemas import sanitize_validation_errors
 from closeros_api.auth_security import (
     DEVELOPMENT_SESSION_COOKIE_NAME,
@@ -26,7 +30,11 @@ from closeros_api.auth_security import (
     read_session_cookie,
     session_cookie_config,
 )
-from closeros_api.composition import AuthRuntimeOverrides, build_auth_runtime
+from closeros_api.composition import (
+    AuthRuntimeOverrides,
+    ProductionRateLimiterConfigurationError,
+    build_auth_runtime,
+)
 from closeros_api.settings import ApiConfigurationError, ApiSettings
 from fastapi.testclient import TestClient
 from pydantic import SecretStr, ValidationError
@@ -254,7 +262,7 @@ def test_production_login_sets_secure_host_cookie() -> None:
     from closeros.infrastructure.in_memory_webhook_rate_limiter import InMemoryWebhookRateLimiter
     from closeros.infrastructure.noop_import_content_scanner import NoOpImportContentScanner
 
-    from tests.encryption_support import build_test_key_provider
+    from tests.encryption_support import build_production_test_key_provider
 
     app = create_app(
         settings=settings,
@@ -263,7 +271,8 @@ def test_production_login_sets_secure_host_cookie() -> None:
             notification_dispatcher=CaptureNotificationDispatcher(),
             rate_limiter=InMemoryRateLimiter(),
             mfa_requirement_policy=_AlwaysFalseMfaPolicy(),
-            key_provider=build_test_key_provider(),
+            mfa_verifier=CallableMfaVerifier(lambda _user_id, _method, _response: False),
+            key_provider=build_production_test_key_provider(),
             adapter_registry=ProviderAdapterRegistry(),
             webhook_rate_limiter=InMemoryWebhookRateLimiter(),
             content_scanner=NoOpImportContentScanner(),
@@ -445,7 +454,8 @@ def test_register_request_password_hidden_from_repr() -> None:
     assert "Synthetic-Password-1" not in repr(request)
 
 
-def test_production_runtime_requires_notification_dispatcher() -> None:
+def test_production_runtime_does_not_require_sync_notification_dispatcher() -> None:
+    """Production uses outbox delivery; synchronous dispatcher defaults to NoOp."""
     settings = production_api_settings(
         database_url="postgresql://user:secret@127.0.0.1:5432/closeros_local"
     )
@@ -454,10 +464,13 @@ def test_production_runtime_requires_notification_dispatcher() -> None:
         async def requires_mfa_for_user(self, *, user_id: UUID) -> bool:
             return False
 
-    with pytest.raises(RuntimeError, match="notification dispatcher"):
+    with pytest.raises(ProductionRateLimiterConfigurationError, match="REDIS_URL"):
         build_auth_runtime(
             settings,
-            AuthRuntimeOverrides(mfa_requirement_policy=Policy()),
+            AuthRuntimeOverrides(
+                mfa_requirement_policy=Policy(),
+                mfa_verifier=CallableMfaVerifier(lambda _user_id, _method, _response: False),
+            ),
         )
 
 
@@ -477,11 +490,12 @@ def test_production_runtime_requires_rate_limiter() -> None:
         async def dispatch_password_reset(self, delivery: object) -> None:
             return None
 
-    with pytest.raises(RuntimeError, match="rate limiter"):
+    with pytest.raises(ProductionRateLimiterConfigurationError, match="REDIS_URL"):
         build_auth_runtime(
             settings,
             AuthRuntimeOverrides(
                 mfa_requirement_policy=Policy(),
+                mfa_verifier=CallableMfaVerifier(lambda _user_id, _method, _response: False),
                 notification_dispatcher=Dispatcher(),
             ),
         )

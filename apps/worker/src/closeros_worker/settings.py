@@ -25,6 +25,8 @@ class WorkerSettings:
     polling_interval_seconds: float
     publish_batch_size: int
     processor_block_ms: int
+    max_parallel_jobs: int
+    shutdown_grace_seconds: float
 
     @property
     def is_production(self) -> bool:
@@ -75,6 +77,14 @@ class WorkerSettings:
             variable_name="WORKER_PROCESSOR_BLOCK_MS",
             default=5_000,
         )
+        max_parallel_jobs = _positive_int_from_env(
+            variable_name="WORKER_MAX_PARALLEL_JOBS",
+            default=4,
+        )
+        shutdown_grace_seconds = _positive_float_from_env(
+            variable_name="WORKER_SHUTDOWN_GRACE_SECONDS",
+            default=30.0,
+        )
 
         return cls(
             app_env=app_env,
@@ -86,6 +96,8 @@ class WorkerSettings:
             polling_interval_seconds=polling_interval_seconds,
             publish_batch_size=publish_batch_size,
             processor_block_ms=processor_block_ms,
+            max_parallel_jobs=max_parallel_jobs,
+            shutdown_grace_seconds=shutdown_grace_seconds,
         )
 
 

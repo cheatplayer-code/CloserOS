@@ -1,0 +1,38 @@
+{
+  "verified_at": "2026-07-13",
+  "verification_method": "git ls-remote refs/tags plus raw.githubusercontent.com action metadata fetch",
+  "actions": {
+    "actions/checkout": {
+      "tag": "v7.0.0",
+      "sha": "9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0"
+    },
+    "actions/setup-node": {
+      "tag": "v6.4.0",
+      "sha": "48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e"
+    },
+    "actions/cache": {
+      "tag": "v6.1.0",
+      "sha": "55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
+    },
+    "actions/setup-python": {
+      "tag": "v6.3.0",
+      "sha": "ece7cb06caefa5fff74198d8649806c4678c61a1"
+    },
+    "astral-sh/setup-uv": {
+      "tag": "v8.3.2",
+      "sha": "11f9893b081a58869d3b5fccaea48c9e9e46f990"
+    },
+    "actions/upload-artifact": {
+      "tag": "v4.6.2",
+      "sha": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+    },
+    "trufflesecurity/trufflehog": {
+      "tag": "v3.95.9",
+      "sha": "27b0417c16317ca9a472a9a8092acce143b49c55"
+    },
+    "actions/dependency-review-action": {
+      "tag": "v5.0.0",
+      "sha": "a1d282b36b6f3519aa1f3fc636f609c47dddb294"
+    }
+  }
+}

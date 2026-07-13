@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from typing import Protocol
 from uuid import UUID, uuid4
 
-from closeros.application.authentication_workflows import (
+from closeros.application.authentication_notification_delivery import (
     AuthenticationNotificationDelivery,
 )
 from closeros.domain.authentication import MfaMethod
@@ -37,6 +37,7 @@ class RandomUuidFactory:
 @dataclass(frozen=True, slots=True)
 class RateLimitDecision:
     allowed: bool
+    remaining: int | None = None
     retry_after_seconds: int | None = None
 
 
@@ -130,9 +131,14 @@ class InMemoryRateLimiter:
                 bucket.popleft()
             if len(bucket) >= limit:
                 retry_after = int(window_seconds - (now - bucket[0])) + 1
-                return RateLimitDecision(allowed=False, retry_after_seconds=max(retry_after, 1))
+                return RateLimitDecision(
+                    allowed=False,
+                    remaining=0,
+                    retry_after_seconds=max(retry_after, 1),
+                )
             bucket.append(now)
-        return RateLimitDecision(allowed=True)
+            remaining = max(limit - len(bucket), 0)
+        return RateLimitDecision(allowed=True, remaining=remaining)
 
 
 class ProductionRequiredRateLimiter:

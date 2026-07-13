@@ -9,15 +9,22 @@ injected factories; workflows never read the system clock.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import NoReturn, Protocol
 from uuid import UUID
 
+from closeros.application.atomic_authentication_notification_issuance import (
+    AtomicAuthenticationNotificationIssuer,
+)
 from closeros.application.audit_recording import (
     AuditContext,
     StandaloneAuditAppender,
     append_required_audit_event,
+)
+from closeros.application.auth_notification_outbox import (
+    AuthenticationNotificationPublisher,
+    PassthroughAuthenticationNotificationPublisher,
 )
 from closeros.application.authentication_audit import (
     email_verification_completed_event,
@@ -41,11 +48,15 @@ from closeros.application.authentication_issuance import (
     issue_authentication_one_time_token,
     issue_pending_mfa_session,
 )
+from closeros.application.authentication_notification_delivery import (
+    AuthenticationNotificationDelivery,
+)
 from closeros.application.authentication_persistence import (
     AuthenticationUnitOfWork,
     DuplicateCredentialEmailError,
     DuplicateUserCredentialError,
 )
+from closeros.application.integrated_unit_of_work import IntegratedUnitOfWork
 from closeros.application.password_hashing import PasswordHasher
 from closeros.domain.authentication import (
     AuthenticationAssuranceLevel,
@@ -106,14 +117,6 @@ class RegistrationUnavailableError(Exception):
 
 
 @dataclass(frozen=True, slots=True)
-class AuthenticationNotificationDelivery:
-    """Internal email-delivery payload hidden from public repr."""
-
-    recipient: AuthenticationEmail = field(repr=False)
-    raw_token: RawAuthenticationToken = field(repr=False)
-
-
-@dataclass(frozen=True, slots=True)
 class AuthenticationRequestAccepted:
     """Generic accepted result for verification or reset requests."""
 
@@ -124,7 +127,7 @@ class AuthenticationRequestAccepted:
 @dataclass(frozen=True, slots=True)
 class RegistrationResult:
     user_id: UUID
-    delivery: AuthenticationNotificationDelivery
+    delivery: AuthenticationNotificationDelivery | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -324,6 +327,52 @@ class AuthenticationWorkflowService:
         AUTHENTICATION_SESSION_TIMEOUT_POLICY
     )
     standalone_audit_appender: StandaloneAuditAppender | None = None
+    notification_publisher: AuthenticationNotificationPublisher | None = None
+    notification_issuer: AtomicAuthenticationNotificationIssuer | None = None
+
+    async def _issue_notification_in_transaction(
+        self,
+        uow: AuthenticationUnitOfWork,
+        *,
+        delivery: AuthenticationNotificationDelivery | None,
+        purpose: AuthenticationTokenPurpose,
+        tenant_id: UUID | None,
+        requested_at: datetime,
+    ) -> AuthenticationNotificationDelivery | None:
+        if delivery is None:
+            return None
+        if self.notification_issuer is None:
+            return delivery
+        if not isinstance(uow, IntegratedUnitOfWork):
+            raise RuntimeError("integrated unit of work is required for atomic notifications")
+        await self.notification_issuer.enqueue_in_transaction(
+            uow,
+            delivery=delivery,
+            purpose=purpose,
+            tenant_id=tenant_id,
+            requested_at=requested_at,
+        )
+        return None
+
+    async def _maybe_publish_notification(
+        self,
+        *,
+        delivery: AuthenticationNotificationDelivery | None,
+        purpose: AuthenticationTokenPurpose,
+        tenant_id: UUID | None,
+        requested_at: datetime,
+    ) -> AuthenticationNotificationDelivery | None:
+        if delivery is None or self.notification_publisher is None:
+            return delivery
+        await self.notification_publisher.publish(
+            delivery=delivery,
+            purpose=purpose,
+            tenant_id=tenant_id,
+            requested_at=requested_at,
+        )
+        if isinstance(self.notification_publisher, PassthroughAuthenticationNotificationPublisher):
+            return delivery
+        return None
 
     def _resolved_standalone_audit_appender(self) -> StandaloneAuditAppender:
         if self.standalone_audit_appender is not None:
@@ -404,13 +453,22 @@ class AuthenticationWorkflowService:
             ) as error:
                 raise RegistrationUnavailableError(REGISTRATION_UNAVAILABLE_MESSAGE) from error
 
-            delivery = await _issue_verification_delivery(
+            issued_delivery = await _issue_verification_delivery(
                 uow,
                 user_id=validated_user_id,
                 credential=credential,
                 verification_token_id=validated_token_id,
                 issued_at=validated_registered_at,
                 raw_token_factory=raw_token_factory,
+            )
+            delivery: (
+                AuthenticationNotificationDelivery | None
+            ) = await self._issue_notification_in_transaction(
+                uow,
+                delivery=issued_delivery,
+                purpose=AuthenticationTokenPurpose.EMAIL_VERIFICATION,
+                tenant_id=None,
+                requested_at=validated_registered_at,
             )
             await append_required_audit_event(
                 uow.audit_events,
@@ -422,7 +480,16 @@ class AuthenticationWorkflowService:
             )
             await uow.commit()
 
-        return RegistrationResult(user_id=validated_user_id, delivery=delivery)
+        published_delivery = await self._maybe_publish_notification(
+            delivery=delivery,
+            purpose=AuthenticationTokenPurpose.EMAIL_VERIFICATION,
+            tenant_id=None,
+            requested_at=validated_registered_at,
+        )
+        return RegistrationResult(
+            user_id=validated_user_id,
+            delivery=published_delivery,
+        )
 
     async def request_email_verification(
         self,
@@ -462,6 +529,13 @@ class AuthenticationWorkflowService:
                     issued_at=validated_requested_at,
                     raw_token_factory=raw_token_factory,
                 )
+                delivery = await self._issue_notification_in_transaction(
+                    uow,
+                    delivery=delivery,
+                    purpose=AuthenticationTokenPurpose.EMAIL_VERIFICATION,
+                    tenant_id=None,
+                    requested_at=validated_requested_at,
+                )
                 await append_required_audit_event(
                     uow.audit_events,
                     email_verification_requested_event(
@@ -472,7 +546,13 @@ class AuthenticationWorkflowService:
                 )
             await uow.commit()
 
-        return AuthenticationRequestAccepted(delivery=delivery)
+        published_delivery = await self._maybe_publish_notification(
+            delivery=delivery,
+            purpose=AuthenticationTokenPurpose.EMAIL_VERIFICATION,
+            tenant_id=None,
+            requested_at=validated_requested_at,
+        )
+        return AuthenticationRequestAccepted(delivery=published_delivery)
 
     async def confirm_email_verification(
         self,
@@ -884,6 +964,13 @@ class AuthenticationWorkflowService:
                     requested_at=validated_requested_at,
                     raw_token_factory=raw_token_factory,
                 )
+                delivery = await self._issue_notification_in_transaction(
+                    uow,
+                    delivery=delivery,
+                    purpose=AuthenticationTokenPurpose.PASSWORD_RESET,
+                    tenant_id=None,
+                    requested_at=validated_requested_at,
+                )
                 await append_required_audit_event(
                     uow.audit_events,
                     password_reset_requested_event(
@@ -894,7 +981,13 @@ class AuthenticationWorkflowService:
                 )
             await uow.commit()
 
-        return AuthenticationRequestAccepted(delivery=delivery)
+        published_delivery = await self._maybe_publish_notification(
+            delivery=delivery,
+            purpose=AuthenticationTokenPurpose.PASSWORD_RESET,
+            tenant_id=None,
+            requested_at=validated_requested_at,
+        )
+        return AuthenticationRequestAccepted(delivery=published_delivery)
 
     async def confirm_password_reset(
         self,

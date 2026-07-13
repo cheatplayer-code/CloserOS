@@ -152,7 +152,29 @@ Next block: **VW** — design-partner/provider package and first official messag
 - Graph API version **v21.0**; documentation review date **2026-07-12**.
 - Live Meta sandbox verification: **NOT completed**.
 
-Next block: **XY** — first CRM integration + production hardening.
+Next block: **Z** — compliance, security release gate, and paid production pilot.
+
+## Block XY scope (implemented locally; local quality passed; remote CI pending)
+
+- Multi-stage production Dockerfiles for API, worker, and web (`infra/docker/`).
+- Root `.dockerignore` and `docker-compose.staging.yml.example` (reference only).
+- Railway config-as-code (`infra/railway/`), Vercel config (`infra/vercel/`),
+  Supabase PostgreSQL README (`infra/supabase/`).
+- CI container builds with Trivy scan and SPDX SBOM (`.github/workflows/containers.yml`).
+- Dedicated Redis integration test job in `quality.yml`.
+- Operations scripts: `scripts/ops/migrate_status.py`, `migrate_upgrade.py`,
+  `backup_pg.sh`, `restore_pg.sh`.
+- Documentation: deployment, staging platform guides, CRM overview (Bitrix24),
+  secret management, observability, migration/backup/incident runbooks.
+- ADR-0017; `.env.example` XY variables (SMTP, KMS, rate limit, CRM, staging URLs).
+- Worker env-driven production composition; optional feature capabilities;
+  production knowledge-search key; typed XY outbox errors; bounded media + async ClamAV;
+  retention claim/legal-hold pause; readiness matrix; real XY migration
+  upgrade→downgrade→upgrade tests.
+- No staging deployment and no live provider/KMS/SMTP/DeepSeek calls from local closure.
+- Live sandbox verification: **Z only**.
+
+Next block: **Z only** — compliance, security release gate, and paid production pilot.
 
 ## Rules
 

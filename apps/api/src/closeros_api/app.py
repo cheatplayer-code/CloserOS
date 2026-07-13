@@ -9,7 +9,6 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
 
 from closeros_api.ai_policy_router import router as ai_policy_router
 from closeros_api.analysis_router import router as analysis_router
@@ -18,13 +17,22 @@ from closeros_api.auth_schemas import ErrorResponse, sanitize_validation_errors
 from closeros_api.auth_security import apply_security_headers
 from closeros_api.composition import ApiRuntimeOverrides, build_api_runtime
 from closeros_api.conversations_router import router as conversations_router
+from closeros_api.crm_integrations_router import router as crm_integrations_router
 from closeros_api.csv_imports_router import router as csv_imports_router
 from closeros_api.dashboard_router import router as dashboard_router
 from closeros_api.knowledge_router import router as knowledge_router
 from closeros_api.managers_router import router as managers_router
 from closeros_api.metrics_router import router as metrics_router
+from closeros_api.observability_router import (
+    RuntimeReadinessProbe,
+    build_readiness_response,
+)
+from closeros_api.observability_router import (
+    router as observability_router,
+)
 from closeros_api.outbound_messages_router import router as outbound_messages_router
 from closeros_api.request_correlation import RequestCorrelationMiddleware
+from closeros_api.retention_router import router as retention_router
 from closeros_api.settings import ApiSettings
 from closeros_api.tasks_router import router as tasks_router
 from closeros_api.tenants_router import router as tenants_router
@@ -43,6 +51,10 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.auth = runtime
+        app.state.capabilities = runtime.capabilities
+        app.state.readiness_probe = runtime.readiness_probe or RuntimeReadinessProbe(
+            session_factory=runtime.session_factory,
+        )
         try:
             yield
         finally:
@@ -54,6 +66,10 @@ def create_app(
         lifespan=lifespan,
     )
     application.state.auth = runtime
+    application.state.capabilities = runtime.capabilities
+    application.state.readiness_probe = runtime.readiness_probe or RuntimeReadinessProbe(
+        session_factory=runtime.session_factory,
+    )
 
     application.add_middleware(
         CORSMiddleware,
@@ -102,21 +118,8 @@ def create_app(
 
     @application.get("/ready")
     async def ready() -> JSONResponse:
-        if runtime.session_factory is None:
-            response = JSONResponse(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                content={"status": "not_ready"},
-            )
-        else:
-            try:
-                async with runtime.session_factory() as session:
-                    await session.execute(text("SELECT 1"))
-                response = JSONResponse(content={"status": "ready"})
-            except Exception:
-                response = JSONResponse(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    content={"status": "not_ready"},
-                )
+        probe = application.state.readiness_probe
+        response = build_readiness_response(await probe.check())
         apply_security_headers(response)
         return response
 
@@ -134,20 +137,10 @@ def create_app(
     application.include_router(ai_policy_router, prefix="/api/v1")
     application.include_router(whatsapp_integrations_router, prefix="/api/v1")
     application.include_router(outbound_messages_router, prefix="/api/v1")
+    application.include_router(crm_integrations_router, prefix="/api/v1")
+    application.include_router(retention_router, prefix="/api/v1")
+    application.include_router(observability_router, prefix="/api/v1")
     return application
 
 
-def _build_default_app() -> FastAPI:
-    try:
-        return create_app()
-    except Exception:
-        fallback = FastAPI(title="CloserOS API", version="0.0.0")
-
-        @fallback.get("/health")
-        def health() -> dict[str, str]:
-            return {"status": "ok"}
-
-        return fallback
-
-
-app = _build_default_app()
+app = create_app()

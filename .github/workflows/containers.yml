@@ -1,0 +1,266 @@
+name: Containers
+
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: containers-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-scan:
+    name: build-and-scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            dockerfile: infra/docker/Dockerfile.api
+            image_tag: closeros-api:ci
+            build_arg_name: ""
+            build_arg_value: ""
+          - name: worker
+            dockerfile: infra/docker/Dockerfile.worker
+            image_tag: closeros-worker:ci
+            build_arg_name: ""
+            build_arg_value: ""
+          - name: web
+            dockerfile: infra/docker/Dockerfile.web
+            image_tag: closeros-web:ci
+            build_arg_name: NEXT_PUBLIC_API_BASE_URL
+            build_arg_value: https://api.staging.example.invalid
+
+    env:
+      MATRIX_NAME: ${{ matrix.name }}
+      DOCKERFILE: ${{ matrix.dockerfile }}
+      IMAGE_TAG: ${{ matrix.image_tag }}
+      BUILD_ARG_NAME: ${{ matrix.build_arg_name }}
+      BUILD_ARG_VALUE: ${{ matrix.build_arg_value }}
+      BUILDER_NAME: closeros-ci-builder-${{ matrix.name }}
+      SBOM_FILE: artifacts/sbom-${{ matrix.name }}.spdx.json
+      VULN_FILE: artifacts/vulnerability-${{ matrix.name }}.json
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Install pinned security tools
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          chmod +x scripts/ci/install_security_tools.sh
+          scripts/ci/install_security_tools.sh
+
+      - name: Create Buildx builder
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker version
+          docker buildx version
+          docker buildx create \
+            --name "$BUILDER_NAME" \
+            --driver docker-container \
+            --use
+          docker buildx inspect --bootstrap
+
+      - name: Build image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          build_args=()
+          if [[ -n "$BUILD_ARG_NAME" ]]; then
+            build_args+=(--build-arg "$BUILD_ARG_NAME=$BUILD_ARG_VALUE")
+          fi
+
+          docker buildx build \
+            --file "$DOCKERFILE" \
+            --tag "$IMAGE_TAG" \
+            --load \
+            --provenance=false \
+            --sbom=false \
+            --cache-from "type=gha,scope=$MATRIX_NAME" \
+            --cache-to "type=gha,mode=max,scope=$MATRIX_NAME" \
+            "${build_args[@]}" \
+            .
+
+      - name: Generate SPDX SBOM
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p artifacts
+          syft scan "docker:${IMAGE_TAG}" --output "spdx-json=${SBOM_FILE}"
+
+      - name: Validate SBOM
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -s "$SBOM_FILE"
+          python3 - "$SBOM_FILE" "$IMAGE_TAG" <<'PY'
+          import json
+          import sys
+
+          sbom_path, image_tag = sys.argv[1], sys.argv[2]
+          with open(sbom_path, encoding="utf-8") as handle:
+              document = json.load(handle)
+
+          if not document.get("packages"):
+              raise SystemExit(f"SBOM {sbom_path} contains no packages")
+
+          image_name = image_tag.split(":", 1)[0]
+          serialized = json.dumps(document)
+          if image_name not in serialized:
+              raise SystemExit(f"SBOM {sbom_path} does not reference image {image_name}")
+
+          print(f"SBOM {sbom_path} is valid and references {image_name}")
+          PY
+
+      - name: Validate reviewed Grype exceptions
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/ci/validate_grype_exceptions.py
+
+      - name: Scan image with Grype
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p artifacts
+          grype "docker:${IMAGE_TAG}" \
+            --config scripts/ci/grype-exceptions.yaml \
+            --only-fixed \
+            --fail-on high \
+            --output table \
+            --output "json=${VULN_FILE}"
+
+      - name: Upload container security artifacts
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: container-security-${{ matrix.name }}
+          path: |
+            ${{ env.SBOM_FILE }}
+            ${{ env.VULN_FILE }}
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Remove Buildx builder
+        if: always()
+        shell: bash
+        run: |
+          docker buildx rm "$BUILDER_NAME" || true
+
+  publish-on-tag:
+    name: publish-on-tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - build-and-scan
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: api
+            dockerfile: infra/docker/Dockerfile.api
+            image: ghcr.io/${{ github.repository }}/api
+            build_arg_name: ""
+            build_arg_value: ""
+          - name: worker
+            dockerfile: infra/docker/Dockerfile.worker
+            image: ghcr.io/${{ github.repository }}/worker
+            build_arg_name: ""
+            build_arg_value: ""
+          - name: web
+            dockerfile: infra/docker/Dockerfile.web
+            image: ghcr.io/${{ github.repository }}/web
+            build_arg_name: NEXT_PUBLIC_API_BASE_URL
+            build_arg_value: https://api.staging.example.invalid
+
+    env:
+      MATRIX_NAME: ${{ matrix.name }}
+      DOCKERFILE: ${{ matrix.dockerfile }}
+      IMAGE: ${{ matrix.image }}
+      BUILD_ARG_NAME: ${{ matrix.build_arg_name }}
+      BUILD_ARG_VALUE: ${{ matrix.build_arg_value }}
+      BUILDER_NAME: closeros-publish-builder-${{ matrix.name }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Validate git tag format
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Refusing to publish: '$GITHUB_REF_NAME' is not a valid vMAJOR.MINOR.PATCH tag" >&2
+            exit 1
+          fi
+
+      - name: Log in to GitHub Container Registry
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -Eeuo pipefail
+          printf '%s' "$GITHUB_TOKEN" |
+            docker login ghcr.io \
+              --username "$GITHUB_ACTOR" \
+              --password-stdin
+
+      - name: Create Buildx builder
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          docker buildx create \
+            --name "$BUILDER_NAME" \
+            --driver docker-container \
+            --use
+          docker buildx inspect --bootstrap
+
+      - name: Build and push immutable tags
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          build_args=()
+          if [[ -n "$BUILD_ARG_NAME" ]]; then
+            build_args+=(--build-arg "$BUILD_ARG_NAME=$BUILD_ARG_VALUE")
+          fi
+
+          docker buildx build \
+            --file "$DOCKERFILE" \
+            --tag "${IMAGE}:${GITHUB_REF_NAME}" \
+            --tag "${IMAGE}:${GITHUB_SHA}" \
+            --provenance=false \
+            --sbom=false \
+            --push \
+            "${build_args[@]}" \
+            .
+
+      - name: Remove Buildx builder
+        if: always()
+        shell: bash
+        run: |
+          docker buildx rm "$BUILDER_NAME" || true

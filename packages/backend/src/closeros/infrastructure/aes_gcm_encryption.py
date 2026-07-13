@@ -10,6 +10,7 @@ The adapter never places plaintext, ciphertext, wrapped keys, or nonces in its
 from __future__ import annotations
 
 from datetime import datetime
+from typing import BinaryIO
 from uuid import UUID
 
 from closeros.application.encryption_ports import KeyProvider, SecureRandom
@@ -124,6 +125,46 @@ class AesGcmContentCryptography:
             plaintext_byte_length=len(validated_plaintext),
             created_at=created_at,
             expires_at=expires_at,
+        )
+
+    def encrypt_plaintext_stream(
+        self,
+        *,
+        content_id: UUID,
+        tenant_id: UUID,
+        kind: EncryptedContentKind,
+        encoding: ContentEncoding,
+        stream: BinaryIO,
+        plaintext_byte_length: int,
+        max_plaintext_bytes: int,
+        created_at: datetime,
+        expires_at: datetime,
+        aad_version: int = CONTENT_AAD_VERSION,
+    ) -> EncryptedContent:
+        if plaintext_byte_length < 0 or plaintext_byte_length > max_plaintext_bytes:
+            raise ValueError("plaintext_byte_length exceeds configured maximum")
+        chunks: list[bytes] = []
+        total = 0
+        while True:
+            part = stream.read(64 * 1024)
+            if not part:
+                break
+            total += len(part)
+            if total > max_plaintext_bytes:
+                raise ValueError("stream exceeds configured maximum")
+            chunks.append(part)
+        if total != plaintext_byte_length:
+            raise ValueError("stream byte length does not match declared size")
+        plaintext = b"".join(chunks)
+        return self.encrypt_plaintext(
+            content_id=content_id,
+            tenant_id=tenant_id,
+            kind=kind,
+            encoding=encoding,
+            plaintext=plaintext,
+            created_at=created_at,
+            expires_at=expires_at,
+            aad_version=aad_version,
         )
 
     def decrypt_content(self, *, encrypted: EncryptedContent) -> DecryptedContent:

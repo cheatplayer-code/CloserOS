@@ -1,0 +1,15 @@
+{
+  "id": "11111111-1111-4111-8111-111111111111",
+  "provider": "bitrix24",
+  "portal_domain": "example.bitrix24.kz",
+  "client_id_ref": "BITRIX24_CLIENT_ID",
+  "client_secret_ref": "BITRIX24_CLIENT_SECRET",
+  "access_token_ref": "BITRIX24_ACCESS_TOKEN",
+  "refresh_token_ref": "BITRIX24_REFRESH_TOKEN",
+  "status": "draft",
+  "created_at": "2026-07-12T00:00:00Z",
+  "updated_at": "2026-07-12T00:00:00Z",
+  "last_verified_at": null,
+  "last_successful_sync_at": null,
+  "version": 1
+}

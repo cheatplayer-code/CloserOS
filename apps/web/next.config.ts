@@ -1,6 +1,13 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 
+const appsWebDirectory = path.dirname(fileURLToPath(import.meta.url));
+const repositoryRoot = path.join(appsWebDirectory, "../..");
+
 const nextConfig: NextConfig = {
+  output: "standalone",
+  outputFileTracingRoot: repositoryRoot,
   transpilePackages: ["@closeros/ui"],
   async headers() {
     return [

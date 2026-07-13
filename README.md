@@ -22,7 +22,7 @@ The repository pins:
 
 - Node.js `24.14.1` LTS in `.node-version`;
 - pnpm `11.11.0` through Corepack in `package.json`;
-- Python `3.12.13` in `.python-version`;
+- Python `3.13.14` in `.python-version`;
 - uv `0.11.28` through `tool.uv.required-version` in `pyproject.toml`.
 - Docker Engine `24.0+` and Docker Compose v2 `2.24+` for CLS-002.
 

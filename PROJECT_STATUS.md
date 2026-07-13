@@ -2,53 +2,134 @@
 
 ## Current phase
 
-`P0 вЂ” Repository foundation`
+**Block XY — implemented locally** (branch `feat/xy-production-operations`;
+**not** production-ready)
 
-## Completed tasks
+| Status | Detail |
+|--------|--------|
+| Implemented locally | XY final closure + CI supply-chain repair + container vulnerability remediation (Python 3.13.14, digest-pinned bases, Next.js standalone runtime, reviewed Grype VEX for CVE-2026-15308) |
+| Verified locally | `corepack pnpm run quality` on Python **3.13.14** — **1538** Python tests passed, **104** TS tests passed (1 skipped), mypy clean, Next.js standalone build OK |
+| Remote PR CI | **Pending** — not claimed green; no staging deployment from this laptop |
+| Live providers | **None** — no Docker executed; no live Meta, Bitrix24, DeepSeek, SMTP, KMS, Supabase, Railway, or Vercel calls |
+| Requires live staging (Z) | Meta WhatsApp sandbox, Bitrix24 sandbox, production KMS vendor, SMTP provider, Kazakhstan hosting, legal/compliance sign-off |
 
-- `CLS-001 вЂ” Initialize monorepo` (2026-07-10)
-- `CLS-002 вЂ” Local development environment` (2026-07-10)
+## Completed implementation blocks
 
-## Tasks implemented locally; remote verification pending
+| Block | Scope | Status |
+|-------|-------|--------|
+| **FG** | Persistence, tenancy, canonical contracts | Implemented locally |
+| **HI** | Encrypted content, transactional outbox | Implemented locally |
+| **JK** | Ingestion pipeline, CSV import, Redis queue | Implemented locally |
+| **LM** | PII redaction, deterministic metrics | Implemented locally |
+| **NOPQ** | AI gateway, knowledge base, analysis | Implemented locally |
+| **RSTU** | Dashboard, conversations, scorecards, tasks | Implemented locally |
+| **VW** | WhatsApp Cloud provider | Implemented locally |
+| **XY** | CRM, staging ops, production hardening | **Implemented locally; local quality passed; remote CI + Z verification pending** |
 
-- `CLS-003 вЂ” CI quality gate` (2026-07-10)
+## Remaining block
+
+**Z only** — live provider sandbox sign-off, production KMS vendor selection,
+staging/production deployment (Supabase/Railway/Vercel), backup/restore drill,
+security release gate, legal/compliance approval, design-partner pilot, go/no-go.
+
+XY application code (notifications, KMS adapter, media scanning, Redis limiter,
+retention execution, CRM sync, worker operations) is **not** deferred to Z.
+No production readiness claim.
+
+## Current capabilities
+
+- Multi-tenant modular monolith: FastAPI API, background worker, Next.js workspace.
+- PostgreSQL source of truth with Alembic migrations; Redis Streams for outbox delivery.
+- Envelope encryption, audit log, self-hosted authentication, product workspace UI.
+- Bitrix24 provisional CRM adapter with contact/deal CRUD, SSRF-safe portal validation,
+  inbound/outbound sync checkpoints, conflict surfacing, and HTTP integration tests
+  (fabricated CI tests; live sandbox **not** completed).
+- Remote CI container builds (`infra/docker/Dockerfile.*`) via direct `docker buildx` CLI;
+  SPDX SBOM (pinned Syft) and Grype vulnerability scan with committed checksum verification.
+- Staging reference architecture: Vercel (web), Railway (API/worker/Redis),
+  Supabase (PostgreSQL only).
+- Operations scripts (`scripts/ops/`) and runbooks under `docs/`.
+- ADR-0017 production operations and staging architecture.
+
+## What XY final closure added (2026-07-13)
+
+- Worker production composition from validated environment when `overrides is None`
+  (`build_production_shared_runtime` + optional feature gates); `python -m closeros_worker processor`
+  uses this path with entrypoint proof test.
+- Optional WhatsApp/CRM/notifications/media scanning/external AI via
+  `ProductionFeatureCapabilities` — disabled features do not fake success;
+  incomplete enabled features fail closed at startup.
+- `EnvKnowledgeSearchKeyProvider` for production knowledge index/retrieval
+  (no `DevKnowledgeSearchKeyProvider` on production worker paths).
+- Typed outbox classification for all XY handler errors including optional-feature disabled.
+- Stream-owned `FetchedMediaArtifact` with bounded `encrypt_and_persist_stream`; ClamAV INSTREAM via `asyncio.to_thread`.
+- Notification payload composite FK `ON DELETE SET NULL` with paired nullable columns + CHECK;
+  successful delivery deletes encrypted payload in one transaction without FK errors.
+- Retention purge claim renewal during long batches, `pg_advisory_xact_lock` tenant serialization
+  for legal-hold mutations and destructive deletes, PostgreSQL concurrency proof tests.
+- SMTP adapter injectable transport tests; readiness matrix reports disabled optional deps as
+  disabled (not failed); authorized diagnostics only.
+- Real XY migration tests: parent-delete nulls both payload columns, half-null CHECK rejection,
+  upgrade `c4e8a2b6d1f0`, FK/SET NULL/history, downgrade `b3d7f1a4c8e6`, re-upgrade.
+- Production DB URL factories compose credentials at runtime (no complete credentialed URI literals in XY branch diff).
+
+## What XY CI supply-chain repair added (2026-07-13)
+
+- Removed broken/hallucinated GitHub Action pins (`upload-artifact`, Docker Action wrappers,
+  `anchore/sbom-action`, `aquasecurity/trivy-action`); retained actions verified via
+  `git ls-remote` and recorded in `.github/action-pins.json`.
+- `scripts/ci/validate_action_pins.py` offline validator + 17 pytest workflow policy tests.
+- `scripts/ci/security-tools.lock` + `install_security_tools.sh` for checksum-verified Syft/Grype.
+- `quality.yml` composes `TEST_DATABASE_URL` at runtime from separate env components.
+- PR branch history squash planned to remove credentialed URI literals from commit range
+  (root cause: commits `5767622`, `6eb16de`, `bd37804`, initial `quality.yml` workflow URL).
+
+## Not complete (Z-only live verification)
+
+- Live Meta WhatsApp sandbox verification.
+- Bitrix24 live sandbox verification.
+- Production KMS vendor live verification and key rotation drill.
+- Production SMTP provider activation.
+- Production Kazakhstan hosting sign-off.
+- Autonomous outbound messaging.
+- Remote GitHub PR CI green claim.
+- Staging/production deployment.
 
 ## Last updated
 
-2026-07-12
+2026-07-13 (Block XY final local closure — quality passed; remote CI pending)
 
-## What exists
+## Open decisions requiring owner input
 
-- Product specification
-- Architecture specification
-- Domain model
-- Security and compliance requirements
-- Messaging and CRM integration strategy
-- AI system specification
-- Production roadmap
-- Cursor project rules
-- Accepted architecture decision records under `docs/adr/`
-- Git repository and reproducible pnpm/uv workspaces
-- Executable Next.js, FastAPI, and no-op worker scaffolds
-- Shared Python backend boundaries under `packages/backend`
-- Shared TypeScript UI package and versioned canonical contracts (`@closeros/contracts` v1)
-- Root formatting, linting, type-checking, test, build, and development commands
-- Python and TypeScript scaffold tests
-- Local-only PostgreSQL and Redis Docker Compose environment
-- Effective Compose configuration validation and live authenticated health checks
-- Isolated clean-checkout verification with project-scoped cleanup
-- GitHub Actions quality, secret-scanning, and dependency-review workflows
-- Focused CI operations and branch-protection documentation
+1. First vertical market.
+2. Hosting provider in Kazakhstan (production).
+3. Production KMS vendor and legal data-processing model.
+4. Pilot price, scope, and design-partner contract.
 
-## What does not exist yet
+## Active risks
 
-- Product feature or business-domain code
-- Database schema
-- Remotely verified CI execution and branch-protection enforcement
-- Deployment environment
-- Executed legal review
-- Provider test applications
-- Paid design partner
+- Live provider and CRM sandbox timelines are outside engineering control.
+- Staging PaaS regions may differ from production jurisdiction until Block Z.
+- Sanitized text remains potentially pseudonymized personal data.
+- Remote CI container and staging deploy verification pending on GitHub/Railway/Vercel.
+
+---
+
+## Archive — historical verification and foundation tasks
+
+The sections below record earlier block-by-block verification. They are retained
+for audit trail only and do not reflect the current phase statement above.
+
+### Foundation snapshot (superseded)
+
+- Product specification, architecture, domain model, security requirements, ADRs.
+- Git repository, pnpm/uv workspaces, local PostgreSQL/Redis Compose (CLS-002).
+- GitHub Actions quality and security workflows (CLS-003).
+
+### Former "repository foundation only" note (retracted)
+
+Earlier revisions stated the repository contained no product feature code. That
+claim is **obsolete** after blocks FG–XY. Use the block table above as truth.
 
 ## Current decisions
 
@@ -1194,6 +1275,63 @@ Not implemented in Block VW:
 - CRM integration (XY).
 
 Next block: **XY** вЂ” first CRM integration + production hardening.
+
+## Block XY вЂ” production operations and staging architecture
+
+Status: **Implemented locally; PR verification pending.**
+
+Branch: `feat/xy-production-operations`
+
+Implemented:
+
+- Multi-stage Dockerfiles: `infra/docker/Dockerfile.api`, `Dockerfile.worker`, `Dockerfile.web`.
+- Root `.dockerignore`; `infra/docker/docker-compose.staging.yml.example` (reference only).
+- Railway config: `infra/railway/railway.api.toml`, `railway.worker.toml`, `railway.redis.toml`.
+- Vercel config: `infra/vercel/vercel.json`; Supabase README: `infra/supabase/README.md`.
+- CI: `.github/workflows/containers.yml` (build, Trivy, SBOM); `quality.yml` redis-integration job.
+- Ops scripts: `scripts/ops/migrate_status.py`, `migrate_upgrade.py`, `backup_pg.sh`, `restore_pg.sh`.
+- Documentation: `docs/DEPLOYMENT.md`, staging guides, CRM/secret/ops runbooks, `ENVIRONMENT_VARIABLES.md`.
+- ADR-0017; `.env.example` XY variables.
+- CRM subsystem slice: domain models, application ports/services, Bitrix24 provisional HTTP adapter,
+  environment credential resolver, SQLAlchemy ORM/repositories, outbox handler for `crm.sync`,
+  CRM integration API router/schemas, contracts, web settings page, and migration
+  `c4e8a2b6d1f0` chained from `b3d7f1a4c8e6`.
+- Production operations backend slice:
+  - Redis distributed rate limiter (`RedisDistributedRateLimiter`) for auth + webhook
+    scopes with HMAC-derived keys (`closeros:rl:`), fail-closed sensitive scopes,
+    and documented diagnostics fail-open.
+  - Redis webhook rate limiter (`RedisWebhookRateLimiter`) with hashed keys and fail-closed scopes.
+  - Notification domain/outbox delivery (`notification.deliver` handler, SMTP/capture adapters,
+    auth workflow outbox publisher bridge).
+  - Secret/KMS ports (`SecretResolver`, `EnvSecretResolver`, `RemoteKmsKeyProvider`, `KmsRewrapService`,
+    production `StaticKeyProvider` rejection).
+  - Media fetch/scan ports and handlers (`media.fetch`, `media.scan`, WhatsApp fetch adapter with
+    URL allowlist and streaming size cap, encrypted `provider_media_binary` storage, ClamAV chunked
+    INSTREAM scanner, extended media lifecycle statuses).
+  - Retention/legal hold domain, services, handlers, and `retention_router.py` (OWNER/COMPLIANCE_ADMIN).
+  - Observability (`structured_logging.py`, `observability_router.py` with safe metrics collector).
+  - Migration `c4e8a2b6d1f0` tables: `notification_deliveries`, `notification_delivery_attempts`,
+    `legal_holds`, `retention_purge_runs`, `retention_purge_batches`, and CRM tables
+    (`crm_connections`, `crm_field_mappings`, `crm_sync_checkpoints`, `crm_sync_attempts`,
+    `crm_conflicts`).
+  - Runtime wiring: `composition.py`, `app.py` (CRM, retention, observability routers),
+    worker runtime (`XY_SUPPORTED_JOB_KINDS`, notification/media/retention/CRM handlers).
+  - Tests: `test_redis_rate_limiter.py`, `test_worker_operations.py`, `test_notification_delivery.py`, `test_kms_key_provider.py`,
+    `test_media_fetch_scan.py`, `test_retention_purge.py`, `test_observability.py`,
+    `test_xy_migrations.py`, `test_crm_*`, `test_bitrix24_adapter.py`.
+- Bitrix24 documentation review date: **2026-07-12**; sandbox verification: **NOT completed**.
+
+Verification (2026-07-13):
+
+- full `corepack pnpm run quality`: **passed** (1389 pytest, 104 Vitest, Ruff, mypy, Next.js build).
+
+Not implemented in Block XY:
+
+- Bitrix24 sandbox verification;
+- Remote staging deploy verification on Railway/Vercel/Supabase;
+- Block Z release gate and paid production pilot.
+
+Next block: **Z only** вЂ” compliance, security release gate, and paid production pilot.
 
 ## NOPQ knowledge application/infrastructure layer (superseded section)
 

@@ -24,6 +24,8 @@ export const WHATSAPP_PROVIDER_SCHEMA_FILES = [
   "provider-template.json",
 ] as const;
 
+export const CRM_INTEGRATION_SCHEMA_FILES = ["crm-connection.json"] as const;
+
 export type V1SchemaFile = (typeof V1_SCHEMA_FILES)[number];
 
 export const V1_SCHEMA_BASE_PATH = "schemas/v1";

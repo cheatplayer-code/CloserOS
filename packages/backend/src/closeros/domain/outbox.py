@@ -39,6 +39,9 @@ class OutboxJobKind(StrEnum):
     METRICS_RECALCULATE = "metrics.recalculate"
     PROVIDER_MESSAGE_SEND = "provider.message.send"
     PROVIDER_TEMPLATES_SYNC = "provider.templates.sync"
+    MEDIA_FETCH = "media.fetch"
+    MEDIA_SCAN = "media.scan"
+    CRM_SYNC = "crm.sync"
 
 
 class OutboxJobState(StrEnum):
@@ -105,7 +108,7 @@ _ALLOWED_TRANSITIONS: dict[OutboxJobState, frozenset[OutboxJobState]] = {
         {OutboxJobState.PUBLISHING, OutboxJobState.CANCELLED}
     ),
     OutboxJobState.SUCCEEDED: frozenset(),
-    OutboxJobState.DEAD_LETTER: frozenset(),
+    OutboxJobState.DEAD_LETTER: frozenset({OutboxJobState.PENDING}),
     OutboxJobState.CANCELLED: frozenset(),
 }
 
@@ -650,6 +653,46 @@ def recover_expired_processor_claim(job: OutboxJob, *, now: datetime) -> OutboxJ
     )
 
 
+def renew_processor_claim(
+    job: OutboxJob,
+    *,
+    claim_token: UUID,
+    now: datetime,
+    expected_version: int,
+) -> OutboxJob:
+    _assert_expected_version(job, expected_version)
+    if job.state is not OutboxJobState.PROCESSING:
+        raise OutboxTransitionError("job is not in processing state")
+    _assert_claim_token(job, claim_token)
+    _assert_claim_not_expired(job, now=now)
+    return replace(
+        job,
+        claim_expires_at=now + timedelta(seconds=PROCESSOR_LEASE_SECONDS),
+        version=job.version + 1,
+    )
+
+
+def requeue_dead_letter(job: OutboxJob, *, now: datetime) -> OutboxJob:
+    if job.state is not OutboxJobState.DEAD_LETTER:
+        raise OutboxTransitionError("job is not in dead letter state")
+    _assert_transition(job.state, OutboxJobState.PENDING)
+    return replace(
+        job,
+        state=OutboxJobState.PENDING,
+        attempt_count=0,
+        available_at=now,
+        completed_at=None,
+        published_at=None,
+        processing_started_at=None,
+        claim_token=None,
+        claimed_by=None,
+        claimed_at=None,
+        claim_expires_at=None,
+        last_error_code=None,
+        version=job.version + 1,
+    )
+
+
 __all__ = [
     "PUBLISHER_LEASE_SECONDS",
     "PROCESSOR_LEASE_SECONDS",
@@ -677,5 +720,7 @@ __all__ = [
     "mark_succeeded",
     "recover_expired_processor_claim",
     "recover_expired_publisher_claim",
+    "requeue_dead_letter",
+    "renew_processor_claim",
     "schedule_retry",
 ]

@@ -1,0 +1,20 @@
+# Reviewed Grype exceptions for container vulnerability scanning.
+#
+# Every entry must be exact (no wildcards), documented, and unexpired.
+# Extended metadata is validated offline by scripts/ci/validate_grype_exceptions.py
+# before CI invokes Grype with this config.
+
+ignore:
+  - vulnerability: CVE-2026-15308
+    package:
+      name: python
+      version: 3.13.14
+    reason: >-
+      Reachability assessment (2026-07-13): CloserOS API and worker images do not
+      execute html.parser.HTMLParser on externally controlled HTML. Repository
+      search found no html.parser, HTMLParser, BeautifulSoup, or equivalent HTML
+      parsing imports in application code; message ingestion uses structured JSON
+      and plain-text redaction paths. The only published fix is in Python 3.15
+      pre-release, which is out of scope for production. See
+      tests/test_container_cve_reachability.py.
+    expires-on: "2026-08-12"

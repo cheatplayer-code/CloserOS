@@ -10,6 +10,9 @@ from closeros.application.authentication_issuance import (
     issue_authentication_one_time_token,
     issue_pending_mfa_session,
 )
+from closeros.application.authentication_notification_delivery import (
+    AuthenticationNotificationDelivery,
+)
 from closeros.application.authentication_persistence import (
     AuthenticationPersistenceError,
     AuthenticationRecordNotFoundError,
@@ -30,7 +33,6 @@ from closeros.application.authentication_workflows import (
     AUTHENTICATION_UNAVAILABLE_MESSAGE,
     REGISTRATION_UNAVAILABLE_MESSAGE,
     AuthenticationFailedError,
-    AuthenticationNotificationDelivery,
     AuthenticationRequestAccepted,
     AuthenticationWorkflowService,
     AuthenticationWorkflowUnavailableError,

@@ -33,6 +33,8 @@ from closeros.domain.outbox import (
     mark_succeeded,
     recover_expired_processor_claim,
     recover_expired_publisher_claim,
+    renew_processor_claim,
+    requeue_dead_letter,
     schedule_retry,
 )
 from closeros.infrastructure import outbox_mappers as mappers
@@ -393,6 +395,44 @@ class SqlAlchemyOutboxJobRepository:
         ).limit(query_filter.limit)
         rows = (await self._session.execute(statement)).scalars().all()
         return tuple(mappers.outbox_job_to_domain(row) for row in rows)
+
+    async def renew_processor_claim(
+        self,
+        *,
+        job_id: UUID,
+        claim_token: UUID,
+        now: datetime,
+        expected_version: int,
+    ) -> OutboxJob:
+        row = await _get_job_row_required(self._session, job_id=job_id)
+        current = mappers.outbox_job_to_domain(row)
+        try:
+            updated = renew_processor_claim(
+                current,
+                claim_token=claim_token,
+                now=now,
+                expected_version=expected_version,
+            )
+        except OutboxClaimError as error:
+            raise _map_domain_claim_error(error) from error
+        except OutboxTransitionError as error:
+            raise _map_domain_transition_error(error) from error
+        if row.version != expected_version:
+            raise OutboxStaleVersionError("outbox job version mismatch")
+        mappers.update_outbox_job_row(row, updated)
+        await _flush(self._session)
+        return updated
+
+    async def requeue_dead_letter(self, *, job_id: UUID, now: datetime) -> OutboxJob:
+        row = await _get_job_row_required(self._session, job_id=job_id)
+        current = mappers.outbox_job_to_domain(row)
+        try:
+            updated = requeue_dead_letter(current, now=now)
+        except OutboxTransitionError as error:
+            raise _map_domain_transition_error(error) from error
+        mappers.update_outbox_job_row(row, updated)
+        await _flush(self._session)
+        return updated
 
 
 class SqlAlchemyOutboxJobAttemptRepository:

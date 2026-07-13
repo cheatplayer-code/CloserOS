@@ -105,6 +105,20 @@ class WhatsAppCredentialResolver(Protocol):
 
 
 class WebhookRateLimiter(Protocol):
+    """Fixed-window webhook rate limiter.
+
+    Returns ``True`` when the request is allowed and ``False`` when denied.
+
+    Fail-closed scopes (implementations must deny on uncertainty):
+    - ``webhook:{provider_kind}`` — global per-provider webhook acceptance;
+    - Redis-backed production adapters when Redis is unavailable or errors;
+    - any scope where limiter state cannot be evaluated atomically.
+
+    Development and tests may use ``InMemoryWebhookRateLimiter`` in
+    ``closeros.infrastructure.in_memory_webhook_rate_limiter``.
+    Production must inject ``RedisWebhookRateLimiter`` or an equivalent adapter.
+    """
+
     async def check_webhook(
         self,
         *,

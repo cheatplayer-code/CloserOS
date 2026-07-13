@@ -1,0 +1,50 @@
+# Git and editor metadata
+.git
+.gitignore
+.cursor
+.vscode
+*.swp
+*.swo
+
+# Dependencies and build outputs (rebuilt inside images)
+node_modules
+**/node_modules
+.pnpm-store
+.venv
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+apps/web/.next
+apps/web/out
+dist
+build
+coverage
+htmlcov
+
+# Local secrets and runtime data
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Documentation and non-runtime assets
+docs/
+*.md
+!apps/web/README.md
+
+# Tests (not required in production images)
+tests/
+
+# Local Docker infrastructure (CI builds use dedicated Dockerfiles)
+infra/docker/compose.yaml
+infra/docker/*.mjs
+infra/docker/docker-compose.staging.yml.example
+
+# CI and ops helpers (not baked into images)
+.github/
+scripts/ops/

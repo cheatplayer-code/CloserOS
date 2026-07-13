@@ -13,6 +13,10 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+
+from tests.database_url_support import placeholder_database_url
+
+os.environ.setdefault("DATABASE_URL", placeholder_database_url())
 import uuid
 from collections.abc import Iterator
 from typing import Any
@@ -69,6 +73,10 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "vw_persistence: PostgreSQL WhatsApp Cloud provider integration tests",
     )
+    config.addinivalue_line(
+        "markers",
+        "crm_persistence: PostgreSQL CRM integration tests",
+    )
 
 
 _PLATFORM_TRUNCATE_TABLES = (
@@ -108,6 +116,17 @@ _PLATFORM_TRUNCATE_TABLES = (
     "provider_media_references",
     "outbound_messages",
     "outbound_delivery_attempts",
+    "crm_conflicts",
+    "crm_sync_attempts",
+    "crm_sync_checkpoints",
+    "crm_field_mappings",
+    "crm_connections",
+    "notification_delivery_attempts",
+    "notification_deliveries",
+    "user_mfa_totp_enrollments",
+    "retention_purge_batches",
+    "retention_purge_runs",
+    "legal_holds",
     "invitation_roles",
     "invitations",
     "membership_roles",
@@ -311,6 +330,7 @@ def _requires_persistence_reset(request: pytest.FixtureRequest) -> bool:
         or request.node.get_closest_marker("nopq_persistence") is not None
         or request.node.get_closest_marker("rstu_persistence") is not None
         or request.node.get_closest_marker("vw_persistence") is not None
+        or request.node.get_closest_marker("crm_persistence") is not None
     )
 
 
