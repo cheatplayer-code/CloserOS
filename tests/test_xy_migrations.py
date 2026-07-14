@@ -132,7 +132,7 @@ def _insert_encrypted_content(
 def test_xy_migration_revision_is_head() -> None:
     config = build_alembic_config(_synthetic_script_url())
     script = ScriptDirectory.from_config(config)
-    assert script.get_current_head() == XY_REVISION
+    assert script.get_current_head() == "c3e5a7b9d1f0"
 
 
 def test_xy_migration_upgrade_creates_tables() -> None:

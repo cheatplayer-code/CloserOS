@@ -260,6 +260,167 @@ def test_synthetic_seed_populates_product_queries(integrated_uow_factory: Any) -
             actor_id=OWNER_USER_ID,
         )
         assert scorecard is not None
-        assert scorecard.manager_user_id is not None
+        assert scorecard.manager_user_id == manager_membership.user_id
+        assert scorecard.manager_user_id != manager_membership.id
+        assert scorecard.composite_basis_points >= 0
+        assert (
+            scorecard.components.response_rate_basis_points > 0
+            or scorecard.components.conversion_rate_basis_points > 0
+            or scorecard.components.task_completion_basis_points > 0
+        )
+
+    asyncio.run(exercise())
+
+
+def test_synthetic_seed_reset_preserves_real_message_and_task(
+    integrated_uow_factory: Any,
+) -> None:
+    async def exercise() -> None:
+        from closeros.application.audit_recording import AuditContext
+        from closeros.application.follow_up_task_persistence import FollowUpTaskRecord
+        from closeros.application.synthetic_demo_reset import SyntheticDemoResetError
+        from closeros.domain.adapter_metadata import AdapterMetadata
+        from closeros.domain.audit import AuditActorType
+        from closeros.domain.canonical_enums import (
+            ChannelConnectionStatus,
+            MessageDirection,
+            ParticipantSenderType,
+            ProviderKind,
+        )
+        from closeros.domain.channel_connection import ChannelConnection
+        from closeros.domain.conversation_thread import ConversationThread
+        from closeros.domain.follow_up_task import FollowUpTaskPriority, FollowUpTaskStatus
+
+        tenant_id = await _bootstrap_demo_tenant(integrated_uow_factory)
+        service = _seed_service(integrated_uow_factory)
+        await service.seed_demo(tenant_id=tenant_id)
+
+        seed_now = synthetic_credential().created_at
+        real_message_id = uuid4()
+        real_content_id = uuid4()
+        real_task_id = uuid4()
+        real_connection_id = uuid4()
+        real_thread_id = uuid4()
+
+        uow = integrated_uow_factory()
+        async with uow:
+            memberships = await uow.memberships.list_for_tenant(tenant_id)
+            owner_membership = next(
+                membership for membership in memberships if Role.OWNER in membership.roles
+            )
+            await uow.channel_connections.add(
+                ChannelConnection(
+                    id=real_connection_id,
+                    tenant_id=tenant_id,
+                    provider=ProviderKind.SYNTHETIC,
+                    external_connection_id=f"real-connection-{tenant_id}",
+                    status=ChannelConnectionStatus.ACTIVE,
+                    adapter_metadata=AdapterMetadata.from_mapping({"source": "real"}),
+                    created_at=seed_now,
+                    updated_at=seed_now,
+                )
+            )
+            await uow.conversation_threads.add(
+                ConversationThread(
+                    id=real_thread_id,
+                    tenant_id=tenant_id,
+                    channel_connection_id=real_connection_id,
+                    external_conversation_id="real-thread",
+                    sales_case_id=None,
+                    lifecycle_status=None,
+                    adapter_metadata=AdapterMetadata.from_mapping({"source": "real"}),
+                    created_at=seed_now,
+                    updated_at=seed_now,
+                )
+            )
+            await uow.follow_up_tasks.add(
+                record=FollowUpTaskRecord(
+                    id=real_task_id,
+                    tenant_id=tenant_id,
+                    conversation_thread_id=real_thread_id,
+                    source_finding_id=None,
+                    title="Real follow-up task",
+                    status=FollowUpTaskStatus.OPEN,
+                    priority=FollowUpTaskPriority.NORMAL,
+                    assigned_membership_id=owner_membership.id,
+                    created_by_user_id=OWNER_USER_ID,
+                    due_at=None,
+                    completed_at=None,
+                    cancelled_at=None,
+                    created_at=seed_now,
+                    updated_at=seed_now,
+                    version=1,
+                )
+            )
+            await uow.commit()
+
+        content_encryption = build_content_encryption_service(integrated_uow_factory)
+        atomic = AtomicContentCommandService(
+            uow_factory=integrated_uow_factory,
+            content_encryption=content_encryption,
+        )
+        await atomic.store_raw_message(
+            tenant_id=tenant_id,
+            content_id=real_content_id,
+            message_id=real_message_id,
+            outbox_job_id=uuid4(),
+            audit_event_id=uuid4(),
+            conversation_thread_id=real_thread_id,
+            external_message_id=f"real-msg-{real_message_id}",
+            sender_type=ParticipantSenderType.CUSTOMER,
+            direction=MessageDirection.INBOUND,
+            sent_at=seed_now,
+            received_at=seed_now,
+            reply_to_message_id=None,
+            adapter_metadata=AdapterMetadata.from_mapping({"source": "real"}),
+            plaintext=b"real customer message body",
+            created_at=seed_now,
+            occurred_at=seed_now,
+            audit_context=AuditContext(correlation_id=uuid4()),
+            actor_type=AuditActorType.USER,
+            actor_id=OWNER_USER_ID,
+        )
+
+        await service.reset_demo(tenant_id=tenant_id, dry_run=False)
+
+        uow = integrated_uow_factory()
+        async with uow:
+            assert (
+                await uow.messages.get_by_id(tenant_id=tenant_id, message_id=real_message_id)
+                is not None
+            )
+            assert (
+                await uow.follow_up_tasks.get_by_id(tenant_id=tenant_id, task_id=real_task_id)
+                is not None
+            )
+            assert (
+                await uow.conversation_threads.get_by_id(
+                    tenant_id=tenant_id,
+                    thread_id=demo_uuid(tenant_id, "thread-0"),
+                )
+                is None
+            )
+
+        with pytest.raises(SyntheticDemoResetError):
+            await service.reset_demo(tenant_id=tenant_id, dry_run=False)
+
+    asyncio.run(exercise())
+
+
+def test_synthetic_reset_dry_run_does_not_delete(integrated_uow_factory: Any) -> None:
+    async def exercise() -> None:
+        tenant_id = await _bootstrap_demo_tenant(integrated_uow_factory)
+        service = _seed_service(integrated_uow_factory)
+        await service.seed_demo(tenant_id=tenant_id)
+        plan = await service.reset_demo(tenant_id=tenant_id, dry_run=True)
+        assert plan is not None
+        assert getattr(plan, "total_resources", 0) > 0
+        uow = integrated_uow_factory()
+        async with uow:
+            thread = await uow.conversation_threads.get_by_id(
+                tenant_id=tenant_id,
+                thread_id=demo_uuid(tenant_id, "thread-0"),
+            )
+        assert thread is not None
 
     asyncio.run(exercise())

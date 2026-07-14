@@ -31,9 +31,14 @@ Supporting encryption storage:
 
 ## Indexing details
 
-- Deterministic text chunking with overlap.
-- Stop-word filtering (English + Russian baseline set).
-- HMAC-SHA256 term digests with tenant search key.
+- Deterministic Unicode tokenization (NFKC + casefold).
+- Tokens include Unicode letters and decimal digits (RU/KZ/EN).
+- Stop-word filtering for English, Russian, and Kazakh after normalization.
+- HMAC-SHA256 term digests over `TERM_INDEX_VERSION:token` with tenant search key.
+- Explicit index version `v1-unicode-term-v1` (and search key version
+  `v1-unicode-search-v1`). Do not mix digests from prior ASCII-only indexes.
+- Reindex strategy: re-approve or enqueue `knowledge.index` for each active
+  document version after upgrading; old digests will not match new queries.
 - Weighted terms in basis points.
 - Indexed chunks are revocable per version.
 

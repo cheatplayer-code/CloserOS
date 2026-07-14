@@ -416,7 +416,6 @@ def test_failed_claim_renewal_stops_before_next_delete(integrated_uow_factory: A
             tenant_id=TENANT_A_ID,
             purge_run_id=purge_run_id,
             claim_token=claim_token,
-            occurred_at=NOW,
         )
         assert claimed is not None
 
@@ -434,7 +433,6 @@ def test_failed_claim_renewal_stops_before_next_delete(integrated_uow_factory: A
                 tenant_id=TENANT_A_ID,
                 purge_run_id=purge_run_id,
                 content=content,
-                occurred_at=NOW + timedelta(seconds=index),
                 items_scanned=index,
                 items_deleted=index,
             )
@@ -455,7 +453,6 @@ def test_failed_claim_renewal_stops_before_next_delete(integrated_uow_factory: A
             await handler._maybe_renew_claim(
                 claimed=claimed,
                 claim_token=claim_token,
-                occurred_at=NOW + timedelta(minutes=4),
                 deletions_since_renewal=10,
             )
         assert raised.value.error_code is OutboxErrorCode.STALE_CLAIM

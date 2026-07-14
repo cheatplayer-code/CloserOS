@@ -31,6 +31,8 @@ from closeros_api.observability_router import (
     router as observability_router,
 )
 from closeros_api.outbound_messages_router import router as outbound_messages_router
+from closeros_api.product_catalog_router import router as product_catalog_router
+from closeros_api.reply_suggestion_router import router as reply_suggestion_router
 from closeros_api.request_correlation import RequestCorrelationMiddleware
 from closeros_api.retention_router import router as retention_router
 from closeros_api.settings import ApiSettings
@@ -133,6 +135,8 @@ def create_app(
     application.include_router(managers_router, prefix="/api/v1")
     application.include_router(tasks_router, prefix="/api/v1")
     application.include_router(knowledge_router, prefix="/api/v1")
+    application.include_router(product_catalog_router, prefix="/api/v1")
+    application.include_router(reply_suggestion_router, prefix="/api/v1")
     application.include_router(analysis_router, prefix="/api/v1")
     application.include_router(ai_policy_router, prefix="/api/v1")
     application.include_router(whatsapp_integrations_router, prefix="/api/v1")

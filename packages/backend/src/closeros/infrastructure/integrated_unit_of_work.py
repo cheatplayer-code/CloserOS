@@ -71,11 +71,34 @@ from closeros.infrastructure.outbox_repositories import (
     SqlAlchemyOutboxJobAttemptRepository,
     SqlAlchemyOutboxJobRepository,
 )
+from closeros.infrastructure.product_catalog_repositories import (
+    SqlAlchemyCatalogFreshnessPolicyRepository,
+    SqlAlchemyCatalogImportRowResultRepository,
+    SqlAlchemyCatalogImportRunRepository,
+    SqlAlchemyCatalogSearchRepository,
+    SqlAlchemyCatalogSourceRepository,
+    SqlAlchemyCommercialPolicyRepository,
+    SqlAlchemyDeliveryFactRepository,
+    SqlAlchemyInventoryLevelRepository,
+    SqlAlchemyProductPriceRepository,
+    SqlAlchemyProductRepository,
+    SqlAlchemyProductVariantRepository,
+)
 from closeros.infrastructure.provider_media_repositories import (
     SqlAlchemyProviderMediaReferenceRepository,
 )
 from closeros.infrastructure.provider_template_repositories import (
     SqlAlchemyProviderMessageTemplateRepository,
+)
+from closeros.infrastructure.reply_suggestion_repositories import (
+    SqlAlchemyBuyerMemoryFactRepository,
+    SqlAlchemyReplySuggestionCandidateRepository,
+    SqlAlchemyReplySuggestionEventRepository,
+    SqlAlchemyReplySuggestionRunRepository,
+)
+from closeros.infrastructure.synthetic_seed_repositories import (
+    SqlAlchemySyntheticSeedManifestRepository,
+    SqlAlchemySyntheticSeedResourceRepository,
 )
 from closeros.infrastructure.tenant_repositories import (
     SqlAlchemyInvitationRepository,
@@ -150,6 +173,23 @@ class SqlAlchemyIntegratedUnitOfWork:
     crm_sync_attempts: SqlAlchemyCrmSyncAttemptRepository
     crm_conflicts: SqlAlchemyCrmConflictRepository
     user_mfa_totp_enrollments: SqlAlchemyUserMfaTotpEnrollmentRepository
+    synthetic_seed_manifests: SqlAlchemySyntheticSeedManifestRepository
+    synthetic_seed_resources: SqlAlchemySyntheticSeedResourceRepository
+    catalog_sources: SqlAlchemyCatalogSourceRepository
+    catalog_products: SqlAlchemyProductRepository
+    catalog_variants: SqlAlchemyProductVariantRepository
+    catalog_prices: SqlAlchemyProductPriceRepository
+    catalog_inventory: SqlAlchemyInventoryLevelRepository
+    catalog_delivery: SqlAlchemyDeliveryFactRepository
+    catalog_commercial_policies: SqlAlchemyCommercialPolicyRepository
+    catalog_freshness_policies: SqlAlchemyCatalogFreshnessPolicyRepository
+    catalog_import_runs: SqlAlchemyCatalogImportRunRepository
+    catalog_import_row_results: SqlAlchemyCatalogImportRowResultRepository
+    catalog_search: SqlAlchemyCatalogSearchRepository
+    reply_suggestion_runs: SqlAlchemyReplySuggestionRunRepository
+    reply_suggestion_candidates: SqlAlchemyReplySuggestionCandidateRepository
+    reply_suggestion_events: SqlAlchemyReplySuggestionEventRepository
+    buyer_memory_facts: SqlAlchemyBuyerMemoryFactRepository
 
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
@@ -225,6 +265,23 @@ class SqlAlchemyIntegratedUnitOfWork:
         self.crm_sync_attempts = SqlAlchemyCrmSyncAttemptRepository(session)
         self.crm_conflicts = SqlAlchemyCrmConflictRepository(session)
         self.user_mfa_totp_enrollments = SqlAlchemyUserMfaTotpEnrollmentRepository(session)
+        self.synthetic_seed_manifests = SqlAlchemySyntheticSeedManifestRepository(session)
+        self.synthetic_seed_resources = SqlAlchemySyntheticSeedResourceRepository(session)
+        self.catalog_sources = SqlAlchemyCatalogSourceRepository(session)
+        self.catalog_products = SqlAlchemyProductRepository(session)
+        self.catalog_variants = SqlAlchemyProductVariantRepository(session)
+        self.catalog_prices = SqlAlchemyProductPriceRepository(session)
+        self.catalog_inventory = SqlAlchemyInventoryLevelRepository(session)
+        self.catalog_delivery = SqlAlchemyDeliveryFactRepository(session)
+        self.catalog_commercial_policies = SqlAlchemyCommercialPolicyRepository(session)
+        self.catalog_freshness_policies = SqlAlchemyCatalogFreshnessPolicyRepository(session)
+        self.catalog_import_runs = SqlAlchemyCatalogImportRunRepository(session)
+        self.catalog_import_row_results = SqlAlchemyCatalogImportRowResultRepository(session)
+        self.catalog_search = SqlAlchemyCatalogSearchRepository(session)
+        self.reply_suggestion_runs = SqlAlchemyReplySuggestionRunRepository(session)
+        self.reply_suggestion_candidates = SqlAlchemyReplySuggestionCandidateRepository(session)
+        self.reply_suggestion_events = SqlAlchemyReplySuggestionEventRepository(session)
+        self.buyer_memory_facts = SqlAlchemyBuyerMemoryFactRepository(session)
         return self
 
     async def __aexit__(

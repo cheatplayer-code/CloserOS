@@ -7,7 +7,7 @@ export type { ApiResult } from "../auth/types";
 const DEFAULT_TIMEOUT_MS = 15_000;
 
 export interface HttpRequestOptions {
-  method?: "GET" | "POST" | "PATCH";
+  method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   csrfToken?: string;
   timeoutMs?: number;

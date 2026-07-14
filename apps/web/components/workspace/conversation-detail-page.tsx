@@ -9,6 +9,11 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { productApiClient } from "../../lib/api/product-client";
+import {
+  replyApiClient,
+  type BuyerMemoryFactV1,
+  type ReplySuggestionRunV1,
+} from "../../lib/api/reply-client";
 import { whatsappApiClient } from "../../lib/api/whatsapp-client";
 import type { ApiFailure } from "../../lib/auth/types";
 import { useTenant } from "../../lib/tenant/use-tenant";
@@ -41,6 +46,7 @@ const OUTBOUND_READ_ROLES = [
   "compliance_admin",
   "manager",
 ];
+const REPLY_ROLES = ["owner", "sales_head", "manager"];
 
 interface ConversationDetailPageProps {
   conversationId: string;
@@ -78,6 +84,14 @@ function ConversationDetailContent({
   const [outboundNotice, setOutboundNotice] = useState<string | null>(null);
   const [outboundMessage, setOutboundMessage] =
     useState<OutboundMessageV1 | null>(null);
+  const [replyRun, setReplyRun] = useState<ReplySuggestionRunV1 | null>(null);
+  const [memoryFacts, setMemoryFacts] = useState<BuyerMemoryFactV1[]>([]);
+  const [replyBusy, setReplyBusy] = useState(false);
+  const [replyNotice, setReplyNotice] = useState<string | null>(null);
+  const [editingCandidateId, setEditingCandidateId] = useState<string | null>(
+    null,
+  );
+  const [editText, setEditText] = useState("");
 
   useEffect(() => {
     if (!tenant.tenantId || permissionDenied) {
@@ -107,6 +121,24 @@ function ConversationDetailContent({
         if (!cancelled) {
           setLoading(false);
         }
+      });
+
+    void replyApiClient
+      .getLatestSuggestions(tenant.tenantId, conversationId)
+      .then((result) => {
+        if (cancelled || !result.ok) {
+          return;
+        }
+        setReplyRun(result.data);
+      });
+
+    void replyApiClient
+      .listThreadMemory(tenant.tenantId, conversationId)
+      .then((result) => {
+        if (cancelled || !result.ok) {
+          return;
+        }
+        setMemoryFacts(result.data.facts);
       });
 
     return () => {
@@ -146,6 +178,178 @@ function ConversationDetailContent({
   const canRequestAnalysis = hasAnyRole(tenant.roles, ANALYSIS_ROLES);
   const canComposeOutbound = hasAnyRole(tenant.roles, OUTBOUND_WRITE_ROLES);
   const canViewOutbound = hasAnyRole(tenant.roles, OUTBOUND_READ_ROLES);
+  const canUseReplyCopilot = hasAnyRole(tenant.roles, REPLY_ROLES);
+  const activeSession = session;
+
+  async function handleGenerateSuggestions() {
+    if (!tenant.tenantId || !activeSession) {
+      return;
+    }
+    setReplyBusy(true);
+    setReplyNotice(null);
+    const result = await replyApiClient.generateSuggestions(
+      tenant.tenantId,
+      conversationId,
+      activeSession.csrfToken,
+    );
+    setReplyBusy(false);
+    if (!result.ok) {
+      setFailure(result);
+      return;
+    }
+    setReplyRun(result.data);
+    setReplyNotice("AI-generated reply candidates ready for review.");
+    await reloadMemory();
+  }
+
+  async function handleSelectCandidate(
+    candidateId: string,
+    textOverride?: string,
+  ) {
+    if (!tenant.tenantId || !activeSession || !replyRun) {
+      return;
+    }
+    setReplyBusy(true);
+    const result = await replyApiClient.selectCandidate(
+      tenant.tenantId,
+      replyRun.id,
+      candidateId,
+      textOverride ? { edited_text: textOverride } : {},
+      activeSession.csrfToken,
+    );
+    setReplyBusy(false);
+    if (!result.ok) {
+      setFailure(result);
+      return;
+    }
+    setDraftText(
+      textOverride ||
+        replyRun.candidates.find((c) => c.id === candidateId)?.text ||
+        "",
+    );
+    setReplyNotice(
+      "Encrypted outbound draft created. Explicit approval is still required before send.",
+    );
+    setEditingCandidateId(null);
+  }
+
+  async function handleRejectSuggestions() {
+    if (!tenant.tenantId || !activeSession || !replyRun) {
+      return;
+    }
+    setReplyBusy(true);
+    const result = await replyApiClient.rejectRun(
+      tenant.tenantId,
+      replyRun.id,
+      activeSession.csrfToken,
+    );
+    setReplyBusy(false);
+    if (!result.ok) {
+      setFailure(result);
+      return;
+    }
+    setReplyNotice("Suggestions marked not useful.");
+  }
+
+  async function reloadMemory() {
+    if (!tenant.tenantId) {
+      return;
+    }
+    const result = await replyApiClient.listThreadMemory(
+      tenant.tenantId,
+      conversationId,
+    );
+    if (result.ok) {
+      setMemoryFacts(result.data.facts);
+    }
+  }
+
+  async function handleConfirmMemory(fact: BuyerMemoryFactV1) {
+    if (!tenant.tenantId || !activeSession || !fact.source_message_id) {
+      setReplyNotice("Cannot confirm without an evidence message link.");
+      return;
+    }
+    setReplyBusy(true);
+    const result = await replyApiClient.confirmMemory(
+      tenant.tenantId,
+      fact.id,
+      fact.source_message_id,
+      activeSession.csrfToken,
+    );
+    setReplyBusy(false);
+    if (!result.ok) {
+      setFailure(result);
+      return;
+    }
+    setReplyNotice("Buyer memory fact confirmed.");
+    await reloadMemory();
+  }
+
+  async function handleCorrectMemory(fact: BuyerMemoryFactV1) {
+    if (!tenant.tenantId || !activeSession) {
+      return;
+    }
+    const nextValue = window.prompt("Correct fact value", fact.display_value);
+    if (nextValue == null || !nextValue.trim()) {
+      return;
+    }
+    setReplyBusy(true);
+    const result = await replyApiClient.correctMemory(
+      tenant.tenantId,
+      fact.id,
+      {
+        normalized_value: nextValue.trim(),
+        display_value: nextValue.trim(),
+        source_message_id: fact.source_message_id ?? undefined,
+      },
+      activeSession.csrfToken,
+    );
+    setReplyBusy(false);
+    if (!result.ok) {
+      setFailure(result);
+      return;
+    }
+    setReplyNotice("Buyer memory fact corrected (new version).");
+    await reloadMemory();
+  }
+
+  async function handleRejectMemory(fact: BuyerMemoryFactV1) {
+    if (!tenant.tenantId || !activeSession) {
+      return;
+    }
+    setReplyBusy(true);
+    const result = await replyApiClient.rejectMemory(
+      tenant.tenantId,
+      fact.id,
+      activeSession.csrfToken,
+    );
+    setReplyBusy(false);
+    if (!result.ok) {
+      setFailure(result);
+      return;
+    }
+    setReplyNotice("Buyer memory fact rejected.");
+    await reloadMemory();
+  }
+
+  async function handleDeleteMemory(fact: BuyerMemoryFactV1) {
+    if (!tenant.tenantId || !activeSession) {
+      return;
+    }
+    setReplyBusy(true);
+    const result = await replyApiClient.deleteMemory(
+      tenant.tenantId,
+      fact.id,
+      activeSession.csrfToken,
+    );
+    setReplyBusy(false);
+    if (!result.ok) {
+      setFailure(result);
+      return;
+    }
+    setReplyNotice("Buyer memory fact deleted.");
+    await reloadMemory();
+  }
 
   async function handleCreateOutboundDraft() {
     if (!tenant.tenantId || !session || !draftText.trim()) {
@@ -472,6 +676,245 @@ function ConversationDetailContent({
                       <dd>{formatTimestamp(outboundMessage.updated_at)}</dd>
                     </div>
                   </dl>
+                ) : null}
+              </section>
+            ) : null}
+
+            {canUseReplyCopilot ? (
+              <section aria-labelledby="reply-copilot-title">
+                <h2 id="reply-copilot-title">Reply suggestions</h2>
+                <p>
+                  AI-generated grounded candidates. Confidence does not bypass
+                  policy. Sending still requires human approval.
+                </p>
+                {replyNotice ? (
+                  <Alert tone="info" message={replyNotice} />
+                ) : null}
+                <div className="workspace-actions">
+                  <Button
+                    type="button"
+                    onClick={() => void handleGenerateSuggestions()}
+                    disabled={replyBusy}
+                  >
+                    Generate suggestions
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => void handleGenerateSuggestions()}
+                    disabled={replyBusy}
+                  >
+                    Regenerate
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => void handleRejectSuggestions()}
+                    disabled={replyBusy || !replyRun}
+                  >
+                    Not useful
+                  </Button>
+                </div>
+
+                {replyRun?.customer_state ? (
+                  <section aria-labelledby="customer-context-title">
+                    <h3 id="customer-context-title">Customer context</h3>
+                    <dl className="workspace-meta-list">
+                      <div>
+                        <dt>Intent</dt>
+                        <dd>{replyRun.customer_state.intent}</dd>
+                      </div>
+                      <div>
+                        <dt>Sales stage</dt>
+                        <dd>{replyRun.customer_state.sales_stage}</dd>
+                      </div>
+                      <div>
+                        <dt>Objection</dt>
+                        <dd>
+                          {replyRun.customer_state.primary_objection ?? "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Urgency</dt>
+                        <dd>{replyRun.customer_state.urgency}</dd>
+                      </div>
+                      <div>
+                        <dt>Language</dt>
+                        <dd>{replyRun.customer_state.language}</dd>
+                      </div>
+                      <div>
+                        <dt>Missing information</dt>
+                        <dd>
+                          {replyRun.customer_state.missing_information.join(
+                            ", ",
+                          ) || "—"}
+                        </dd>
+                      </div>
+                    </dl>
+                  </section>
+                ) : null}
+
+                <section aria-labelledby="buyer-memory-title">
+                  <h3 id="buyer-memory-title">Buyer memory</h3>
+                  {memoryFacts.length === 0 ? (
+                    <p>No confirmed or high-confidence inferred facts yet.</p>
+                  ) : (
+                    <ul>
+                      {memoryFacts.map((fact) => (
+                        <li key={fact.id}>
+                          <strong>{fact.fact_type}</strong>:{" "}
+                          {fact.display_value} ({fact.status},{" "}
+                          {fact.confidence_label}
+                          {fact.source_message_id
+                            ? `; evidence ${fact.source_message_id.slice(0, 8)}…`
+                            : ""}
+                          )
+                          <div className="workspace-actions">
+                            {fact.status === "inferred" ? (
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                disabled={replyBusy || !fact.source_message_id}
+                                onClick={() => void handleConfirmMemory(fact)}
+                              >
+                                Confirm
+                              </Button>
+                            ) : null}
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              disabled={replyBusy}
+                              onClick={() => void handleCorrectMemory(fact)}
+                            >
+                              Correct
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              disabled={replyBusy}
+                              onClick={() => void handleRejectMemory(fact)}
+                            >
+                              Reject
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              disabled={replyBusy}
+                              onClick={() => void handleDeleteMemory(fact)}
+                            >
+                              Delete
+                            </Button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+
+                {replyRun?.candidates?.length ? (
+                  <div className="workspace-table-wrap">
+                    <table className="workspace-table">
+                      <caption>AI reply candidates</caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Tone</th>
+                          <th scope="col">Objective</th>
+                          <th scope="col">Confidence</th>
+                          <th scope="col">Text</th>
+                          <th scope="col">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {replyRun.candidates.map((candidate) => (
+                          <tr key={candidate.id}>
+                            <th scope="row">
+                              {candidate.candidate_key}
+                              {candidate.is_recommended ? " (recommended)" : ""}
+                            </th>
+                            <td>{candidate.objective}</td>
+                            <td>{candidate.confidence_label}</td>
+                            <td>
+                              {editingCandidateId === candidate.id ? (
+                                <textarea
+                                  value={editText}
+                                  onChange={(event) =>
+                                    setEditText(event.target.value)
+                                  }
+                                  rows={4}
+                                  aria-label={`Edit ${candidate.candidate_key}`}
+                                />
+                              ) : (
+                                candidate.text
+                              )}
+                              {candidate.evidence_message_ids.length > 0 ? (
+                                <p>
+                                  Evidence:{" "}
+                                  {candidate.evidence_message_ids
+                                    .map((id) => id.slice(0, 8))
+                                    .join(", ")}
+                                  …
+                                </p>
+                              ) : null}
+                              {candidate.product_references.length > 0 ? (
+                                <p>
+                                  Products:{" "}
+                                  {candidate.product_references
+                                    .map((ref) => ref.variant_id.slice(0, 8))
+                                    .join(", ")}
+                                </p>
+                              ) : null}
+                              {candidate.warnings.length > 0 ? (
+                                <p>Warnings: {candidate.warnings.join("; ")}</p>
+                              ) : null}
+                            </td>
+                            <td>
+                              <Button
+                                type="button"
+                                onClick={() =>
+                                  void handleSelectCandidate(candidate.id)
+                                }
+                                disabled={replyBusy}
+                              >
+                                Use / Create draft
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                onClick={() => {
+                                  setEditingCandidateId(candidate.id);
+                                  setEditText(candidate.text);
+                                }}
+                                disabled={replyBusy}
+                              >
+                                Edit
+                              </Button>
+                              {editingCandidateId === candidate.id ? (
+                                <Button
+                                  type="button"
+                                  onClick={() =>
+                                    void handleSelectCandidate(
+                                      candidate.id,
+                                      editText,
+                                    )
+                                  }
+                                  disabled={replyBusy}
+                                >
+                                  Save draft from edit
+                                </Button>
+                              ) : null}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                {replyRun?.escalation_reason ? (
+                  <Alert
+                    tone="error"
+                    title="Escalation"
+                    message={replyRun.escalation_reason}
+                  />
                 ) : null}
               </section>
             ) : null}

@@ -69,12 +69,35 @@ from closeros.application.outbox_persistence import (
     OutboxJobAttemptRepository,
     OutboxJobRepository,
 )
+from closeros.application.product_catalog_persistence import (
+    CatalogFreshnessPolicyRepository,
+    CatalogImportRowResultRepository,
+    CatalogImportRunRepository,
+    CatalogSearchRepository,
+    CatalogSourceRepository,
+    CommercialPolicyRepository,
+    DeliveryFactRepository,
+    InventoryLevelRepository,
+    ProductPriceRepository,
+    ProductRepository,
+    ProductVariantRepository,
+)
 from closeros.application.provider_media_persistence import ProviderMediaReferenceRepository
 from closeros.application.provider_template_persistence import ProviderMessageTemplateRepository
+from closeros.application.reply_suggestion_persistence import (
+    BuyerMemoryFactRepository,
+    ReplySuggestionCandidateRepository,
+    ReplySuggestionEventRepository,
+    ReplySuggestionRunRepository,
+)
 from closeros.application.retention_persistence import (
     LegalHoldRepository,
     RetentionPurgeBatchRepository,
     RetentionPurgeRunRepository,
+)
+from closeros.application.synthetic_seed_persistence import (
+    SyntheticSeedManifestRepository,
+    SyntheticSeedResourceRepository,
 )
 from closeros.application.tenant_persistence import (
     InvitationRepository,
@@ -139,6 +162,23 @@ class IntegratedUnitOfWork(Protocol):
     crm_sync_attempts: CrmSyncAttemptRepository
     crm_conflicts: CrmConflictRepository
     user_mfa_totp_enrollments: UserMfaTotpEnrollmentRepository
+    synthetic_seed_manifests: SyntheticSeedManifestRepository
+    synthetic_seed_resources: SyntheticSeedResourceRepository
+    catalog_sources: CatalogSourceRepository
+    catalog_products: ProductRepository
+    catalog_variants: ProductVariantRepository
+    catalog_prices: ProductPriceRepository
+    catalog_inventory: InventoryLevelRepository
+    catalog_delivery: DeliveryFactRepository
+    catalog_commercial_policies: CommercialPolicyRepository
+    catalog_freshness_policies: CatalogFreshnessPolicyRepository
+    catalog_import_runs: CatalogImportRunRepository
+    catalog_import_row_results: CatalogImportRowResultRepository
+    catalog_search: CatalogSearchRepository
+    reply_suggestion_runs: ReplySuggestionRunRepository
+    reply_suggestion_candidates: ReplySuggestionCandidateRepository
+    reply_suggestion_events: ReplySuggestionEventRepository
+    buyer_memory_facts: BuyerMemoryFactRepository
 
     async def __aenter__(self) -> IntegratedUnitOfWork: ...
 

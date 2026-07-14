@@ -23,6 +23,7 @@ from closeros.domain.outbox import (
     OutboxJobState,
     build_outbox_job,
 )
+from sqlalchemy import text
 
 from tests.encryption_support import NOW, OUTBOX_JOB_ID
 
@@ -172,6 +173,69 @@ def test_publisher_dead_letters_when_retry_budget_exhausted(integrated_uow_facto
         assert result.dead_lettered_count == 1
         assert restored is not None
         assert restored.state is OutboxJobState.DEAD_LETTER
+
+    asyncio.run(exercise())
+
+
+def test_processor_records_attempt_duration_from_clock(integrated_uow_factory: Any) -> None:
+    async def exercise() -> None:
+        await _seed_pending_job(integrated_uow_factory)
+        queue = RecordingQueuePublisher()
+        publish_uow = integrated_uow_factory()
+        async with publish_uow:
+            publisher = OutboxPublisherService(
+                outbox_jobs=publish_uow.outbox_jobs,
+                outbox_job_attempts=publish_uow.outbox_job_attempts,
+                queue_publisher=queue,
+                worker_id="publisher-a",
+            )
+            await publisher.publish_batch(now=NOW, batch_size=5)
+            await publish_uow.commit()
+
+        class AdvancingClock:
+            def __init__(self) -> None:
+                self._current = NOW
+
+            def now(self) -> Any:
+                return self._current
+
+            def advance(self, seconds: int) -> None:
+                from datetime import timedelta
+
+                self._current = self._current + timedelta(seconds=seconds)
+
+        clock = AdvancingClock()
+
+        class SlowHandler:
+            async def handle(self, *, job: OutboxJob) -> None:
+                _ = job
+                clock.advance(5)
+
+        process_uow = integrated_uow_factory()
+        async with process_uow:
+            processor = OutboxProcessorService(
+                outbox_jobs=process_uow.outbox_jobs,
+                outbox_job_attempts=process_uow.outbox_job_attempts,
+                handlers={OutboxJobKind.CONTENT_REDACT: SlowHandler()},
+                worker_id="processor-a",
+                clock=clock,
+            )
+            result = await processor.process_job(job_id=OUTBOX_JOB_ID)
+            rows = (
+                await process_uow.session.execute(
+                    text(
+                        "SELECT started_at, finished_at FROM outbox_job_attempts "
+                        "WHERE job_id = :job_id ORDER BY finished_at ASC"
+                    ),
+                    {"job_id": OUTBOX_JOB_ID},
+                )
+            ).all()
+            await process_uow.commit()
+        assert result.outcome == "succeeded"
+        assert rows
+        started_at, finished_at = rows[-1]
+        assert finished_at > started_at
+        assert int((finished_at - started_at).total_seconds()) == 5
 
     asyncio.run(exercise())
 

@@ -25,6 +25,7 @@ from closeros.application.authentication_workflows import (
     MfaRequirementPolicy,
     MfaVerifier,
 )
+from closeros.application.buyer_memory_service import BuyerMemoryService
 from closeros.application.content_encryption_service import ContentEncryptionService
 from closeros.application.conversation_query_service import ConversationQueryService
 from closeros.application.crm_connection_service import CrmConnectionService
@@ -43,14 +44,17 @@ from closeros.application.metrics_query_service import MetricsQueryService
 from closeros.application.outbound_message_service import OutboundMessageService
 from closeros.application.password_hashing import PasswordHasher
 from closeros.application.platform_unit_of_work import PlatformUnitOfWork
+from closeros.application.product_catalog_service import ProductCatalogService
 from closeros.application.provider_adapter_registry import ProviderAdapterRegistry
 from closeros.application.provider_ports import (
     ImportContentScanner,
     WebhookRateLimiter,
     WhatsAppCredentialResolver,
 )
+from closeros.application.reply_suggestion_service import ReplySuggestionService
 from closeros.application.retention_purge_service import RetentionPurgeService
 from closeros.application.scorecard_query_service import ScorecardQueryService
+from closeros.application.synthetic_ai_provider import SyntheticAiProvider
 from closeros.application.tenant_context import TenantContextResolver, TenantListingService
 from closeros.application.tenant_persistence import TenantUnitOfWork
 from closeros.application.webhook_ingestion import WebhookIngestionService
@@ -272,6 +276,9 @@ class ApiRuntimeOverrides:
     analysis_query_service: AnalysisQueryService | None = None
     analysis_enqueue_service: AnalysisEnqueueService | None = None
     knowledge_service: KnowledgeService | None = None
+    product_catalog_service: ProductCatalogService | None = None
+    reply_suggestion_service: ReplySuggestionService | None = None
+    buyer_memory_service: BuyerMemoryService | None = None
     dashboard_query_service: DashboardQueryService | None = None
     conversation_query_service: ConversationQueryService | None = None
     scorecard_query_service: ScorecardQueryService | None = None
@@ -322,6 +329,9 @@ class ApiRuntime:
     analysis_query_service: AnalysisQueryService | None
     analysis_enqueue_service: AnalysisEnqueueService | None
     knowledge_service: KnowledgeService | None
+    product_catalog_service: ProductCatalogService | None
+    reply_suggestion_service: ReplySuggestionService | None
+    buyer_memory_service: BuyerMemoryService | None
     dashboard_query_service: DashboardQueryService | None
     conversation_query_service: ConversationQueryService | None
     scorecard_query_service: ScorecardQueryService | None
@@ -455,6 +465,21 @@ class _UnconfiguredKnowledgeService:
 
     async def list_documents(self, **kwargs: object) -> object:
         raise RuntimeError("knowledge service is not configured")
+
+
+class _UnconfiguredProductCatalogService:
+    async def list_products(self, **kwargs: object) -> object:
+        raise RuntimeError("product catalog service is not configured")
+
+
+class _UnconfiguredReplySuggestionService:
+    async def generate_suggestions(self, **kwargs: object) -> object:
+        raise RuntimeError("reply suggestion service is not configured")
+
+
+class _UnconfiguredBuyerMemoryService:
+    async def list_effective_for_lead(self, **kwargs: object) -> object:
+        raise RuntimeError("buyer memory service is not configured")
 
 
 class _UnconfiguredContentEncryption:
@@ -725,6 +750,14 @@ def build_api_runtime(
             content_encryption=content_encryption,
             uuid_factory=uuid_factory,
         )
+        product_catalog_service = override_values.product_catalog_service or ProductCatalogService(
+            uow_factory=integrated_port_factory, clock=clock
+        )
+        buyer_memory_service = override_values.buyer_memory_service or BuyerMemoryService(
+            uow_factory=integrated_port_factory,
+            clock=clock,
+            uuid_factory=uuid_factory,
+        )
         analysis_enqueue_service = (
             override_values.analysis_enqueue_service
             or AnalysisEnqueueService(
@@ -775,6 +808,17 @@ def build_api_runtime(
                 content_encryption=content_encryption,
                 uuid_factory=uuid_factory,
                 clock=clock.now,
+            )
+        )
+        reply_suggestion_service = (
+            override_values.reply_suggestion_service
+            or ReplySuggestionService(
+                uow_factory=integrated_port_factory,
+                content_encryption=content_encryption,
+                outbound_message_service=outbound_message_service,
+                clock=clock,
+                ai_provider=SyntheticAiProvider(),
+                uuid_factory=uuid_factory,
             )
         )
         whatsapp_webhook_verification_service = (
@@ -873,6 +917,18 @@ def build_api_runtime(
         knowledge_service = cast(
             KnowledgeService,
             override_values.knowledge_service or _UnconfiguredKnowledgeService(),
+        )
+        product_catalog_service = cast(
+            ProductCatalogService,
+            override_values.product_catalog_service or _UnconfiguredProductCatalogService(),
+        )
+        reply_suggestion_service = cast(
+            ReplySuggestionService,
+            override_values.reply_suggestion_service or _UnconfiguredReplySuggestionService(),
+        )
+        buyer_memory_service = cast(
+            BuyerMemoryService,
+            override_values.buyer_memory_service or _UnconfiguredBuyerMemoryService(),
         )
         analysis_enqueue_service = cast(
             AnalysisEnqueueService,
@@ -997,6 +1053,9 @@ def build_api_runtime(
         analysis_query_service=analysis_query_service,
         analysis_enqueue_service=analysis_enqueue_service,
         knowledge_service=knowledge_service,
+        product_catalog_service=product_catalog_service,
+        reply_suggestion_service=reply_suggestion_service,
+        buyer_memory_service=buyer_memory_service,
         dashboard_query_service=dashboard_query_service,
         conversation_query_service=conversation_query_service,
         scorecard_query_service=scorecard_query_service,

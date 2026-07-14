@@ -45,7 +45,7 @@ class MetricKey(StrEnum):
     CONVERSION_RATE_BASIS_POINTS = "conversion_rate_basis_points"
 
 
-METRIC_FORMULA_VERSION = "lm-metrics-v1"
+METRIC_FORMULA_VERSION = "lm-metrics-v2"
 
 _BASIS_POINT_METRICS = frozenset(
     {

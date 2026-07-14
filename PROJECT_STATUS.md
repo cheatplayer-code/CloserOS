@@ -2,30 +2,24 @@
 
 ## Current phase
 
-**Block Z0 — staging bootstrap and synthetic smoke** (branch `feat/z0-staging-bootstrap`;
-**not** production-ready)
+**Block V1-3 — Reply suggestion copilot and Buyer Memory** (branch
+`feat/v1-reply-memory`; includes V1-1 + V1-2; **not** production-ready)
 
 | Status | Detail |
 |--------|--------|
-| Merged on master | Blocks **FG** through **XY** including PR **#18** (Block XY) — CI passed |
-| Z0 (this branch) | Operator bootstrap CLI, synthetic demo seed, HTTP smoke script, runbook, documentation truth pass |
-| Verified locally (Z0) | 18 targeted PostgreSQL/HTTP tests passed; full `corepack pnpm run quality` pending this session |
-| Live providers | **None** in Z0 — no Docker executed locally; no live Meta, Bitrix24, DeepSeek, SMTP, KMS, Supabase, Railway, or Vercel |
-| Requires live staging (Z) | Meta WhatsApp sandbox, Bitrix24 sandbox, production KMS vendor, SMTP provider, Kazakhstan hosting, legal/compliance sign-off |
+| Baseline | `master` at `bf9915e` (Z0 merged) |
+| This branch | Grounded reply candidates, Buyer Memory, encrypted draft-on-select |
+| Prior | V1-1 integrity + V1-2 catalog grounding carried on this branch |
+| Live providers | **None** (synthetic AI in CI; optional DeepSeek smoke gated) |
 
 ## Completed implementation blocks
 
 | Block | Scope | Status |
 |-------|-------|--------|
-| **FG** | Persistence, tenancy, canonical contracts | Implemented locally |
-| **HI** | Encrypted content, transactional outbox | Implemented locally |
-| **JK** | Ingestion pipeline, CSV import, Redis queue | Implemented locally |
-| **LM** | PII redaction, deterministic metrics | Implemented locally |
-| **NOPQ** | AI gateway, knowledge base, analysis | Implemented locally |
-| **RSTU** | Dashboard, conversations, scorecards, tasks | Implemented locally |
-| **VW** | WhatsApp Cloud provider | Implemented locally |
-| **XY** | CRM, staging ops, production hardening | **Merged (PR #18 CI passed)** |
-| **Z0** | Staging bootstrap, synthetic demo, smoke runbook | **In progress on `feat/z0-staging-bootstrap`** |
+| **FG**–**Z0** | Foundation through staging bootstrap | Merged on master |
+| **V1-1** | Integrity foundation defect repair | Implemented on this branch |
+| **V1-2** | Structured catalog + grounding | Implemented on this branch |
+| **V1-3** | Reply copilot + Buyer Memory | **In progress on `feat/v1-reply-memory`** |
 
 ## Remaining block
 
@@ -52,6 +46,15 @@ No production readiness claim.
 - Operations scripts (`scripts/ops/`) including tenant bootstrap, synthetic demo
   seed, HTTP smoke, and migration helpers; runbooks under `docs/`.
 - ADR-0017 production operations and staging architecture.
+
+## What V1-3 adds (reply copilot + Buyer Memory)
+
+- Distinct `ReplySuggestionRun` / candidates / learning events BC.
+- Versioned reply prompt + strict JSON validator + stale stock/price warnings.
+- Bounded sanitized context assembly; inferred then human-governed Buyer Memory.
+- Conversation detail copilot UI (generate / use / edit / reject / memory actions).
+- Select → encrypted outbound draft only; existing approval gate unchanged.
+- Docs: `docs/REPLY_COPILOT.md`. Alembic `c3e5a7b9d1f0`.
 
 ## What XY final closure added (2026-07-13)
 
@@ -108,7 +111,8 @@ No production readiness claim.
 
 ## Last updated
 
-2026-07-13 (Block Z0 staging bootstrap — targeted tests passed; quality gate pending)
+2026-07-14 (Block V1-3 reply copilot + buyer memory on `feat/v1-reply-memory`;
+reply unit tests green; migration head `c3e5a7b9d1f0`; no autonomous send)
 
 ## Open decisions requiring owner input
 

@@ -176,7 +176,39 @@ Verification:
 - `docs/SYNTHETIC_STAGING_SMOKE.md` runbook; root `dev:worker` → `closeros-worker all`.
 - No live providers; no bootstrap HTTP route; synthetic `example.invalid` data only.
 
-Next block: **Z only** — compliance, security release gate, and paid production pilot.
+Next block at time of Z0 merge: **V1 integrity / catalog / reply** program.
+Active branch after V1-1: **feat/v1-catalog-grounding** (V1-2).
+
+## Block V1-1 scope (integrity foundation)
+
+- Provenanced synthetic seed manifests/resources with fail-closed scoped reset.
+- Manager assignments require membership `(tenant_id, user_id)` composite FK.
+- Manager CRM metrics scoped via shared attribution helper (`lm-metrics-v2`).
+- Retention purge + outbox processor use injected clocks for renewal/duration.
+- Unicode RU/KZ/EN knowledge term indexing (`v1-unicode-term-v1`) with reindex note.
+- Alembic revision `a1c3e5f7b9d0`.
+
+## Block V1-2 scope (catalog grounding)
+
+- Tenant-scoped product/variant/price/inventory/delivery catalog tables.
+- Manual CRUD (owner/sales_head), CSV import with dry-run + explicit publish.
+- Freshness TTLs and commercial policy; search returns typed facts.
+- AI `search_products` tool rejects model-supplied tenant_id; grounding validator.
+- Owner UI: `/app/catalog`, `/app/catalog/imports`, `/app/catalog/products/[id]`.
+- XLSX not implemented (`CatalogSpreadsheetParser` port only).
+- Alembic revision `b2d4f6a8c0e1`. Docs: `docs/PRODUCT_CATALOG.md`.
+
+## Block V1-3 scope (reply copilot + buyer memory; this branch)
+
+- Distinct reply-suggestion BC (runs/candidates/events) separate from analysis.
+- Versioned reply prompt + strict `reply.suggestion` JSON validator.
+- Bounded context assembly with structured omit-summary; never drop latest turn.
+- Structured Buyer Memory facts with confirm/correct/reject/delete + audit.
+- Conflict handling via superseding facts; cost_status `unknown`.
+- Selection creates encrypted outbound draft only (no autonomous send).
+- Conversation UI: customer context, memory actions, three candidates.
+- Alembic head `c3e5a7b9d1f0`. Docs: `docs/REPLY_COPILOT.md`.
+- CI uses synthetic AI; optional live DeepSeek smoke behind credentials.
 
 ## Rules
 

@@ -16,11 +16,50 @@ TENANT_A = UUID("00000000-0000-0000-0000-000000000001")
 TENANT_B = UUID("00000000-0000-0000-0000-000000000002")
 
 
-def test_extract_indexable_terms_drops_stop_words_and_lowercases() -> None:
-    terms = extract_indexable_terms(text="The customer asks for PRICE and discount in Алматы")
+def test_extract_indexable_terms_indexes_russian_and_kazakh() -> None:
+    russian = extract_indexable_terms(text="Клиент спрашивает цену дивана в Алматы")
+    kazakh = extract_indexable_terms(text="Қонақ диван бағасын сұрады Алматыда")
+    assert "клиент" in russian
+    assert "дивана" in russian or "диван" in russian
+    assert "қонақ" in kazakh
+    assert "диван" in kazakh
+    assert "бағасын" in kazakh
+
+
+def test_extract_indexable_terms_keeps_mixed_language_product_phrase() -> None:
+    terms = extract_indexable_terms(text="Sofa модель X100 серый өңдіріс")
+    assert "sofa" in terms
+    assert "модель" in terms
+    assert "x100" in terms
+    assert "серый" in terms
+    assert "өңдіріс" in terms
+
+
+def test_extract_indexable_terms_drops_english_and_russian_stop_words() -> None:
+    terms = extract_indexable_terms(text="The и в во на цена для клиента")
     assert "the" not in terms
-    assert "for" not in terms
-    assert "price" in terms
+    assert "и" not in terms
+    assert "для" not in terms
+    assert "цена" in terms
+    assert "клиента" in terms
+
+
+def test_build_chunk_term_index_digests_omit_plaintext_tokens() -> None:
+    provider = DevKnowledgeSearchKeyProvider()
+    indexed = build_chunk_term_index(
+        tenant_id=TENANT_A,
+        chunk_text="скрытый токен price",
+        key_provider=provider,
+    )
+    serialized = b"".join(item.term_digest for item in indexed)
+    assert b"price" not in serialized
+    assert "токен".encode() not in serialized
+
+
+def test_term_index_version_is_explicit() -> None:
+    from closeros.application.knowledge_term_index import TERM_INDEX_VERSION
+
+    assert TERM_INDEX_VERSION.startswith("v1-unicode")
 
 
 def test_extract_indexable_terms_orders_by_frequency_then_token() -> None:
