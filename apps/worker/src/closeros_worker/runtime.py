@@ -721,6 +721,7 @@ def build_worker_runtime(
         uow_factory=integrated_port_factory,
         uuid_factory=uuid.uuid4,
         legal_hold_service=legal_hold_service,
+        clock=ai_clock,
     )
 
     if capabilities.media_scanning_enabled:
@@ -798,6 +799,7 @@ def build_worker_runtime(
             handlers=handlers,
             worker_id=settings.worker_id,
             supported_job_kinds=XY_SUPPORTED_JOB_KINDS,
+            clock=ai_clock,
         )
 
     def reconciliation_service_factory() -> OutboxReconciliationService:

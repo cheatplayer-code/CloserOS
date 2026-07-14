@@ -33,6 +33,7 @@ export function AppHeader({
       </div>
       <nav className="app-header__nav" aria-label="Primary">
         <Link href="/app/dashboard">Dashboard</Link>
+        <Link href="/app/catalog">Catalog</Link>
         <Link href="/app/conversations">Conversations</Link>
         <Link href="/app/managers">Managers</Link>
         <Link href="/app/tasks">Tasks</Link>

@@ -16,7 +16,10 @@ from closeros.domain.canonical_enums import (
     SalesCaseStatus,
     WebhookProcessingStatus,
 )
+from closeros.domain.identity import MembershipStatus, Role
+from closeros.domain.membership import Membership
 
+from tests.auth_persistence_support import USER_ID, synthetic_user
 from tests.canonical_persistence_support import (
     CHANNEL_CONNECTION_A_ID,
     CHANNEL_CONNECTION_B_ID,
@@ -55,6 +58,16 @@ async def _seed_channel_graph(
     uow = platform_uow_factory()
     async with uow:
         await uow.tenants.add(synthetic_tenant())
+        await uow.users.add(synthetic_user(user_id=USER_ID))
+        await uow.memberships.add(
+            Membership(
+                id=UUID("00000000-0000-0000-0000-00000000a001"),
+                tenant_id=TENANT_A_ID,
+                user_id=USER_ID,
+                roles=frozenset({Role.MANAGER}),
+                status=MembershipStatus.ACTIVE,
+            )
+        )
         await uow.commit()
 
     await seed_canonical_encrypted_content_stubs(

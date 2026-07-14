@@ -613,3 +613,155 @@ def test_snapshot_metadata_fields() -> None:
     assert snapshot.status is MetricSnapshotStatus.COMPLETED
     assert snapshot.source_watermark == WATERMARK
     assert _value(snapshot.values, MetricKey.APPOINTMENT_BOOKED_CASE_COUNT) == 1
+
+
+def test_manager_crm_outcomes_are_isolated_between_managers() -> None:
+    t0 = WINDOW_START + timedelta(hours=1)
+    case_a = SALES_CASE_A
+    case_b = UUID(int=SALES_CASE_A.int + 1)
+    case_a_appt = UUID(int=SALES_CASE_A.int + 2)
+    case_b_appt = UUID(int=SALES_CASE_A.int + 3)
+    threads = (
+        MetricsThreadRow(id=THREAD_A, tenant_id=TENANT_ID, sales_case_id=case_a),
+        MetricsThreadRow(id=THREAD_B, tenant_id=TENANT_ID, sales_case_id=case_b),
+        MetricsThreadRow(id=THREAD_C, tenant_id=TENANT_ID, sales_case_id=case_a_appt),
+    )
+    messages = (
+        _message(
+            index=1,
+            thread_id=THREAD_A,
+            sender_type=ParticipantSenderType.CUSTOMER,
+            direction=MessageDirection.INBOUND,
+            received_at=t0,
+        ),
+        _message(
+            index=2,
+            thread_id=THREAD_B,
+            sender_type=ParticipantSenderType.CUSTOMER,
+            direction=MessageDirection.INBOUND,
+            received_at=t0,
+        ),
+        _message(
+            index=3,
+            thread_id=THREAD_C,
+            sender_type=ParticipantSenderType.CUSTOMER,
+            direction=MessageDirection.INBOUND,
+            received_at=t0,
+        ),
+    )
+    sales_cases = (
+        MetricsSalesCaseRow(
+            id=case_a,
+            tenant_id=TENANT_ID,
+            status=SalesCaseStatus.WON,
+            updated_at=t0,
+        ),
+        MetricsSalesCaseRow(
+            id=case_b,
+            tenant_id=TENANT_ID,
+            status=SalesCaseStatus.LOST,
+            updated_at=t0,
+        ),
+        MetricsSalesCaseRow(
+            id=case_a_appt,
+            tenant_id=TENANT_ID,
+            status=SalesCaseStatus.APPOINTMENT_BOOKED,
+            updated_at=t0,
+        ),
+        MetricsSalesCaseRow(
+            id=case_b_appt,
+            tenant_id=TENANT_ID,
+            status=SalesCaseStatus.APPOINTMENT_BOOKED,
+            updated_at=t0,
+        ),
+    )
+    crm_outcomes = (
+        MetricsCrmOutcomeRow(
+            sales_case_id=case_a,
+            outcome_type=CrmOutcomeType.WON,
+            occurred_at=t0 + timedelta(hours=1),
+        ),
+        MetricsCrmOutcomeRow(
+            sales_case_id=case_b,
+            outcome_type=CrmOutcomeType.LOST,
+            occurred_at=t0 + timedelta(hours=1),
+        ),
+    )
+    assignments = (
+        MetricsAssignmentRow(
+            id=ASSIGNMENT_BASE,
+            tenant_id=TENANT_ID,
+            manager_user_id=MANAGER_A,
+            conversation_thread_id=THREAD_A,
+            sales_case_id=None,
+            assigned_at=t0 - timedelta(days=1),
+        ),
+        MetricsAssignmentRow(
+            id=UUID(int=ASSIGNMENT_BASE.int + 1),
+            tenant_id=TENANT_ID,
+            manager_user_id=MANAGER_B,
+            conversation_thread_id=THREAD_B,
+            sales_case_id=None,
+            assigned_at=t0 - timedelta(days=1),
+        ),
+        MetricsAssignmentRow(
+            id=UUID(int=ASSIGNMENT_BASE.int + 2),
+            tenant_id=TENANT_ID,
+            manager_user_id=MANAGER_A,
+            conversation_thread_id=THREAD_C,
+            sales_case_id=None,
+            assigned_at=t0 - timedelta(days=1),
+        ),
+        MetricsAssignmentRow(
+            id=UUID(int=ASSIGNMENT_BASE.int + 3),
+            tenant_id=TENANT_ID,
+            manager_user_id=MANAGER_B,
+            conversation_thread_id=None,
+            sales_case_id=case_b_appt,
+            assigned_at=t0 - timedelta(days=1),
+        ),
+    )
+    source = _basic_source(
+        messages=messages,
+        threads=threads,
+        sales_cases=sales_cases,
+        crm_outcomes=crm_outcomes,
+        assignments=assignments,
+    )
+    engine = MetricsEngine()
+    snapshot_a = engine.calculate_snapshot(
+        snapshot_id=SNAPSHOT_ID,
+        tenant_id=TENANT_ID,
+        scope=MetricScope.MANAGER,
+        manager_user_id=MANAGER_A,
+        window=_window(),
+        source_data=source,
+        computed_at=COMPUTED_AT,
+    )
+    snapshot_b = engine.calculate_snapshot(
+        snapshot_id=UUID(int=SNAPSHOT_ID.int + 1),
+        tenant_id=TENANT_ID,
+        scope=MetricScope.MANAGER,
+        manager_user_id=MANAGER_B,
+        window=_window(),
+        source_data=source,
+        computed_at=COMPUTED_AT,
+    )
+    snapshot_tenant = engine.calculate_snapshot(
+        snapshot_id=UUID(int=SNAPSHOT_ID.int + 2),
+        tenant_id=TENANT_ID,
+        scope=MetricScope.TENANT,
+        manager_user_id=None,
+        window=_window(),
+        source_data=source,
+        computed_at=COMPUTED_AT,
+    )
+    assert _value(snapshot_a.values, MetricKey.WON_CASE_COUNT) == 1
+    assert _value(snapshot_a.values, MetricKey.LOST_CASE_COUNT) == 0
+    assert _value(snapshot_a.values, MetricKey.APPOINTMENT_BOOKED_CASE_COUNT) == 1
+    assert _value(snapshot_b.values, MetricKey.WON_CASE_COUNT) == 0
+    assert _value(snapshot_b.values, MetricKey.LOST_CASE_COUNT) == 1
+    assert _value(snapshot_b.values, MetricKey.APPOINTMENT_BOOKED_CASE_COUNT) == 1
+    assert _value(snapshot_tenant.values, MetricKey.WON_CASE_COUNT) == 1
+    assert _value(snapshot_tenant.values, MetricKey.LOST_CASE_COUNT) == 1
+    assert _value(snapshot_tenant.values, MetricKey.APPOINTMENT_BOOKED_CASE_COUNT) == 2

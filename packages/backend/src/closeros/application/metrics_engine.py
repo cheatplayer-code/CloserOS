@@ -6,8 +6,8 @@ from collections import defaultdict
 from datetime import datetime
 from uuid import UUID
 
+from closeros.application.manager_attribution import resolve_manager_metric_scope
 from closeros.application.metrics_source_data import (
-    MetricsAssignmentRow,
     MetricsMessageRow,
     MetricsSourceData,
 )
@@ -44,7 +44,7 @@ class MetricsEngine:
         source_data: MetricsSourceData,
         computed_at: datetime,
     ) -> MetricSnapshot:
-        thread_ids = self._threads_for_scope(
+        thread_ids, sales_case_ids = self._scope_ids(
             source_data=source_data,
             scope=scope,
             manager_user_id=manager_user_id,
@@ -58,6 +58,7 @@ class MetricsEngine:
         values = self._calculate_values(
             messages=messages,
             thread_ids=thread_ids,
+            sales_case_ids=sales_case_ids,
             source_data=source_data,
         )
         return MetricSnapshot(
@@ -73,73 +74,38 @@ class MetricsEngine:
             values=values,
         )
 
-    def _threads_for_scope(
+    def _scope_ids(
         self,
         *,
         source_data: MetricsSourceData,
         scope: MetricScope,
         manager_user_id: UUID | None,
         window_end: datetime,
-    ) -> set[UUID]:
-        all_thread_ids = {thread.id for thread in source_data.threads}
+    ) -> tuple[set[UUID], set[UUID]]:
         if scope is MetricScope.TENANT:
-            return all_thread_ids
+            all_thread_ids = {thread.id for thread in source_data.threads}
+            all_sales_case_ids = {case.id for case in source_data.sales_cases}
+            for thread in source_data.threads:
+                if thread.sales_case_id is not None:
+                    all_sales_case_ids.add(thread.sales_case_id)
+            for outcome in source_data.crm_outcomes:
+                all_sales_case_ids.add(outcome.sales_case_id)
+            return all_thread_ids, all_sales_case_ids
         if manager_user_id is None:
-            return set()
-        attributed_manager_by_thread = self._attribute_threads_to_managers(
+            return set(), set()
+        attributed = resolve_manager_metric_scope(
             source_data=source_data,
-            thread_ids=all_thread_ids,
+            manager_user_id=manager_user_id,
             window_end=window_end,
         )
-        return {
-            thread_id
-            for thread_id, attributed_manager in attributed_manager_by_thread.items()
-            if attributed_manager == manager_user_id
-        }
-
-    def _attribute_threads_to_managers(
-        self,
-        *,
-        source_data: MetricsSourceData,
-        thread_ids: set[UUID],
-        window_end: datetime,
-    ) -> dict[UUID, UUID]:
-        threads_by_id = {thread.id: thread for thread in source_data.threads}
-        winning_assignment_by_thread: dict[UUID, MetricsAssignmentRow] = {}
-        winning_assignment_by_sales_case: dict[UUID, MetricsAssignmentRow] = {}
-
-        for assignment in source_data.assignments:
-            if assignment.assigned_at > window_end:
-                continue
-            if assignment.conversation_thread_id is not None:
-                current = winning_assignment_by_thread.get(assignment.conversation_thread_id)
-                if current is None or _assignment_precedence(assignment, current):
-                    winning_assignment_by_thread[assignment.conversation_thread_id] = assignment
-            if assignment.sales_case_id is not None:
-                current = winning_assignment_by_sales_case.get(assignment.sales_case_id)
-                if current is None or _assignment_precedence(assignment, current):
-                    winning_assignment_by_sales_case[assignment.sales_case_id] = assignment
-
-        attributed: dict[UUID, UUID] = {}
-        for thread_id in thread_ids:
-            thread = threads_by_id.get(thread_id)
-            if thread is None:
-                continue
-            thread_assignment = winning_assignment_by_thread.get(thread_id)
-            if thread_assignment is not None:
-                attributed[thread_id] = thread_assignment.manager_user_id
-                continue
-            if thread.sales_case_id is not None:
-                case_assignment = winning_assignment_by_sales_case.get(thread.sales_case_id)
-                if case_assignment is not None:
-                    attributed[thread_id] = case_assignment.manager_user_id
-        return attributed
+        return set(attributed.thread_ids), set(attributed.sales_case_ids)
 
     def _calculate_values(
         self,
         *,
         messages: tuple[MetricsMessageRow, ...],
         thread_ids: set[UUID],
+        sales_case_ids: set[UUID],
         source_data: MetricsSourceData,
     ) -> tuple[MetricValue, ...]:
         inbound_messages = tuple(
@@ -209,13 +175,20 @@ class MetricsEngine:
         appointment_booked_count = sum(
             1
             for sales_case in source_data.sales_cases
-            if sales_case.status is SalesCaseStatus.APPOINTMENT_BOOKED
+            if sales_case.id in sales_case_ids
+            and sales_case.status is SalesCaseStatus.APPOINTMENT_BOOKED
         )
         won_count = sum(
-            1 for outcome in source_data.crm_outcomes if outcome.outcome_type is CrmOutcomeType.WON
+            1
+            for outcome in source_data.crm_outcomes
+            if outcome.sales_case_id in sales_case_ids
+            and outcome.outcome_type is CrmOutcomeType.WON
         )
         lost_count = sum(
-            1 for outcome in source_data.crm_outcomes if outcome.outcome_type is CrmOutcomeType.LOST
+            1
+            for outcome in source_data.crm_outcomes
+            if outcome.sales_case_id in sales_case_ids
+            and outcome.outcome_type is CrmOutcomeType.LOST
         )
         conversion = floor_basis_points(numerator=won_count, denominator=won_count + lost_count)
 
@@ -255,12 +228,3 @@ class MetricsEngine:
                 )
             )
         return tuple(values)
-
-
-def _assignment_precedence(
-    candidate: MetricsAssignmentRow,
-    current: MetricsAssignmentRow,
-) -> bool:
-    if candidate.assigned_at != current.assigned_at:
-        return candidate.assigned_at > current.assigned_at
-    return str(candidate.id) > str(current.id)

@@ -375,6 +375,11 @@ class ManagerAssignmentRow(Base):
             ["tenant_id", "sales_case_id"],
             ["sales_cases.tenant_id", "sales_cases.id"],
         ),
+        ForeignKeyConstraint(
+            ["tenant_id", "manager_user_id"],
+            ["memberships.tenant_id", "memberships.user_id"],
+            name="fk_manager_assignments_tenant_manager_user_memberships",
+        ),
         CheckConstraint(
             "(conversation_thread_id IS NOT NULL AND sales_case_id IS NULL) OR "
             "(conversation_thread_id IS NULL AND sales_case_id IS NOT NULL)",

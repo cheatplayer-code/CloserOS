@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import timedelta
 from uuid import UUID
 
+from closeros.application.clock import Clock, SystemClock
 from closeros.application.encrypted_content_persistence import EncryptedContentRetentionFilter
 from closeros.application.integrated_unit_of_work import IntegratedUnitOfWork
 from closeros.application.legal_hold_service import LegalHoldService
@@ -48,11 +49,13 @@ class RetentionPurgeHandler:
         uuid_factory: _UuidFactory,
         legal_hold_service: LegalHoldService,
         batch_size: int = 100,
+        clock: Clock | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._uuid_factory = uuid_factory
         self._legal_hold_service = legal_hold_service
         self._batch_size = batch_size
+        self._clock = clock if clock is not None else SystemClock()
 
     async def handle(self, *, job: OutboxJob) -> None:
         tenant_id = job.tenant_id
@@ -68,14 +71,12 @@ class RetentionPurgeHandler:
                 permanent=True,
             )
 
-        occurred_at = job.processing_started_at or job.created_at
         claim_token = job.claim_token or self._uuid_factory()
 
         if await self._legal_hold_service.tenant_has_active_hold(tenant_id=tenant_id):
             await self._mark_run_paused(
                 tenant_id=tenant_id,
                 purge_run_id=reference.resource_id,
-                occurred_at=occurred_at,
                 skipped=True,
             )
             return
@@ -84,7 +85,6 @@ class RetentionPurgeHandler:
             tenant_id=tenant_id,
             purge_run_id=reference.resource_id,
             claim_token=claim_token,
-            occurred_at=occurred_at,
         )
         if claimed is None:
             raise RetentionPurgeHandlerError(
@@ -102,7 +102,6 @@ class RetentionPurgeHandler:
             await self._mark_run_paused(
                 tenant_id=tenant_id,
                 purge_run_id=claimed.id,
-                occurred_at=occurred_at,
                 skipped=True,
             )
             return
@@ -120,19 +119,16 @@ class RetentionPurgeHandler:
         batch_deleted = 0
         deletions_since_renewal = 0
         for content in due:
-            claimed = await self._maybe_renew_claim(
+            claimed, deletions_since_renewal = await self._maybe_renew_claim(
                 claimed=claimed,
                 claim_token=claim_token,
-                occurred_at=occurred_at,
                 deletions_since_renewal=deletions_since_renewal,
             )
-            deletions_since_renewal = 0
 
             paused = await self._delete_content_under_lock(
                 tenant_id=tenant_id,
                 purge_run_id=claimed.id,
                 content=content,
-                occurred_at=occurred_at,
                 items_scanned=claimed.items_scanned + batch_deleted,
                 items_deleted=claimed.items_deleted + batch_deleted,
             )
@@ -142,13 +138,14 @@ class RetentionPurgeHandler:
             batch_deleted += 1
             deletions_since_renewal += 1
 
+        now = self._clock.now()
         updated_run = replace(
             claimed,
             items_scanned=claimed.items_scanned + len(due),
             items_deleted=claimed.items_deleted + batch_deleted,
-            updated_at=occurred_at,
+            updated_at=now,
             claim_token=claim_token,
-            claim_expires_at=occurred_at + _CLAIM_LEASE,
+            claim_expires_at=now + _CLAIM_LEASE,
         )
 
         uow = self._uow_factory()
@@ -178,14 +175,14 @@ class RetentionPurgeHandler:
                             deduplication_key=(
                                 f"retention_purge_{claimed.id}_cont_{updated_run.items_deleted}"
                             ),
-                            created_at=occurred_at,
+                            created_at=now,
                         )
                     )
             else:
                 completed = replace(
                     updated_run,
                     status=RetentionPurgeRunStatus.COMPLETED,
-                    completed_at=occurred_at,
+                    completed_at=now,
                     claim_token=None,
                     claim_expires_at=None,
                 )
@@ -197,17 +194,17 @@ class RetentionPurgeHandler:
         *,
         claimed: RetentionPurgeRun,
         claim_token: UUID,
-        occurred_at: datetime,
         deletions_since_renewal: int,
-    ) -> RetentionPurgeRun:
+    ) -> tuple[RetentionPurgeRun, int]:
+        now = self._clock.now()
         if claimed.claim_expires_at is None:
-            return claimed
-        remaining = claimed.claim_expires_at - occurred_at
+            return claimed, deletions_since_renewal
+        remaining = claimed.claim_expires_at - now
         needs_renewal = (
             remaining <= _CLAIM_LEASE / 3 or deletions_since_renewal >= _RENEW_AFTER_DELETIONS
         )
         if not needs_renewal:
-            return claimed
+            return claimed, deletions_since_renewal
 
         uow = self._uow_factory()
         async with uow:
@@ -215,8 +212,8 @@ class RetentionPurgeHandler:
                 tenant_id=claimed.tenant_id,
                 purge_run_id=claimed.id,
                 claim_token=claim_token,
-                claim_expires_at=occurred_at + _CLAIM_LEASE,
-                now=occurred_at,
+                claim_expires_at=now + _CLAIM_LEASE,
+                now=now,
                 expected_version=claimed.version,
             )
             await uow.commit()
@@ -225,7 +222,7 @@ class RetentionPurgeHandler:
                 error_code=OutboxErrorCode.STALE_CLAIM,
                 permanent=False,
             )
-        return renewed
+        return renewed, 0
 
     async def _delete_content_under_lock(
         self,
@@ -233,10 +230,10 @@ class RetentionPurgeHandler:
         tenant_id: UUID,
         purge_run_id: UUID,
         content: EncryptedContent,
-        occurred_at: datetime,
         items_scanned: int,
         items_deleted: int,
     ) -> bool:
+        now = self._clock.now()
         uow = self._uow_factory()
         async with uow:
             await uow.retention_purge_runs.acquire_tenant_retention_lock(tenant_id=tenant_id)
@@ -245,7 +242,6 @@ class RetentionPurgeHandler:
                 await self._mark_run_paused(
                     tenant_id=tenant_id,
                     purge_run_id=purge_run_id,
-                    occurred_at=occurred_at,
                     skipped=True,
                     items_scanned=items_scanned,
                     items_deleted=items_deleted,
@@ -258,7 +254,7 @@ class RetentionPurgeHandler:
                 purge_run_id=purge_run_id,
                 deleted_content_id=content.id,
                 status=RetentionPurgeBatchStatus.PENDING,
-                created_at=occurred_at,
+                created_at=now,
             )
             await uow.retention_purge_batches.add(batch=batch)
             await uow.encrypted_contents.delete(
@@ -269,7 +265,7 @@ class RetentionPurgeHandler:
                 tenant_id=tenant_id,
                 batch_id=batch.id,
                 status=RetentionPurgeBatchStatus.COMPLETED,
-                completed_at=occurred_at,
+                completed_at=now,
             )
             await uow.commit()
         return False
@@ -280,8 +276,8 @@ class RetentionPurgeHandler:
         tenant_id: UUID,
         purge_run_id: UUID,
         claim_token: UUID,
-        occurred_at: datetime,
     ) -> RetentionPurgeRun | None:
+        now = self._clock.now()
         uow = self._uow_factory()
         async with uow:
             existing = await uow.retention_purge_runs.get_by_id(
@@ -303,8 +299,8 @@ class RetentionPurgeHandler:
                 tenant_id=tenant_id,
                 purge_run_id=purge_run_id,
                 claim_token=claim_token,
-                claim_expires_at=occurred_at + _CLAIM_LEASE,
-                now=occurred_at,
+                claim_expires_at=now + _CLAIM_LEASE,
+                now=now,
                 expected_version=existing.version,
             )
             await uow.commit()
@@ -315,11 +311,11 @@ class RetentionPurgeHandler:
         *,
         tenant_id: UUID,
         purge_run_id: UUID,
-        occurred_at: datetime,
         skipped: bool,
         items_scanned: int | None = None,
         items_deleted: int | None = None,
     ) -> None:
+        now = self._clock.now()
         uow = self._uow_factory()
         async with uow:
             purge_run = await uow.retention_purge_runs.get_by_id(
@@ -340,7 +336,7 @@ class RetentionPurgeHandler:
                 else purge_run.items_deleted,
                 claim_token=None,
                 claim_expires_at=None,
-                updated_at=occurred_at,
+                updated_at=now,
                 last_error_code="legal_hold_active",
             )
             await uow.retention_purge_runs.update(purge_run=paused)

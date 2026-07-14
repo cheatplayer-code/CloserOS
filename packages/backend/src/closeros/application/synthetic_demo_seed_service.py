@@ -32,6 +32,10 @@ from closeros.application.outbox_persistence import OutboxReconciliationFilter
 from closeros.application.outbox_processor import OutboxProcessorService
 from closeros.application.outbox_publisher import OutboxPublisherService
 from closeros.application.synthetic_ai_provider import SyntheticAiProvider
+from closeros.application.synthetic_demo_reset import (
+    SyntheticDemoResetError,
+    SyntheticDemoResetService,
+)
 from closeros.domain.adapter_metadata import AdapterMetadata
 from closeros.domain.ai_analysis import AiProviderCode, AiPurpose
 from closeros.domain.audit import AuditActorType
@@ -55,6 +59,14 @@ from closeros.domain.manager_assignment import ManagerAssignment
 from closeros.domain.membership import Membership
 from closeros.domain.outbox import OutboxJob, OutboxJobKind, OutboxJobState
 from closeros.domain.sales_case import SalesCase
+from closeros.domain.synthetic_seed import (
+    RESOURCE_DELETION_ORDER,
+    SyntheticManagerIdentity,
+    SyntheticSeedManifest,
+    SyntheticSeedResetState,
+    SyntheticSeedResource,
+    SyntheticSeedResourceType,
+)
 from closeros.domain.user import User
 from closeros.infrastructure.integrated_unit_of_work import SqlAlchemyIntegratedUnitOfWork
 
@@ -211,6 +223,48 @@ def build_synthetic_demo_pipeline(
     )
 
 
+class SyntheticDemoProvenanceIncompleteError(SyntheticDemoSeedError):
+    """Raised when provenance is missing or inconsistent for a reset."""
+
+
+class SyntheticDemoResetConflictError(SyntheticDemoSeedError):
+    """Raised when reset cannot proceed safely."""
+
+
+@dataclass(frozen=True, slots=True)
+class _PendingResource:
+    resource_type: SyntheticSeedResourceType
+    resource_id: UUID
+
+
+class _SeedResourceLedger:
+    def __init__(self, *, tenant_id: UUID, manifest_id: UUID) -> None:
+        self.tenant_id = tenant_id
+        self.manifest_id = manifest_id
+        self._items: list[_PendingResource] = []
+        self._seen: set[tuple[SyntheticSeedResourceType, UUID]] = set()
+
+    def add(self, *, resource_type: SyntheticSeedResourceType, resource_id: UUID) -> None:
+        key = (resource_type, resource_id)
+        if key in self._seen:
+            return
+        self._seen.add(key)
+        self._items.append(_PendingResource(resource_type=resource_type, resource_id=resource_id))
+
+    def as_records(self, *, uuid_factory: _UuidFactory) -> tuple[SyntheticSeedResource, ...]:
+        return tuple(
+            SyntheticSeedResource(
+                id=uuid_factory(),
+                tenant_id=self.tenant_id,
+                manifest_id=self.manifest_id,
+                resource_type=item.resource_type,
+                resource_id=item.resource_id,
+                deletion_order=RESOURCE_DELETION_ORDER[item.resource_type],
+            )
+            for item in self._items
+        )
+
+
 class _InlineQueuePublisher:
     async def publish_job_id(self, *, job_id: UUID) -> None:
         _ = job_id
@@ -242,17 +296,31 @@ class SyntheticDemoSeedService:
         *,
         tenant_id: UUID,
         reset_existing: bool = False,
+        dry_run_reset: bool = False,
     ) -> SyntheticDemoSeedResult:
         await self._ensure_tenant_ready(tenant_id=tenant_id)
         existing = await self._find_existing_connection(tenant_id=tenant_id)
         if existing is not None and not reset_existing:
             return await self._existing_result(tenant_id=tenant_id)
 
-        if reset_existing and existing is not None:
-            await self._reset_demo_data(tenant_id=tenant_id)
+        if reset_existing:
+            reset_service = SyntheticDemoResetService(
+                uow_factory=self._uow_factory,
+                seed_version=SYNTHETIC_DEMO_VERSION,
+            )
+            try:
+                await reset_service.reset(tenant_id=tenant_id, dry_run=dry_run_reset)
+            except SyntheticDemoResetError as error:
+                if existing is not None:
+                    raise SyntheticDemoProvenanceIncompleteError(str(error)) from error
+            if dry_run_reset:
+                return await self._existing_result(tenant_id=tenant_id)
 
         owner_user_id = await self._load_owner_user_id(tenant_id=tenant_id)
         now = self._clock()
+        seed_run_id = self._uuid_factory()
+        manifest_id = demo_uuid(tenant_id, f"manifest-{seed_run_id}")
+        ledger = _SeedResourceLedger(tenant_id=tenant_id, manifest_id=manifest_id)
         pipeline = build_synthetic_demo_pipeline(
             uow_factory=self._uow_factory,
             content_encryption=self._content_encryption,
@@ -261,33 +329,53 @@ class SyntheticDemoSeedService:
             clock=self._clock,
         )
 
-        manager_memberships = await self._create_managers(tenant_id=tenant_id, now=now)
-        connection_id = await self._create_connection(tenant_id=tenant_id, now=now)
-        await self._create_ai_policy(tenant_id=tenant_id, now=now)
+        manager_identities = await self._create_managers(
+            tenant_id=tenant_id,
+            now=now,
+            ledger=ledger,
+        )
+        connection_id = await self._create_connection(
+            tenant_id=tenant_id,
+            now=now,
+            ledger=ledger,
+        )
+        await self._create_ai_policy(tenant_id=tenant_id, now=now, ledger=ledger)
         thread_ids = await self._create_conversation_graph(
             tenant_id=tenant_id,
             connection_id=connection_id,
-            manager_memberships=manager_memberships,
+            manager_identities=manager_identities,
             owner_user_id=owner_user_id,
             now=now,
+            ledger=ledger,
         )
         await self._process_outbox_pipeline(
             tenant_id=tenant_id,
             pipeline=pipeline,
+            ledger=ledger,
         )
         finding_id = await self._first_open_finding_id(tenant_id=tenant_id)
         task_count = await self._create_follow_up_tasks(
             tenant_id=tenant_id,
             owner_user_id=owner_user_id,
             thread_ids=thread_ids,
-            manager_membership_id=manager_memberships[0],
+            manager_membership_id=manager_identities[0].membership_id,
             finding_id=finding_id,
             now=now,
+            ledger=ledger,
         )
         await self._enqueue_and_process_metrics(
             tenant_id=tenant_id,
             pipeline=pipeline,
             now=now,
+            ledger=ledger,
+        )
+        await self._collect_derived_resources(tenant_id=tenant_id, ledger=ledger)
+        await self._persist_manifest(
+            tenant_id=tenant_id,
+            manifest_id=manifest_id,
+            seed_run_id=seed_run_id,
+            now=now,
+            ledger=ledger,
         )
 
         return SyntheticDemoSeedResult(
@@ -295,7 +383,7 @@ class SyntheticDemoSeedService:
             tenant_id=tenant_id,
             conversation_threads=len(thread_ids),
             follow_up_tasks=task_count,
-            managers=len(manager_memberships),
+            managers=len(manager_identities),
         )
 
     async def _ensure_tenant_ready(self, *, tenant_id: UUID) -> None:
@@ -354,12 +442,18 @@ class SyntheticDemoSeedService:
                     return membership.user_id
         raise SyntheticDemoOwnerMissingError("tenant has no active owner membership")
 
-    async def _create_managers(self, *, tenant_id: UUID, now: datetime) -> tuple[UUID, UUID]:
+    async def _create_managers(
+        self,
+        *,
+        tenant_id: UUID,
+        now: datetime,
+        ledger: _SeedResourceLedger,
+    ) -> tuple[SyntheticManagerIdentity, SyntheticManagerIdentity]:
         manager_specs = (
             ("manager-a", "manager-a.demo.example.invalid"),
             ("manager-b", "manager-b.demo.example.invalid"),
         )
-        membership_ids: list[UUID] = []
+        identities: list[SyntheticManagerIdentity] = []
         uow = self._uow_factory()
         async with uow:
             for key, _email in manager_specs:
@@ -375,11 +469,27 @@ class SyntheticDemoSeedService:
                         status=MembershipStatus.ACTIVE,
                     )
                 )
-                membership_ids.append(membership_id)
+                ledger.add(
+                    resource_type=SyntheticSeedResourceType.USER,
+                    resource_id=user_id,
+                )
+                ledger.add(
+                    resource_type=SyntheticSeedResourceType.MEMBERSHIP,
+                    resource_id=membership_id,
+                )
+                identities.append(
+                    SyntheticManagerIdentity(user_id=user_id, membership_id=membership_id)
+                )
             await uow.commit()
-        return membership_ids[0], membership_ids[1]
+        return identities[0], identities[1]
 
-    async def _create_connection(self, *, tenant_id: UUID, now: datetime) -> UUID:
+    async def _create_connection(
+        self,
+        *,
+        tenant_id: UUID,
+        now: datetime,
+        ledger: _SeedResourceLedger,
+    ) -> UUID:
         connection_id = demo_uuid(tenant_id, "connection")
         connection = ChannelConnection(
             id=connection_id,
@@ -395,13 +505,24 @@ class SyntheticDemoSeedService:
         async with uow:
             await uow.channel_connections.add(connection)
             await uow.commit()
+        ledger.add(
+            resource_type=SyntheticSeedResourceType.CHANNEL_CONNECTION,
+            resource_id=connection_id,
+        )
         return connection_id
 
-    async def _create_ai_policy(self, *, tenant_id: UUID, now: datetime) -> None:
+    async def _create_ai_policy(
+        self,
+        *,
+        tenant_id: UUID,
+        now: datetime,
+        ledger: _SeedResourceLedger,
+    ) -> None:
         from closeros.application.ai_policy_persistence import TenantAiPolicyRecord
 
+        policy_id = demo_uuid(tenant_id, "ai-policy")
         record = TenantAiPolicyRecord(
-            id=demo_uuid(tenant_id, "ai-policy"),
+            id=policy_id,
             tenant_id=tenant_id,
             mode="enforce",
             prompt_version="synthetic-demo-prompt-v1",
@@ -416,15 +537,20 @@ class SyntheticDemoSeedService:
         async with uow:
             await uow.tenant_ai_policies.upsert(record=record)
             await uow.commit()
+        ledger.add(
+            resource_type=SyntheticSeedResourceType.TENANT_AI_POLICY,
+            resource_id=policy_id,
+        )
 
     async def _create_conversation_graph(
         self,
         *,
         tenant_id: UUID,
         connection_id: UUID,
-        manager_memberships: tuple[UUID, UUID],
+        manager_identities: tuple[SyntheticManagerIdentity, SyntheticManagerIdentity],
         owner_user_id: UUID,
         now: datetime,
+        ledger: _SeedResourceLedger,
     ) -> tuple[UUID, ...]:
         thread_ids: list[UUID] = []
         audit_context = AuditContext(correlation_id=demo_uuid(tenant_id, "seed-correlation"))
@@ -528,21 +654,33 @@ class SyntheticDemoSeedService:
                         updated_at=base + timedelta(hours=index, minutes=30),
                     )
                 )
-                manager_user = manager_memberships[index % 2]
+                manager = manager_identities[index % 2]
+                assignment_id = demo_uuid(tenant_id, f"assignment-{index}")
                 await uow.manager_assignments.append(
                     ManagerAssignment(
-                        id=demo_uuid(tenant_id, f"assignment-{index}"),
+                        id=assignment_id,
                         tenant_id=tenant_id,
-                        manager_user_id=manager_user,
+                        manager_user_id=manager.user_id,
                         conversation_thread_id=thread_id,
                         sales_case_id=None,
                         assigned_at=base + timedelta(hours=index, minutes=5),
                     )
                 )
+                ledger.add(resource_type=SyntheticSeedResourceType.LEAD, resource_id=lead_id)
+                ledger.add(resource_type=SyntheticSeedResourceType.SALES_CASE, resource_id=case_id)
+                ledger.add(
+                    resource_type=SyntheticSeedResourceType.CONVERSATION_THREAD,
+                    resource_id=thread_id,
+                )
+                ledger.add(
+                    resource_type=SyntheticSeedResourceType.MANAGER_ASSIGNMENT,
+                    resource_id=assignment_id,
+                )
                 if case_status in {SalesCaseStatus.WON, SalesCaseStatus.LOST}:
+                    outcome_id = demo_uuid(tenant_id, f"crm-outcome-{case_key}")
                     await uow.crm_outcomes.append(
                         CRMOutcome(
-                            id=demo_uuid(tenant_id, f"crm-outcome-{case_key}"),
+                            id=outcome_id,
                             tenant_id=tenant_id,
                             sales_case_id=case_id,
                             external_deal_id=f"synthetic-deal-{case_key}-{tenant_id}",
@@ -555,12 +693,17 @@ class SyntheticDemoSeedService:
                             adapter_metadata=demo_adapter_metadata(key=f"crm-{case_key}"),
                         )
                     )
+                    ledger.add(
+                        resource_type=SyntheticSeedResourceType.CRM_OUTCOME,
+                        resource_id=outcome_id,
+                    )
                 await uow.commit()
 
             previous_message_id: UUID | None = None
             for message_index, (sender, direction_name, body, hour_offset) in enumerate(messages):
                 message_id = demo_uuid(tenant_id, f"{thread_key}-message-{message_index}")
                 content_id = demo_uuid(tenant_id, f"{thread_key}-content-{message_index}")
+                outbox_job_id = demo_uuid(tenant_id, f"{thread_key}-outbox-redact-{message_index}")
                 sent_at = base + timedelta(hours=hour_offset)
                 received_at = sent_at + timedelta(minutes=1)
                 if thread_key == "thread-2" and sender == "manager":
@@ -569,7 +712,7 @@ class SyntheticDemoSeedService:
                     tenant_id=tenant_id,
                     content_id=content_id,
                     message_id=message_id,
-                    outbox_job_id=self._uuid_factory(),
+                    outbox_job_id=outbox_job_id,
                     audit_event_id=self._uuid_factory(),
                     conversation_thread_id=thread_id,
                     external_message_id=f"synthetic-msg-{thread_key}-{message_index}",
@@ -596,6 +739,15 @@ class SyntheticDemoSeedService:
                     actor_type=AuditActorType.SERVICE,
                     actor_id=self._service_actor_id,
                 )
+                ledger.add(resource_type=SyntheticSeedResourceType.MESSAGE, resource_id=message_id)
+                ledger.add(
+                    resource_type=SyntheticSeedResourceType.ENCRYPTED_CONTENT,
+                    resource_id=content_id,
+                )
+                ledger.add(
+                    resource_type=SyntheticSeedResourceType.OUTBOX_JOB,
+                    resource_id=outbox_job_id,
+                )
                 previous_message_id = message_id
 
         return tuple(thread_ids)
@@ -605,17 +757,24 @@ class SyntheticDemoSeedService:
         *,
         tenant_id: UUID,
         pipeline: _DemoPipeline,
+        ledger: _SeedResourceLedger,
     ) -> None:
         await self._drain_jobs(
             tenant_id=tenant_id,
             job_kind=OutboxJobKind.CONTENT_REDACT,
             handler=pipeline.content_redact,
+            ledger=ledger,
         )
-        await self._process_analyze_jobs(tenant_id=tenant_id, handler=pipeline.message_analyze)
+        await self._process_analyze_jobs(
+            tenant_id=tenant_id,
+            handler=pipeline.message_analyze,
+            ledger=ledger,
+        )
         await self._drain_jobs(
             tenant_id=tenant_id,
             job_kind=OutboxJobKind.METRICS_RECALCULATE,
             handler=pipeline.metrics_recalculate,
+            ledger=ledger,
         )
 
     async def _drain_jobs(
@@ -624,12 +783,15 @@ class SyntheticDemoSeedService:
         tenant_id: UUID,
         job_kind: OutboxJobKind,
         handler: object,
+        ledger: _SeedResourceLedger,
         max_rounds: int = 10,
     ) -> None:
         for _ in range(max_rounds):
             pending = await self._list_pending_jobs_for_kind(tenant_id=tenant_id, job_kind=job_kind)
             if not pending:
                 return
+            for job in pending:
+                ledger.add(resource_type=SyntheticSeedResourceType.OUTBOX_JOB, resource_id=job.id)
             uow = self._uow_factory()
             async with uow:
                 publisher = OutboxPublisherService(
@@ -644,6 +806,7 @@ class SyntheticDemoSeedService:
                     outbox_job_attempts=uow.outbox_job_attempts,
                     handlers={job_kind: handler},  # type: ignore[dict-item]
                     worker_id="synthetic-demo-seed",
+                    clock=_WorkerClock(self._clock),
                 )
                 published = await uow.outbox_jobs.list_by_state(
                     state=OutboxJobState.PUBLISHED,
@@ -652,7 +815,7 @@ class SyntheticDemoSeedService:
                 for job in published:
                     if job.job_kind is not job_kind:
                         continue
-                    await processor.process_job(job_id=job.id, now=self._clock())
+                    await processor.process_job(job_id=job.id)
                 await uow.commit()
 
     async def _process_analyze_jobs(
@@ -660,6 +823,7 @@ class SyntheticDemoSeedService:
         *,
         tenant_id: UUID,
         handler: MessageAnalyzeHandler,
+        ledger: _SeedResourceLedger,
     ) -> None:
         pending = await self._list_pending_jobs_for_kind(
             tenant_id=tenant_id,
@@ -670,6 +834,7 @@ class SyntheticDemoSeedService:
         analyzed_threads: set[UUID] = set()
         selected_jobs: list[OutboxJob] = []
         for job in pending:
+            ledger.add(resource_type=SyntheticSeedResourceType.OUTBOX_JOB, resource_id=job.id)
             thread_id = await self._thread_id_for_message(
                 tenant_id=tenant_id,
                 message_id=job.reference.resource_id,
@@ -701,12 +866,13 @@ class SyntheticDemoSeedService:
                 outbox_job_attempts=uow.outbox_job_attempts,
                 handlers={OutboxJobKind.MESSAGE_ANALYZE: handler},
                 worker_id="synthetic-demo-seed",
+                clock=_WorkerClock(self._clock),
             )
             for job in selected_jobs:
                 published = await uow.outbox_jobs.get_by_id(job_id=job.id)
                 if published is None or published.state is not OutboxJobState.PUBLISHED:
                     continue
-                await processor.process_job(job_id=job.id, now=self._clock())
+                await processor.process_job(job_id=job.id)
             await uow.commit()
 
     async def _thread_has_completed_analysis(
@@ -782,6 +948,7 @@ class SyntheticDemoSeedService:
         manager_membership_id: UUID,
         finding_id: UUID | None,
         now: datetime,
+        ledger: _SeedResourceLedger,
     ) -> int:
         open_task_id = demo_uuid(tenant_id, "task-open")
         done_task_id = demo_uuid(tenant_id, "task-done")
@@ -815,6 +982,10 @@ class SyntheticDemoSeedService:
                 now=now,
                 audit_context=audit_context,
             )
+            ledger.add(
+                resource_type=SyntheticSeedResourceType.FOLLOW_UP_TASK,
+                resource_id=open_task_id,
+            )
         completed_thread = thread_ids[0]
         if existing_done is None:
             await self._add_demo_task(
@@ -830,6 +1001,10 @@ class SyntheticDemoSeedService:
                 status=FollowUpTaskStatus.COMPLETED,
                 now=now,
                 audit_context=audit_context,
+            )
+            ledger.add(
+                resource_type=SyntheticSeedResourceType.FOLLOW_UP_TASK,
+                resource_id=done_task_id,
             )
         return 2
 
@@ -912,6 +1087,7 @@ class SyntheticDemoSeedService:
         tenant_id: UUID,
         pipeline: _DemoPipeline,
         now: datetime,
+        ledger: _SeedResourceLedger,
     ) -> None:
         uow = self._uow_factory()
         async with uow:
@@ -936,126 +1112,146 @@ class SyntheticDemoSeedService:
             tenant_id=tenant_id,
             job_kind=OutboxJobKind.METRICS_RECALCULATE,
             handler=pipeline.metrics_recalculate,
+            ledger=ledger,
         )
 
-    async def _reset_demo_data(self, *, tenant_id: UUID) -> None:
+    async def _collect_derived_resources(
+        self,
+        *,
+        tenant_id: UUID,
+        ledger: _SeedResourceLedger,
+    ) -> None:
         uow = self._uow_factory()
         async with uow:
             if not isinstance(uow, SqlAlchemyIntegratedUnitOfWork):
-                raise SyntheticDemoSeedError("reset requires integrated SQLAlchemy unit of work")
-            thread_ids = [demo_uuid(tenant_id, f"thread-{index}") for index in range(THREAD_COUNT)]
-            for statement, params in (
-                (
-                    "DELETE FROM follow_up_tasks WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM conversation_finding_evidence WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM conversation_findings WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM conversation_analysis_runs WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM content_sanitization_category_counts "
-                    "WHERE sanitization_id IN ("
-                    "SELECT id FROM content_sanitizations WHERE tenant_id = :tenant_id"
-                    ")",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM content_sanitizations WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM outbox_job_attempts WHERE job_id IN ("
-                    "SELECT id FROM outbox_jobs WHERE tenant_id = :tenant_id"
-                    ")",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM outbox_jobs WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM manager_assignments WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM crm_outcomes WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM sales_cases WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM leads WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM metric_values WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM metric_snapshots WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM encrypted_contents WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM channel_connections "
-                    "WHERE tenant_id = :tenant_id AND id = :connection_id",
-                    {"tenant_id": tenant_id, "connection_id": demo_uuid(tenant_id, "connection")},
-                ),
-                (
-                    "DELETE FROM tenant_ai_policies WHERE tenant_id = :tenant_id",
-                    {"tenant_id": tenant_id},
-                ),
-                (
-                    "DELETE FROM memberships WHERE tenant_id = :tenant_id AND id = :membership_a",
-                    {
-                        "tenant_id": tenant_id,
-                        "membership_a": demo_uuid(tenant_id, "manager-a-membership"),
-                    },
-                ),
-                (
-                    "DELETE FROM memberships WHERE tenant_id = :tenant_id AND id = :membership_b",
-                    {
-                        "tenant_id": tenant_id,
-                        "membership_b": demo_uuid(tenant_id, "manager-b-membership"),
-                    },
-                ),
-                (
-                    "DELETE FROM users WHERE id = :user_a",
-                    {"user_a": demo_uuid(tenant_id, "manager-a-user")},
-                ),
-                (
-                    "DELETE FROM users WHERE id = :user_b",
-                    {"user_b": demo_uuid(tenant_id, "manager-b-user")},
-                ),
-            ):
-                await uow.session.execute(text(statement), params)
-            for thread_id in thread_ids:
+                raise SyntheticDemoSeedError("derived resource collection requires SQLAlchemy UoW")
+            content_ids = {
+                item.resource_id
+                for item in ledger._items
+                if item.resource_type is SyntheticSeedResourceType.ENCRYPTED_CONTENT
+            }
+            thread_ids = {
+                item.resource_id
+                for item in ledger._items
+                if item.resource_type is SyntheticSeedResourceType.CONVERSATION_THREAD
+            }
+            if content_ids:
+                rows = (
+                    await uow.session.execute(
+                        text(
+                            "SELECT id FROM content_sanitizations "
+                            "WHERE tenant_id = :tenant_id AND source_content_id = ANY(:ids)"
+                        ),
+                        {"tenant_id": tenant_id, "ids": list(content_ids)},
+                    )
+                ).all()
+                for row in rows:
+                    ledger.add(
+                        resource_type=SyntheticSeedResourceType.SANITIZATION,
+                        resource_id=row.id,
+                    )
+            if thread_ids:
+                run_rows = (
+                    await uow.session.execute(
+                        text(
+                            "SELECT id FROM conversation_analysis_runs "
+                            "WHERE tenant_id = :tenant_id "
+                            "AND conversation_thread_id = ANY(:ids)"
+                        ),
+                        {"tenant_id": tenant_id, "ids": list(thread_ids)},
+                    )
+                ).all()
+                run_ids = [row.id for row in run_rows]
+                for run_id in run_ids:
+                    ledger.add(
+                        resource_type=SyntheticSeedResourceType.ANALYSIS_RUN,
+                        resource_id=run_id,
+                    )
+                if run_ids:
+                    finding_rows = (
+                        await uow.session.execute(
+                            text(
+                                "SELECT id FROM conversation_findings "
+                                "WHERE tenant_id = :tenant_id AND analysis_run_id = ANY(:ids)"
+                            ),
+                            {"tenant_id": tenant_id, "ids": run_ids},
+                        )
+                    ).all()
+                    finding_ids = [row.id for row in finding_rows]
+                    for finding_id in finding_ids:
+                        ledger.add(
+                            resource_type=SyntheticSeedResourceType.FINDING,
+                            resource_id=finding_id,
+                        )
+                    if finding_ids:
+                        evidence_rows = (
+                            await uow.session.execute(
+                                text(
+                                    "SELECT id FROM conversation_finding_evidence "
+                                    "WHERE tenant_id = :tenant_id AND finding_id = ANY(:ids)"
+                                ),
+                                {"tenant_id": tenant_id, "ids": finding_ids},
+                            )
+                        ).all()
+                        for row in evidence_rows:
+                            ledger.add(
+                                resource_type=SyntheticSeedResourceType.FINDING_EVIDENCE,
+                                resource_id=row.id,
+                            )
+            snapshot_rows = (
                 await uow.session.execute(
-                    text(
-                        "DELETE FROM messages WHERE tenant_id = :tenant_id "
-                        "AND conversation_thread_id = :thread_id"
-                    ),
-                    {"tenant_id": tenant_id, "thread_id": thread_id},
+                    text("SELECT id FROM metric_snapshots WHERE tenant_id = :tenant_id"),
+                    {"tenant_id": tenant_id},
                 )
-                await uow.session.execute(
-                    text(
-                        "DELETE FROM conversation_threads "
-                        "WHERE tenant_id = :tenant_id AND id = :thread_id"
-                    ),
-                    {"tenant_id": tenant_id, "thread_id": thread_id},
+            ).all()
+            for row in snapshot_rows:
+                ledger.add(
+                    resource_type=SyntheticSeedResourceType.METRIC_SNAPSHOT,
+                    resource_id=row.id,
                 )
+
+    async def _persist_manifest(
+        self,
+        *,
+        tenant_id: UUID,
+        manifest_id: UUID,
+        seed_run_id: UUID,
+        now: datetime,
+        ledger: _SeedResourceLedger,
+    ) -> None:
+        records = ledger.as_records(uuid_factory=self._uuid_factory)
+        if not records:
+            raise SyntheticDemoProvenanceIncompleteError(
+                "synthetic seed produced no registered resources"
+            )
+        uow = self._uow_factory()
+        async with uow:
+            await uow.synthetic_seed_manifests.add(
+                manifest=SyntheticSeedManifest(
+                    id=manifest_id,
+                    tenant_id=tenant_id,
+                    seed_version=SYNTHETIC_DEMO_VERSION,
+                    seed_run_id=seed_run_id,
+                    created_at=now,
+                    reset_state=SyntheticSeedResetState.ACTIVE,
+                )
+            )
+            await uow.synthetic_seed_resources.add_many(resources=records)
             await uow.commit()
+
+    async def plan_reset(self, *, tenant_id: UUID) -> object:
+        return await SyntheticDemoResetService(
+            uow_factory=self._uow_factory,
+            seed_version=SYNTHETIC_DEMO_VERSION,
+        ).plan_reset(tenant_id=tenant_id)
+
+    async def reset_demo(
+        self,
+        *,
+        tenant_id: UUID,
+        dry_run: bool = False,
+    ) -> object:
+        return await SyntheticDemoResetService(
+            uow_factory=self._uow_factory,
+            seed_version=SYNTHETIC_DEMO_VERSION,
+        ).reset(tenant_id=tenant_id, dry_run=dry_run)

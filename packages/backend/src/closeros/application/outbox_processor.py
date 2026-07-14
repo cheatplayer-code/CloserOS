@@ -5,10 +5,11 @@ from __future__ import annotations
 import asyncio
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID, uuid4
 
+from closeros.application.clock import Clock, SystemClock
 from closeros.application.outbox_persistence import (
     OutboxClaimMismatchError,
     OutboxJobAttemptRepository,
@@ -41,6 +42,16 @@ class OutboxProcessorResult:
     outcome: str
 
 
+class _FrozenClock:
+    """Compatibility clock for callers that still pass a single ``now`` value."""
+
+    def __init__(self, instant: datetime) -> None:
+        self._instant = instant
+
+    def now(self) -> datetime:
+        return self._instant
+
+
 class NoOpOutboxJobHandler:
     """Test/no-op handler that acknowledges supported job kinds without side effects."""
 
@@ -62,30 +73,52 @@ class OutboxProcessorService:
         handlers: dict[OutboxJobKind, OutboxJobHandler],
         worker_id: str,
         supported_job_kinds: frozenset[OutboxJobKind] | None = None,
+        clock: Clock | None = None,
     ) -> None:
         self._outbox_jobs = outbox_jobs
         self._outbox_job_attempts = outbox_job_attempts
         self._handlers = handlers
         self._worker_id = worker_id
         self._supported_job_kinds = supported_job_kinds
+        self._injected_clock = clock
 
-    async def process_job(self, *, job_id: UUID, now: datetime) -> OutboxProcessorResult:
+    def _resolve_clock(self, *, now: datetime | None) -> Clock:
+        if self._injected_clock is not None:
+            return self._injected_clock
+        if now is not None:
+            return _FrozenClock(now)
+        return SystemClock()
+
+    async def process_job(
+        self,
+        *,
+        job_id: UUID,
+        now: datetime | None = None,
+    ) -> OutboxProcessorResult:
+        """Process one published job.
+
+        Lifecycle timestamps come from ``clock``. When no clock was injected,
+        a caller-supplied ``now`` freezes all lifecycle points for compatibility.
+        Inject an advancing clock to obtain non-zero attempt durations.
+        """
+        clock = self._resolve_clock(now=now)
+        claim_at = clock.now()
         claimed = await self._outbox_jobs.claim_for_processing(
             job_id=job_id,
             worker_id=self._worker_id,
-            now=now,
+            now=claim_at,
             allowed_job_kinds=self._supported_job_kinds,
         )
         if claimed is None:
             return OutboxProcessorResult(job_id=job_id, outcome="not_claimed")
 
-        started_at = now
+        started_at = clock.now()
         handler = self._handlers.get(claimed.job_kind)
         if handler is None:
             return await self._handle_failure(
                 job=claimed,
                 started_at=started_at,
-                now=now,
+                clock=clock,
                 error_code=OutboxErrorCode.HANDLER_NOT_IMPLEMENTED,
             )
 
@@ -95,6 +128,7 @@ class OutboxProcessorService:
             self._renew_processor_lease_loop(
                 job_holder=current_job,
                 stop_event=renew_stop,
+                clock=clock,
             )
         )
         try:
@@ -107,19 +141,19 @@ class OutboxProcessorService:
                     return await self._handle_permanent_failure(
                         job=active_job,
                         started_at=started_at,
-                        now=now,
+                        clock=clock,
                         error_code=handler_error.error_code,
                     )
                 return await self._handle_failure(
                     job=active_job,
                     started_at=started_at,
-                    now=now,
+                    clock=clock,
                     error_code=handler_error.error_code,
                 )
             return await self._handle_failure(
                 job=active_job,
                 started_at=started_at,
-                now=now,
+                clock=clock,
                 error_code=OutboxErrorCode.HANDLER_FAILED,
             )
         finally:
@@ -129,18 +163,19 @@ class OutboxProcessorService:
                 await renew_task
 
         active_job = current_job[0]
+        finished_at = clock.now()
         try:
             updated = await self._outbox_jobs.mark_succeeded(
                 job_id=active_job.id,
                 claim_token=active_job.claim_token,  # type: ignore[arg-type]
-                now=now,
+                now=finished_at,
                 expected_version=active_job.version,
             )
         except OutboxClaimMismatchError:
             await self._append_attempt(
                 job=active_job,
                 started_at=started_at,
-                finished_at=now,
+                finished_at=finished_at,
                 outcome=OutboxAttemptOutcome.FAILED,
                 error_code=OutboxErrorCode.STALE_CLAIM,
             )
@@ -149,7 +184,7 @@ class OutboxProcessorService:
         await self._append_attempt(
             job=updated,
             started_at=started_at,
-            finished_at=now,
+            finished_at=finished_at,
             outcome=OutboxAttemptOutcome.SUCCEEDED,
             error_code=None,
         )
@@ -160,13 +195,14 @@ class OutboxProcessorService:
         *,
         job: OutboxJob,
         started_at: datetime,
-        now: datetime,
+        clock: Clock,
         error_code: OutboxErrorCode,
     ) -> OutboxProcessorResult:
+        finished_at = clock.now()
         await self._append_attempt(
             job=job,
             started_at=started_at,
-            finished_at=now,
+            finished_at=finished_at,
             outcome=OutboxAttemptOutcome.FAILED,
             error_code=error_code,
         )
@@ -175,7 +211,7 @@ class OutboxProcessorService:
                 job_id=job.id,
                 claim_token=job.claim_token,  # type: ignore[arg-type]
                 error_code=error_code.value,
-                now=now,
+                now=finished_at,
                 expected_version=job.version,
             )
         except OutboxClaimMismatchError as error:
@@ -187,13 +223,14 @@ class OutboxProcessorService:
         *,
         job: OutboxJob,
         started_at: datetime,
-        now: datetime,
+        clock: Clock,
         error_code: OutboxErrorCode,
     ) -> OutboxProcessorResult:
+        finished_at = clock.now()
         await self._append_attempt(
             job=job,
             started_at=started_at,
-            finished_at=now,
+            finished_at=finished_at,
             outcome=OutboxAttemptOutcome.FAILED,
             error_code=error_code,
         )
@@ -204,7 +241,7 @@ class OutboxProcessorService:
                     job_id=job.id,
                     claim_token=job.claim_token,  # type: ignore[arg-type]
                     error_code=OutboxErrorCode.MAX_ATTEMPTS_EXCEEDED.value,
-                    now=now,
+                    now=finished_at,
                     expected_version=job.version,
                 )
             except OutboxClaimMismatchError as error:
@@ -217,7 +254,7 @@ class OutboxProcessorService:
                 claim_token=job.claim_token,  # type: ignore[arg-type]
                 phase=OutboxJobPhase.PROCESSOR,
                 error_code=error_code,
-                now=now,
+                now=finished_at,
                 expected_version=job.version,
             )
         except OutboxTransitionError as error:
@@ -228,7 +265,7 @@ class OutboxProcessorService:
                 job_id=job.id,
                 claim_token=job.claim_token,  # type: ignore[arg-type]
                 error_code=error_code.value,
-                now=now,
+                now=finished_at,
                 expected_version=job.version,
                 phase=OutboxJobPhase.PROCESSOR.value,
             )
@@ -241,6 +278,7 @@ class OutboxProcessorService:
         *,
         job_holder: list[OutboxJob],
         stop_event: asyncio.Event,
+        clock: Clock,
     ) -> None:
         interval_seconds = max(PROCESSOR_LEASE_SECONDS // 3, 10)
         while not stop_event.is_set():
@@ -258,7 +296,7 @@ class OutboxProcessorService:
                 job_holder[0] = await self._outbox_jobs.renew_processor_claim(
                     job_id=current.id,
                     claim_token=current.claim_token,
-                    now=datetime.now(UTC),
+                    now=clock.now(),
                     expected_version=current.version,
                 )
             except OutboxClaimMismatchError:

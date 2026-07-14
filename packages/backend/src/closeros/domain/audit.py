@@ -79,6 +79,11 @@ _ALLOWED_METADATA_KEYS: frozenset[str] = frozenset(
         "crm_object_type",
         "sync_direction",
         "conflict_count",
+        "sku_count",
+        "import_status",
+        "candidate_key",
+        "edit_basis_points",
+        "fact_type",
     }
 )
 
@@ -188,6 +193,24 @@ class AuditAction(StrEnum):
     CRM_SYNC_FAILED = "crm.sync.failed"
     CRM_RECONCILIATION_COMPLETED = "crm.reconciliation.completed"
     CRM_CONFLICT_RESOLVED = "crm.conflict.resolved"
+    CATALOG_PRODUCT_CREATED = "catalog.product.created"
+    CATALOG_PRODUCT_UPDATED = "catalog.product.updated"
+    CATALOG_PRODUCT_PUBLISHED = "catalog.product.published"
+    CATALOG_PRODUCT_STATUS_CHANGED = "catalog.product.status_changed"
+    CATALOG_VARIANT_CREATED = "catalog.variant.created"
+    CATALOG_PRICE_SET = "catalog.price.set"
+    CATALOG_INVENTORY_SET = "catalog.inventory.set"
+    CATALOG_IMPORT_UPLOADED = "catalog.import.uploaded"
+    CATALOG_IMPORT_PUBLISHED = "catalog.import.published"
+    CATALOG_FACT_QUERIED = "catalog.fact.queried"
+    REPLY_SUGGESTION_REQUESTED = "reply_suggestion.requested"
+    REPLY_SUGGESTION_COMPLETED = "reply_suggestion.completed"
+    REPLY_SUGGESTION_BLOCKED = "reply_suggestion.blocked"
+    REPLY_SUGGESTION_SELECTED = "reply_suggestion.selected"
+    REPLY_SUGGESTION_REJECTED = "reply_suggestion.rejected"
+    BUYER_MEMORY_CONFIRMED = "buyer_memory.confirmed"
+    BUYER_MEMORY_CORRECTED = "buyer_memory.corrected"
+    BUYER_MEMORY_DELETED = "buyer_memory.deleted"
 
 
 class AuditTargetType(StrEnum):
@@ -224,6 +247,10 @@ class AuditTargetType(StrEnum):
     CRM_FIELD_MAPPING = "crm_field_mapping"
     CRM_SYNC_ATTEMPT = "crm_sync_attempt"
     CRM_CONFLICT = "crm_conflict"
+    CATALOG_PRODUCT = "catalog_product"
+    CATALOG_IMPORT_RUN = "catalog_import_run"
+    REPLY_SUGGESTION_RUN = "reply_suggestion_run"
+    BUYER_MEMORY_FACT = "buyer_memory_fact"
 
 
 class AuditMetadataError(ValueError):

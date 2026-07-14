@@ -7,7 +7,7 @@ metadata only. Message bodies and sanitized text are never read. See ADR-0014.
 
 Implemented in Block LM:
 
-- `MetricsEngine` with formula version `lm-metrics-v1`;
+- `MetricsEngine` with formula version `lm-metrics-v2`;
 - half-open time windows derived from tenant IANA time zones;
 - immutable `metric_snapshots` and `metric_values` persistence;
 - `metrics.recalculate` outbox handler;
@@ -59,12 +59,22 @@ calendar date derived from the job `created_at` timestamp.
 | `tenant` | `null` | all conversation threads loaded for the window |
 | `manager` | required | threads attributed to the manager |
 
-Manager attribution:
+Manager attribution (shared helper `resolve_manager_metric_scope`):
+
+V1 rule — attribute a thread or sales case to the **latest eligible assignment
+effective at the requested cutoff** (`assigned_at <= window_end`):
 
 1. Prefer direct `conversation_thread_id` assignment when present.
 2. Else use assignment on the thread's `sales_case_id`.
 3. When multiple assignments compete, keep the latest `assigned_at`; tie-break by
    assignment UUID lexicographic order.
+4. Direct sales-case assignments (no thread) contribute to manager
+   `sales_case_ids` for appointment/won/lost metrics even without messages.
+5. Unassigned threads/cases are excluded from manager scope but remain in
+   tenant scope.
+
+Manager CRM metrics (appointments, won, lost, conversion) are scoped only to
+`manager_sales_case_ids`, never to all tenant sales cases in the window.
 
 ## Metric keys and formulas
 
@@ -120,9 +130,9 @@ Omitted when the sample count is zero.
 
 | Key | Formula |
 |-----|---------|
-| `appointment_booked_case_count` | Sales cases with `updated_at` in window and `status=appointment_booked` |
-| `won_case_count` | CRM outcomes in window with `outcome_type=won` for sales cases linked to loaded threads |
-| `lost_case_count` | CRM outcomes in window with `outcome_type=lost` under the same case filter |
+| `appointment_booked_case_count` | In-scope sales cases with `status=appointment_booked` |
+| `won_case_count` | CRM outcomes with `outcome_type=won` for in-scope sales cases |
+| `lost_case_count` | CRM outcomes with `outcome_type=lost` for in-scope sales cases |
 
 CRM outcomes do not infer won/lost when CRM data is absent (ADR-0004).
 
@@ -141,7 +151,7 @@ Each completed snapshot stores:
 
 - `scope`, optional `manager_user_id`;
 - `window_start`, `window_end`, `window_code`;
-- `formula_version` (`lm-metrics-v1`);
+- `formula_version` (`lm-metrics-v2`);
 - `source_watermark` — max relevant source timestamp seen while loading (≥ `window_end`);
 - `computed_at` — calculation timestamp (typically job creation time);
 - `status` (`completed` for LM handler output);
@@ -201,7 +211,7 @@ Query parameters:
 | `manager_user_id` | when `scope=manager` | Manager user UUID |
 | `window_start` | no | Filter snapshots with this window start |
 | `window_end` | no | Filter snapshots with this window end |
-| `formula_version` | no | Defaults to `lm-metrics-v1` |
+| `formula_version` | no | Defaults to `lm-metrics-v2` |
 
 Authorization: session cookie; roles `OWNER`, `SALES_HEAD`, or `COMPLIANCE_ADMIN`.
 

@@ -3,20 +3,26 @@
 from __future__ import annotations
 
 import hmac
-import re
+import unicodedata
 from collections import Counter
+from collections.abc import Iterator
 from dataclasses import dataclass
 from hashlib import sha256
 from uuid import UUID
 
 from closeros.application.knowledge_search_key import KnowledgeSearchKeyProvider
 
-_TOKEN_PATTERN = re.compile(r"[a-z0-9]{2,64}")
+# Bumped when tokenization/digest semantics change. Reindex required.
+TERM_INDEX_VERSION = "v1-unicode-term-v1"
+
 _MAX_TERMS_PER_CHUNK = 64
 _MAX_TERMS_PER_QUERY = 32
+_MIN_TOKEN_LENGTH = 2
+_MAX_TOKEN_LENGTH = 64
 
 DEFAULT_STOP_WORDS: frozenset[str] = frozenset(
     {
+        # English
         "a",
         "an",
         "and",
@@ -40,6 +46,7 @@ DEFAULT_STOP_WORDS: frozenset[str] = frozenset(
         "was",
         "were",
         "with",
+        # Russian
         "и",
         "в",
         "во",
@@ -51,6 +58,75 @@ DEFAULT_STOP_WORDS: frozenset[str] = frozenset(
         "из",
         "за",
         "для",
+        "а",
+        "но",
+        "или",
+        "же",
+        "к",
+        "о",
+        "об",
+        "от",
+        "со",
+        "то",
+        "это",
+        "этот",
+        "эта",
+        "эти",
+        "он",
+        "она",
+        "они",
+        "мы",
+        "вы",
+        "их",
+        "его",
+        "ее",
+        "если",
+        "когда",
+        "чтобы",
+        "также",
+        "уже",
+        "есть",
+        "будет",
+        "были",
+        "был",
+        "была",
+        # Kazakh
+        "және",
+        "мен",
+        "бен",
+        "пен",
+        "де",
+        "да",
+        "те",
+        "та",
+        "үшін",
+        "немесе",
+        "бірақ",
+        "емес",
+        "жоқ",
+        "иә",
+        "бұл",
+        "сол",
+        "осы",
+        "анау",
+        "мынау",
+        "ол",
+        "олар",
+        "біз",
+        "сен",
+        "сіздер",
+        "бар",
+        "керек",
+        "қажет",
+        "сияқты",
+        "туралы",
+        "арқылы",
+        "кейін",
+        "бұрын",
+        "өте",
+        "ғана",
+        "тек",
+        "ең",
     }
 )
 
@@ -62,7 +138,41 @@ class IndexedKnowledgeTerm:
 
 
 def _normalize_text(text: str) -> str:
-    return text.lower().replace("\r\n", "\n").replace("\r", "\n")
+    normalized = unicodedata.normalize("NFKC", text)
+    folded = normalized.casefold()
+    return " ".join(folded.split())
+
+
+def _is_token_char(char: str) -> bool:
+    return char.isalpha() or char.isdecimal()
+
+
+def _iter_raw_tokens(normalized_text: str) -> Iterator[str]:
+    buffer: list[str] = []
+    for char in normalized_text:
+        if _is_token_char(char):
+            buffer.append(char)
+            continue
+        if buffer:
+            yield "".join(buffer)
+            buffer.clear()
+    if buffer:
+        yield "".join(buffer)
+
+
+def _all_indexable_token_stream(
+    *,
+    text: str,
+    stop_words: frozenset[str],
+) -> list[str]:
+    tokens: list[str] = []
+    for raw in _iter_raw_tokens(_normalize_text(text)):
+        if len(raw) < _MIN_TOKEN_LENGTH or len(raw) > _MAX_TOKEN_LENGTH:
+            continue
+        if raw in stop_words:
+            continue
+        tokens.append(raw)
+    return tokens
 
 
 def extract_indexable_terms(
@@ -76,9 +186,7 @@ def extract_indexable_terms(
     if type(max_terms) is not int or max_terms < 1:
         raise ValueError("max_terms must be a positive integer")
 
-    tokens = [
-        token for token in _TOKEN_PATTERN.findall(_normalize_text(text)) if token not in stop_words
-    ]
+    tokens = _all_indexable_token_stream(text=text, stop_words=stop_words)
     if not tokens:
         return ()
     counts = Counter(tokens)
@@ -87,7 +195,8 @@ def extract_indexable_terms(
 
 
 def _digest_term(*, key: bytes, term: str) -> bytes:
-    return hmac.new(key, term.encode("utf-8"), sha256).digest()
+    payload = f"{TERM_INDEX_VERSION}:{term}".encode()
+    return hmac.new(key, payload, sha256).digest()
 
 
 def build_chunk_term_index(
@@ -102,10 +211,11 @@ def build_chunk_term_index(
     if not terms:
         return ()
     key = key_provider.key_for_tenant(tenant_id=tenant_id)
+    term_set = set(terms)
     frequencies = Counter(
         token
-        for token in _TOKEN_PATTERN.findall(_normalize_text(chunk_text))
-        if token not in stop_words and token in set(terms)
+        for token in _all_indexable_token_stream(text=chunk_text, stop_words=stop_words)
+        if token in term_set
     )
     max_frequency = max(frequencies.values()) if frequencies else 1
     indexed: list[IndexedKnowledgeTerm] = []
@@ -134,3 +244,13 @@ def build_query_term_digests(
         return ()
     key = key_provider.key_for_tenant(tenant_id=tenant_id)
     return tuple(_digest_term(key=key, term=term) for term in terms)
+
+
+__all__ = [
+    "DEFAULT_STOP_WORDS",
+    "TERM_INDEX_VERSION",
+    "IndexedKnowledgeTerm",
+    "build_chunk_term_index",
+    "build_query_term_digests",
+    "extract_indexable_terms",
+]

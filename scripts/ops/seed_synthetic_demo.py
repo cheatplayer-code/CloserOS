@@ -50,6 +50,16 @@ def _parse_args() -> argparse.Namespace:
         action="store_true",
         help="Delete previously seeded synthetic demo records before reseeding",
     )
+    parser.add_argument(
+        "--confirm-synthetic-reset",
+        action="store_true",
+        help="Required second confirmation when deleting previously seeded resources",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview reset counts without deleting or reseeding",
+    )
     return parser.parse_args()
 
 
@@ -90,6 +100,14 @@ async def _run(args: argparse.Namespace) -> int:
         print("error: pass --confirm-synthetic-only", file=sys.stderr)
         return 2
 
+    if args.reset_existing_synthetic_demo and not args.confirm_synthetic_reset and not args.dry_run:
+        print(
+            "error: reset requires --confirm-synthetic-reset "
+            "(or --dry-run to preview scoped deletions)",
+            file=sys.stderr,
+        )
+        return 5
+
     try:
         tenant_id = UUID(args.tenant_id)
     except ValueError:
@@ -98,6 +116,42 @@ async def _run(args: argparse.Namespace) -> int:
 
     database_url = _resolve_database_url(args.database_url)
     service = _build_service(database_url)
+
+    if args.dry_run and args.reset_existing_synthetic_demo:
+        from closeros.application.synthetic_demo_reset import (  # noqa: E402
+            SyntheticDemoResetError,
+            SyntheticDemoResetService,
+        )
+        from closeros.application.synthetic_demo_seed_service import (  # noqa: E402
+            SYNTHETIC_DEMO_VERSION,
+        )
+
+        try:
+            plan = await SyntheticDemoResetService(
+                uow_factory=build_integrated_uow_factory(database_url),
+                seed_version=SYNTHETIC_DEMO_VERSION,
+            ).plan_reset(tenant_id=tenant_id)
+        except SyntheticDemoResetError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+        if plan is None:
+            print(json.dumps({"dry_run": True, "total_resources": 0, "counts_by_type": {}}))
+            return 0
+        print(
+            json.dumps(
+                {
+                    "dry_run": True,
+                    "tenant_id": str(plan.tenant_id),
+                    "manifest_id": str(plan.manifest_id),
+                    "total_resources": plan.total_resources,
+                    "counts_by_type": plan.counts_by_type,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+        return 0
+
     try:
         result = await service.seed_demo(
             tenant_id=tenant_id,
