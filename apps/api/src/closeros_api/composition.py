@@ -25,6 +25,7 @@ from closeros.application.authentication_workflows import (
     MfaRequirementPolicy,
     MfaVerifier,
 )
+from closeros.application.buyer_memory_service import BuyerMemoryService
 from closeros.application.content_encryption_service import ContentEncryptionService
 from closeros.application.conversation_query_service import ConversationQueryService
 from closeros.application.crm_connection_service import CrmConnectionService
@@ -44,17 +45,16 @@ from closeros.application.outbound_message_service import OutboundMessageService
 from closeros.application.password_hashing import PasswordHasher
 from closeros.application.platform_unit_of_work import PlatformUnitOfWork
 from closeros.application.product_catalog_service import ProductCatalogService
-from closeros.application.buyer_memory_service import BuyerMemoryService
-from closeros.application.reply_suggestion_service import ReplySuggestionService
-from closeros.application.synthetic_ai_provider import SyntheticAiProvider
 from closeros.application.provider_adapter_registry import ProviderAdapterRegistry
 from closeros.application.provider_ports import (
     ImportContentScanner,
     WebhookRateLimiter,
     WhatsAppCredentialResolver,
 )
+from closeros.application.reply_suggestion_service import ReplySuggestionService
 from closeros.application.retention_purge_service import RetentionPurgeService
 from closeros.application.scorecard_query_service import ScorecardQueryService
+from closeros.application.synthetic_ai_provider import SyntheticAiProvider
 from closeros.application.tenant_context import TenantContextResolver, TenantListingService
 from closeros.application.tenant_persistence import TenantUnitOfWork
 from closeros.application.webhook_ingestion import WebhookIngestionService
@@ -750,9 +750,8 @@ def build_api_runtime(
             content_encryption=content_encryption,
             uuid_factory=uuid_factory,
         )
-        product_catalog_service = (
-            override_values.product_catalog_service
-            or ProductCatalogService(uow_factory=integrated_port_factory, clock=clock)
+        product_catalog_service = override_values.product_catalog_service or ProductCatalogService(
+            uow_factory=integrated_port_factory, clock=clock
         )
         buyer_memory_service = override_values.buyer_memory_service or BuyerMemoryService(
             uow_factory=integrated_port_factory,
@@ -811,13 +810,16 @@ def build_api_runtime(
                 clock=clock.now,
             )
         )
-        reply_suggestion_service = override_values.reply_suggestion_service or ReplySuggestionService(
-            uow_factory=integrated_port_factory,
-            content_encryption=content_encryption,
-            outbound_message_service=outbound_message_service,
-            clock=clock,
-            ai_provider=SyntheticAiProvider(),
-            uuid_factory=uuid_factory,
+        reply_suggestion_service = (
+            override_values.reply_suggestion_service
+            or ReplySuggestionService(
+                uow_factory=integrated_port_factory,
+                content_encryption=content_encryption,
+                outbound_message_service=outbound_message_service,
+                clock=clock,
+                ai_provider=SyntheticAiProvider(),
+                uuid_factory=uuid_factory,
+            )
         )
         whatsapp_webhook_verification_service = (
             override_values.whatsapp_webhook_verification_service

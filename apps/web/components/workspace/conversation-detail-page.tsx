@@ -132,12 +132,14 @@ function ConversationDetailContent({
         setReplyRun(result.data);
       });
 
-    void replyApiClient.listThreadMemory(tenant.tenantId, conversationId).then((result) => {
-      if (cancelled || !result.ok) {
-        return;
-      }
-      setMemoryFacts(result.data.facts);
-    });
+    void replyApiClient
+      .listThreadMemory(tenant.tenantId, conversationId)
+      .then((result) => {
+        if (cancelled || !result.ok) {
+          return;
+        }
+        setMemoryFacts(result.data.facts);
+      });
 
     return () => {
       cancelled = true;
@@ -200,7 +202,10 @@ function ConversationDetailContent({
     await reloadMemory();
   }
 
-  async function handleSelectCandidate(candidateId: string, textOverride?: string) {
+  async function handleSelectCandidate(
+    candidateId: string,
+    textOverride?: string,
+  ) {
     if (!tenant.tenantId || !activeSession || !replyRun) {
       return;
     }
@@ -217,7 +222,11 @@ function ConversationDetailContent({
       setFailure(result);
       return;
     }
-    setDraftText(textOverride || replyRun.candidates.find((c) => c.id === candidateId)?.text || "");
+    setDraftText(
+      textOverride ||
+        replyRun.candidates.find((c) => c.id === candidateId)?.text ||
+        "",
+    );
     setReplyNotice(
       "Encrypted outbound draft created. Explicit approval is still required before send.",
     );
@@ -736,8 +745,9 @@ function ConversationDetailContent({
                       <div>
                         <dt>Missing information</dt>
                         <dd>
-                          {replyRun.customer_state.missing_information.join(", ") ||
-                            "—"}
+                          {replyRun.customer_state.missing_information.join(
+                            ", ",
+                          ) || "—"}
                         </dd>
                       </div>
                     </dl>
@@ -752,8 +762,9 @@ function ConversationDetailContent({
                     <ul>
                       {memoryFacts.map((fact) => (
                         <li key={fact.id}>
-                          <strong>{fact.fact_type}</strong>: {fact.display_value}{" "}
-                          ({fact.status}, {fact.confidence_label}
+                          <strong>{fact.fact_type}</strong>:{" "}
+                          {fact.display_value} ({fact.status},{" "}
+                          {fact.confidence_label}
                           {fact.source_message_id
                             ? `; evidence ${fact.source_message_id.slice(0, 8)}…`
                             : ""}

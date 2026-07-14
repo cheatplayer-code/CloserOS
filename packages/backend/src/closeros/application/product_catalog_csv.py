@@ -134,10 +134,7 @@ def parse_catalog_csv(
     occurred = now or datetime.now(UTC)
     results: list[CatalogImportRowResult] = []
     seen_skus: set[str] = set()
-    row_number = 0
-
-    for raw_row in reader:
-        row_number += 1
+    for row_number, raw_row in enumerate(reader, start=1):
         if row_number > MAX_IMPORT_ROWS:
             results.append(
                 CatalogImportRowResult(

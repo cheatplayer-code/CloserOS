@@ -61,7 +61,9 @@ def _customer_state_from_json(payload: dict[str, Any] | None) -> ReplyCustomerSt
         intent=ReplyCustomerIntent(str(payload["intent"])),
         sales_stage=ReplySalesStage(str(payload["sales_stage"])),
         primary_objection=(
-            str(payload["primary_objection"]) if payload.get("primary_objection") is not None else None
+            str(payload["primary_objection"])
+            if payload.get("primary_objection") is not None
+            else None
         ),
         urgency=ReplyUrgency(str(payload["urgency"])),
         language=str(payload["language"]),
@@ -102,9 +104,7 @@ def _product_refs_from_json(values: list[Any]) -> tuple[ReplyProductReference, .
 
 
 def _product_refs_to_json(refs: tuple[ReplyProductReference, ...]) -> list[dict[str, str]]:
-    return [
-        {"product_id": str(ref.product_id), "variant_id": str(ref.variant_id)} for ref in refs
-    ]
+    return [{"product_id": str(ref.product_id), "variant_id": str(ref.variant_id)} for ref in refs]
 
 
 def _run_from_row(row: ReplySuggestionRunRow) -> ReplySuggestionRun:
@@ -359,9 +359,7 @@ class SqlAlchemyReplySuggestionCandidateRepository:
         )
         return tuple(_candidate_from_row(row) for row in result.scalars().all())
 
-    async def get(
-        self, *, tenant_id: UUID, candidate_id: UUID
-    ) -> ReplySuggestionCandidate | None:
+    async def get(self, *, tenant_id: UUID, candidate_id: UUID) -> ReplySuggestionCandidate | None:
         row = await self._session.get(ReplySuggestionCandidateRow, candidate_id)
         if row is None or row.tenant_id != tenant_id:
             return None
@@ -431,9 +429,7 @@ class SqlAlchemyBuyerMemoryFactRepository:
         )
         return tuple(_fact_from_row(row) for row in result.scalars().all())
 
-    async def list_for_lead(
-        self, *, tenant_id: UUID, lead_id: UUID
-    ) -> Sequence[BuyerMemoryFact]:
+    async def list_for_lead(self, *, tenant_id: UUID, lead_id: UUID) -> Sequence[BuyerMemoryFact]:
         result = await self._session.execute(
             select(BuyerMemoryFactRow)
             .where(

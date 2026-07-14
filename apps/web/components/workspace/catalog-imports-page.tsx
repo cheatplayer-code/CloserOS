@@ -121,15 +121,22 @@ function CatalogImportsContent() {
   }
 
   return (
-    <AppShell session={activeSession} onLogout={onLogout} onLogoutAll={onLogoutAll}>
-      <section className="workspace-page" aria-labelledby="catalog-imports-title">
+    <AppShell
+      session={activeSession}
+      onLogout={onLogout}
+      onLogoutAll={onLogoutAll}
+    >
+      <section
+        className="workspace-page"
+        aria-labelledby="catalog-imports-title"
+      >
         <header className="workspace-page__header">
           <div>
             <p className="workspace-page__eyebrow">Catalog</p>
             <h1 id="catalog-imports-title">CSV imports</h1>
             <p>
-              Upload validates only. Publish is a separate explicit step.
-              XLSX is not implemented in this block.
+              Upload validates only. Publish is a separate explicit step. XLSX
+              is not implemented in this block.
             </p>
           </div>
           <Link href="/app/catalog">Back to products</Link>
@@ -180,7 +187,8 @@ function CatalogImportsContent() {
             {lastRun ? (
               <p>
                 Run {lastRun.id ?? "dry-run"} status {lastRun.status}; created{" "}
-                {lastRun.created_count ?? 0}, updated {lastRun.updated_count ?? 0}
+                {lastRun.created_count ?? 0}, updated{" "}
+                {lastRun.updated_count ?? 0}
               </p>
             ) : null}
             {preview?.rows && preview.rows.length > 0 ? (

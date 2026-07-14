@@ -69,13 +69,6 @@ from closeros.application.outbox_persistence import (
     OutboxJobAttemptRepository,
     OutboxJobRepository,
 )
-from closeros.application.provider_media_persistence import ProviderMediaReferenceRepository
-from closeros.application.provider_template_persistence import ProviderMessageTemplateRepository
-from closeros.application.retention_persistence import (
-    LegalHoldRepository,
-    RetentionPurgeBatchRepository,
-    RetentionPurgeRunRepository,
-)
 from closeros.application.product_catalog_persistence import (
     CatalogFreshnessPolicyRepository,
     CatalogImportRowResultRepository,
@@ -89,11 +82,18 @@ from closeros.application.product_catalog_persistence import (
     ProductRepository,
     ProductVariantRepository,
 )
+from closeros.application.provider_media_persistence import ProviderMediaReferenceRepository
+from closeros.application.provider_template_persistence import ProviderMessageTemplateRepository
 from closeros.application.reply_suggestion_persistence import (
     BuyerMemoryFactRepository,
     ReplySuggestionCandidateRepository,
     ReplySuggestionEventRepository,
     ReplySuggestionRunRepository,
+)
+from closeros.application.retention_persistence import (
+    LegalHoldRepository,
+    RetentionPurgeBatchRepository,
+    RetentionPurgeRunRepository,
 )
 from closeros.application.synthetic_seed_persistence import (
     SyntheticSeedManifestRepository,

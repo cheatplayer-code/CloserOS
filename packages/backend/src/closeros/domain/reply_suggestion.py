@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import Mapping, Sequence
 from uuid import UUID
 
 REPLY_PROMPT_VERSION = "v1-reply-prompt-v1"

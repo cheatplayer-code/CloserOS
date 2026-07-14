@@ -71,12 +71,6 @@ from closeros.infrastructure.outbox_repositories import (
     SqlAlchemyOutboxJobAttemptRepository,
     SqlAlchemyOutboxJobRepository,
 )
-from closeros.infrastructure.provider_media_repositories import (
-    SqlAlchemyProviderMediaReferenceRepository,
-)
-from closeros.infrastructure.provider_template_repositories import (
-    SqlAlchemyProviderMessageTemplateRepository,
-)
 from closeros.infrastructure.product_catalog_repositories import (
     SqlAlchemyCatalogFreshnessPolicyRepository,
     SqlAlchemyCatalogImportRowResultRepository,
@@ -89,6 +83,12 @@ from closeros.infrastructure.product_catalog_repositories import (
     SqlAlchemyProductPriceRepository,
     SqlAlchemyProductRepository,
     SqlAlchemyProductVariantRepository,
+)
+from closeros.infrastructure.provider_media_repositories import (
+    SqlAlchemyProviderMediaReferenceRepository,
+)
+from closeros.infrastructure.provider_template_repositories import (
+    SqlAlchemyProviderMessageTemplateRepository,
 )
 from closeros.infrastructure.reply_suggestion_repositories import (
     SqlAlchemyBuyerMemoryFactRepository,

@@ -59,9 +59,7 @@ def _runtime(request: Request) -> ApiRuntime:
 RuntimeDep = Annotated[ApiRuntime, Depends(_runtime)]
 
 
-async def _require_context(
-    request: Request, runtime: ApiRuntime, *, tenant_id: UUID
-) -> object:
+async def _require_context(request: Request, runtime: ApiRuntime, *, tenant_id: UUID) -> object:
     token = read_session_cookie(request, cookie_config=runtime.cookie_config)
     if token is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=AUTHENTICATION_FAILED)
@@ -554,4 +552,3 @@ async def delete_buyer_memory_fact(
         raise _map_errors(exc) from exc
     apply_security_headers(response)
     return {"status": "deleted"}
-

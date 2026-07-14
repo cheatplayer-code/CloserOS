@@ -1,4 +1,4 @@
-﻿"""Alembic revision: V1 reply suggestion copilot and buyer memory.
+"""Alembic revision: V1 reply suggestion copilot and buyer memory.
 
 Revision ID: c3e5a7b9d1f0
 Revises: b2d4f6a8c0e1
@@ -104,7 +104,9 @@ def upgrade() -> None:
         sa.Column("confidence_basis_points", sa.Integer(), nullable=False),
         sa.Column("evidence_message_ids", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("product_references", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("knowledge_citation_ids", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column(
+            "knowledge_citation_ids", postgresql.JSONB(astext_type=sa.Text()), nullable=False
+        ),
         sa.Column("warnings", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column("is_recommended", sa.Boolean(), nullable=False),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False),
@@ -195,7 +197,9 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_buyer_memory_facts")),
         sa.UniqueConstraint("tenant_id", "id", name=op.f("uq_buyer_memory_facts_tenant_id_id")),
-        sa.CheckConstraint(f"fact_type IN {_FACT_TYPES}", name=op.f("ck_buyer_memory_facts_fact_type")),
+        sa.CheckConstraint(
+            f"fact_type IN {_FACT_TYPES}", name=op.f("ck_buyer_memory_facts_fact_type")
+        ),
         sa.CheckConstraint(f"status IN {_FACT_STATUS}", name=op.f("ck_buyer_memory_facts_status")),
         sa.CheckConstraint(
             "confidence_basis_points >= 0 AND confidence_basis_points <= 10000",

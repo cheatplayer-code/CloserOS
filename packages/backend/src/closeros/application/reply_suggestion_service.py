@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import difflib
 import hashlib
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, replace
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
 
+from closeros.application.ai_policy_persistence import TenantAiPolicyRecord
 from closeros.application.ai_ports import AiCredentialResolver, AiProvider, ProviderRequest
 from closeros.application.audit_recording import AuditContext, append_required_audit_event
 from closeros.application.buyer_memory_inference import infer_memory_facts_from_customer_state
@@ -47,7 +48,7 @@ from closeros.domain.encrypted_content import (
 from closeros.domain.identity import Role
 from closeros.domain.outbound_message import OutboundMessage, OutboundMessageKind
 from closeros.domain.privacy_redaction import SANITIZATION_POLICY_VERSION
-from closeros.domain.product_catalog import CatalogSearchFilters
+from closeros.domain.product_catalog import CatalogSearchFilters, CatalogSearchHit
 from closeros.domain.reply_suggestion import (
     MAX_EDIT_DISTANCE_BASIS_POINTS,
     REPLY_PROMPT_VERSION,
@@ -137,7 +138,6 @@ def _map_ai_failure(code: AiFailureCode) -> ReplyFailureCode:
         AiFailureCode.PROVIDER_UNAVAILABLE: ReplyFailureCode.PROVIDER_FAILURE,
         AiFailureCode.PROVIDER_OUTPUT_INVALID: ReplyFailureCode.OUTPUT_INVALID,
         AiFailureCode.UNSAFE_OUTPUT: ReplyFailureCode.OUTPUT_INVALID,
-        AiFailureCode.GROUNDING_FAILED: ReplyFailureCode.GROUNDING_FAILED,
     }
     return mapping.get(code, ReplyFailureCode.PROVIDER_FAILURE)
 
@@ -334,7 +334,7 @@ class ReplySuggestionService:
             )
             memory_facts = select_effective_memory_facts(raw_facts, now=now)
 
-        product_hits = ()
+        product_hits: Sequence[CatalogSearchHit] = ()
         allowed_actions: list[str] = []
         if catalog is not None:
             product_hits = await catalog.search_products(
@@ -355,7 +355,9 @@ class ReplySuggestionService:
         )
         prompt_text = f"{prompt_bundle.system_prompt}\n\n{prompt_bundle.user_prompt}"
         input_digest = hashlib.sha256(prompt_text.encode("utf-8")).digest()
-        allowed_products = frozenset((hit.product_id, hit.variant_id) for hit in product_hits)
+        allowed_products: frozenset[tuple[UUID, UUID]] = frozenset(
+            (hit.product_id, hit.variant_id) for hit in product_hits
+        )
 
         bearer_key = ""
         if self._ai_credential_resolver is not None:
@@ -448,19 +450,28 @@ class ReplySuggestionService:
         effective_by_type = {fact.fact_type: fact for fact in memory_facts}
         memory_to_persist: list[BuyerMemoryFact] = []
         for fact in inferred_memory:
-            current = effective_by_type.get(fact.fact_type)
-            if current is not None and current.normalized_value == fact.normalized_value:
+            existing_memory_fact = effective_by_type.get(fact.fact_type)
+            if (
+                existing_memory_fact is not None
+                and existing_memory_fact.normalized_value == fact.normalized_value
+            ):
                 continue
-            if current is not None:
-                fact = replace(fact, supersedes_fact_id=current.id)
+            if existing_memory_fact is not None:
+                fact = replace(
+                    fact,
+                    supersedes_fact_id=existing_memory_fact.id,
+                )
             memory_to_persist.append(fact)
 
         async with self._uow_factory() as uow:
-            current = await uow.reply_suggestion_runs.get(tenant_id=tenant_id, run_id=run_id)
-            if current is None:
+            current_run = await uow.reply_suggestion_runs.get(
+                tenant_id=tenant_id,
+                run_id=run_id,
+            )
+            if current_run is None:
                 raise ReplySuggestionServiceError("run unavailable")
             completed_run = replace(
-                current,
+                current_run,
                 status=ReplySuggestionStatus.COMPLETED,
                 customer_state=validated.customer_state,
                 next_best_action=validated.next_best_action,
@@ -708,9 +719,15 @@ class ReplySuggestionService:
             await uow.commit()
         return updated
 
-    async def _load_ai_policy(self, *, tenant_id: UUID) -> object | None:
+    async def _load_ai_policy(
+        self,
+        *,
+        tenant_id: UUID,
+    ) -> TenantAiPolicyRecord | None:
         async with self._uow_factory() as uow:
-            return await uow.tenant_ai_policies.get_by_tenant_id(tenant_id=tenant_id)
+            return await uow.tenant_ai_policies.get_by_tenant_id(
+                tenant_id=tenant_id,
+            )
 
     async def _load_sanitized_messages(
         self,
@@ -787,7 +804,6 @@ class ReplySuggestionService:
 
         return assembled.messages, assembled.evidence_message_ids, assembled.structured_summary
 
-
     def _build_candidates(
         self,
         *,
@@ -801,16 +817,54 @@ class ReplySuggestionService:
         if not isinstance(validated, ValidatedReplySuggestionOutput):
             raise TypeError("validated must be ValidatedReplySuggestionOutput")
 
+        def _require_list(
+            value: object,
+            *,
+            field_name: str,
+        ) -> list[object]:
+            if not isinstance(value, list):
+                raise TypeError(f"{field_name} must be a list")
+            return value
+
         def _candidate_from_payload(
-            payload: dict[str, object], *, is_recommended: bool
+            payload: dict[str, object],
+            *,
+            is_recommended: bool,
         ) -> ReplySuggestionCandidate:
-            product_refs = tuple(
-                ReplyProductReference(
-                    product_id=UUID(str(item["product_id"])),
-                    variant_id=UUID(str(item["variant_id"])),
-                )
-                for item in payload.get("product_references", [])
+            product_reference_values = _require_list(
+                payload["product_references"],
+                field_name="product_references",
             )
+            product_references: list[ReplyProductReference] = []
+
+            for item in product_reference_values:
+                if not isinstance(item, dict):
+                    raise TypeError("product_references items must be mappings")
+
+                product_references.append(
+                    ReplyProductReference(
+                        product_id=UUID(str(item["product_id"])),
+                        variant_id=UUID(str(item["variant_id"])),
+                    )
+                )
+
+            confidence_value = payload["confidence_basis_points"]
+            if not isinstance(confidence_value, int) or isinstance(confidence_value, bool):
+                raise TypeError("confidence_basis_points must be an int")
+
+            evidence_values = _require_list(
+                payload["evidence_message_ids"],
+                field_name="evidence_message_ids",
+            )
+            citation_values = _require_list(
+                payload["knowledge_citations"],
+                field_name="knowledge_citations",
+            )
+            warning_values = _require_list(
+                payload["warnings"],
+                field_name="warnings",
+            )
+
             return ReplySuggestionCandidate(
                 id=self._uuid_factory(),
                 tenant_id=tenant_id,
@@ -818,15 +872,11 @@ class ReplySuggestionService:
                 candidate_key=ReplyCandidateKey(str(payload["candidate_key"])),
                 text=str(payload["text"]),
                 objective=str(payload["objective"]),
-                confidence_basis_points=int(payload["confidence_basis_points"]),
-                evidence_message_ids=tuple(
-                    UUID(str(item)) for item in payload.get("evidence_message_ids", [])
-                ),
-                product_references=product_refs,
-                knowledge_citation_ids=tuple(
-                    UUID(str(item)) for item in payload.get("knowledge_citations", [])
-                ),
-                warnings=tuple(str(item) for item in payload.get("warnings", [])),
+                confidence_basis_points=confidence_value,
+                evidence_message_ids=tuple(UUID(str(item)) for item in evidence_values),
+                product_references=tuple(product_references),
+                knowledge_citation_ids=tuple(UUID(str(item)) for item in citation_values),
+                warnings=tuple(str(item) for item in warning_values),
                 is_recommended=is_recommended,
                 created_at=created_at,  # type: ignore[arg-type]
             )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
@@ -63,7 +64,7 @@ class ProductVariantRepository(Protocol):
 
 class ProductPriceRepository(Protocol):
     async def get_current(
-        self, *, tenant_id: UUID, variant_id: UUID, at
+        self, *, tenant_id: UUID, variant_id: UUID, at: datetime
     ) -> ProductPrice | None: ...
 
     async def list_for_variant(
@@ -125,5 +126,5 @@ class CatalogImportRowResultRepository(Protocol):
 
 class CatalogSearchRepository(Protocol):
     async def search(
-        self, *, tenant_id: UUID, filters: CatalogSearchFilters, now
+        self, *, tenant_id: UUID, filters: CatalogSearchFilters, now: datetime
     ) -> Sequence[CatalogSearchHit]: ...

@@ -106,9 +106,7 @@ def upgrade() -> None:
         sa.UniqueConstraint(
             "tenant_id", "sku", name=op.f("uq_catalog_product_variants_tenant_id_sku")
         ),
-        sa.CheckConstraint(
-            f"status IN {_ENTITY}", name=op.f("ck_catalog_product_variants_status")
-        ),
+        sa.CheckConstraint(f"status IN {_ENTITY}", name=op.f("ck_catalog_product_variants_status")),
         sa.CheckConstraint(
             "version >= 1", name=op.f("ck_catalog_product_variants_version_positive")
         ),
@@ -152,9 +150,7 @@ def upgrade() -> None:
             name=op.f("fk_catalog_product_prices_tenant_source"),
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_catalog_product_prices")),
-        sa.UniqueConstraint(
-            "tenant_id", "id", name=op.f("uq_catalog_product_prices_tenant_id_id")
-        ),
+        sa.UniqueConstraint("tenant_id", "id", name=op.f("uq_catalog_product_prices_tenant_id_id")),
         sa.CheckConstraint(
             "amount_minor > 0", name=op.f("ck_catalog_product_prices_amount_minor_positive")
         ),
@@ -172,9 +168,7 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "char_length(currency) = 3", name=op.f("ck_catalog_product_prices_currency_length")
         ),
-        sa.CheckConstraint(
-            "version >= 1", name=op.f("ck_catalog_product_prices_version_positive")
-        ),
+        sa.CheckConstraint("version >= 1", name=op.f("ck_catalog_product_prices_version_positive")),
     )
     op.create_index(
         op.f("ix_catalog_product_prices_tenant_variant_valid"),
@@ -278,9 +272,7 @@ def upgrade() -> None:
             name=op.f("fk_catalog_delivery_facts_tenant_source"),
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_catalog_delivery_facts")),
-        sa.UniqueConstraint(
-            "tenant_id", "id", name=op.f("uq_catalog_delivery_facts_tenant_id_id")
-        ),
+        sa.UniqueConstraint("tenant_id", "id", name=op.f("uq_catalog_delivery_facts_tenant_id_id")),
         sa.UniqueConstraint(
             "tenant_id",
             "variant_id",
@@ -295,9 +287,7 @@ def upgrade() -> None:
             f"verification_status IN {_VERIFY}",
             name=op.f("ck_catalog_delivery_facts_verification_status"),
         ),
-        sa.CheckConstraint(
-            "version >= 1", name=op.f("ck_catalog_delivery_facts_version_positive")
-        ),
+        sa.CheckConstraint("version >= 1", name=op.f("ck_catalog_delivery_facts_version_positive")),
     )
 
     op.create_table(
@@ -399,9 +389,7 @@ def upgrade() -> None:
             name=op.f("fk_catalog_import_runs_tenant_source"),
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_catalog_import_runs")),
-        sa.UniqueConstraint(
-            "tenant_id", "id", name=op.f("uq_catalog_import_runs_tenant_id_id")
-        ),
+        sa.UniqueConstraint("tenant_id", "id", name=op.f("uq_catalog_import_runs_tenant_id_id")),
         sa.CheckConstraint(f"status IN {_IMPORT}", name=op.f("ck_catalog_import_runs_status")),
         sa.CheckConstraint(
             "octet_length(payload_sha256) = 32",
@@ -410,9 +398,7 @@ def upgrade() -> None:
         sa.CheckConstraint(
             "payload_bytes >= 0", name=op.f("ck_catalog_import_runs_payload_bytes_non_negative")
         ),
-        sa.CheckConstraint(
-            "version >= 1", name=op.f("ck_catalog_import_runs_version_positive")
-        ),
+        sa.CheckConstraint("version >= 1", name=op.f("ck_catalog_import_runs_version_positive")),
     )
     op.create_index(
         op.f("ix_catalog_import_runs_tenant_created"),
@@ -430,9 +416,7 @@ def upgrade() -> None:
         sa.Column("is_valid", sa.Boolean(), nullable=False),
         sa.Column("error_code", sa.String(length=64), nullable=True),
         sa.Column("error_message", sa.String(length=256), nullable=True),
-        sa.Column(
-            "normalized_payload", postgresql.JSONB(astext_type=sa.Text()), nullable=True
-        ),
+        sa.Column("normalized_payload", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
         sa.Column("created_at", sa.TIMESTAMP(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
             ["tenant_id", "import_run_id"],

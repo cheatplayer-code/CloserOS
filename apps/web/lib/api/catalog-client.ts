@@ -80,11 +80,14 @@ export function createCatalogApiClient() {
       },
       csrfToken: string,
     ) {
-      return apiRequest<CatalogProductV1>(tenantPath(tenantId, "/catalog/products"), {
-        method: "POST",
-        body,
-        csrfToken,
-      });
+      return apiRequest<CatalogProductV1>(
+        tenantPath(tenantId, "/catalog/products"),
+        {
+          method: "POST",
+          body,
+          csrfToken,
+        },
+      );
     },
     publishProduct(
       tenantId: string,
@@ -152,11 +155,14 @@ export function createCatalogApiClient() {
       },
       csrfToken: string,
     ) {
-      return apiRequest<CatalogImportRunV1>(tenantPath(tenantId, "/catalog/imports"), {
-        method: "POST",
-        body,
-        csrfToken,
-      });
+      return apiRequest<CatalogImportRunV1>(
+        tenantPath(tenantId, "/catalog/imports"),
+        {
+          method: "POST",
+          body,
+          csrfToken,
+        },
+      );
     },
     publishImport(tenantId: string, runId: string, csrfToken: string) {
       return apiRequest<CatalogImportRunV1>(

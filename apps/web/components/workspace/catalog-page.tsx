@@ -105,7 +105,11 @@ function CatalogContent() {
   }
 
   return (
-    <AppShell session={activeSession} onLogout={onLogout} onLogoutAll={onLogoutAll}>
+    <AppShell
+      session={activeSession}
+      onLogout={onLogout}
+      onLogoutAll={onLogoutAll}
+    >
       <section className="workspace-page" aria-labelledby="catalog-title">
         <header className="workspace-page__header">
           <div>

@@ -62,7 +62,10 @@ export function createReplyApiClient() {
     },
     getLatestSuggestions(tenantId: string, threadId: string) {
       return apiRequest<ReplySuggestionRunV1>(
-        tenantPath(tenantId, `/conversations/${threadId}/reply-suggestions/latest`),
+        tenantPath(
+          tenantId,
+          `/conversations/${threadId}/reply-suggestions/latest`,
+        ),
       );
     },
     selectCandidate(

@@ -72,9 +72,7 @@ def assemble_reply_context(
     selected.reverse()
 
     selected_ids = {message_id for message_id, _text in selected}
-    omitted = [
-        (message_id, text) for message_id, text in cleaned if message_id not in selected_ids
-    ]
+    omitted = [(message_id, text) for message_id, text in cleaned if message_id not in selected_ids]
     summary: list[str] = []
     for message_id, text in omitted[:MAX_SUMMARY_ITEMS]:
         summary.append(f"omitted_message id={message_id} chars={len(text)}")

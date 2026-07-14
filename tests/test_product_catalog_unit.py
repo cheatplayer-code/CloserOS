@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from closeros.application.product_catalog_csv import (
@@ -134,7 +134,14 @@ def test_freshness_stale_after_ttl() -> None:
     assert stale.verification_status is FactVerificationStatus.STALE
 
 
-def _hit(*, product_id, variant_id, amount=100, currency="KZT", in_stock=True) -> CatalogSearchHit:
+def _hit(
+    *,
+    product_id: UUID,
+    variant_id: UUID,
+    amount: int = 100,
+    currency: str = "KZT",
+    in_stock: bool = True,
+) -> CatalogSearchHit:
     prov = FactProvenance(
         source_id=uuid4(),
         source_updated_at=datetime.now(UTC),

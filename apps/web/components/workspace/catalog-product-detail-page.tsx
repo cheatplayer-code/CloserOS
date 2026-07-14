@@ -88,7 +88,10 @@ function CatalogProductDetailContent() {
     if (!tenant.tenantId || !productId) {
       return;
     }
-    const result = await catalogApiClient.getProduct(tenant.tenantId, productId);
+    const result = await catalogApiClient.getProduct(
+      tenant.tenantId,
+      productId,
+    );
     if (!result.ok) {
       setFailure(result);
       return;
@@ -164,8 +167,15 @@ function CatalogProductDetailContent() {
   }
 
   return (
-    <AppShell session={activeSession} onLogout={onLogout} onLogoutAll={onLogoutAll}>
-      <section className="workspace-page" aria-labelledby="catalog-product-title">
+    <AppShell
+      session={activeSession}
+      onLogout={onLogout}
+      onLogoutAll={onLogoutAll}
+    >
+      <section
+        className="workspace-page"
+        aria-labelledby="catalog-product-title"
+      >
         <header className="workspace-page__header">
           <div>
             <p className="workspace-page__eyebrow">Catalog</p>

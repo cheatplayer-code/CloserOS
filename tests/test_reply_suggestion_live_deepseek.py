@@ -24,7 +24,7 @@ pytestmark = pytest.mark.skipif(
 def test_live_deepseek_reply_suggestion_smoke() -> None:
     evidence = uuid4()
     bundle = build_reply_suggestion_prompt(
-        sanitized_messages=((evidence, "Здравствуйте, интересует диван до 500000 тенге.")),
+        sanitized_messages=((evidence, "Здравствуйте, интересует диван до 500000 тенге."),),
         memory_facts=(),
         product_hits=(),
         allowed_commercial_actions=("quote_list_price",),

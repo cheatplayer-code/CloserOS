@@ -12,9 +12,9 @@ from closeros.infrastructure import (
     canonical_orm,  # noqa: F401
     encrypted_content_orm,  # noqa: F401
     outbox_orm,  # noqa: F401
-    synthetic_seed_orm,  # noqa: F401
     product_catalog_orm,  # noqa: F401
     reply_suggestion_orm,  # noqa: F401
+    synthetic_seed_orm,  # noqa: F401
     tenant_orm,  # noqa: F401
 )
 from closeros.infrastructure.orm_base import Base

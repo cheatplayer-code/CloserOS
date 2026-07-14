@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -23,7 +24,7 @@ def infer_memory_facts_from_customer_state(
     source_message_id: UUID | None,
     source_analysis_id: UUID | None,
     now: datetime,
-    uuid_factory=uuid4,
+    uuid_factory: Callable[[], UUID] = uuid4,
 ) -> tuple[BuyerMemoryFact, ...]:
     """Create inferred facts from structured reply customer_state.
 

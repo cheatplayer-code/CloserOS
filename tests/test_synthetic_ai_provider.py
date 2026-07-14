@@ -42,10 +42,10 @@ def test_provider_returns_valid_json_finding_payload() -> None:
     asyncio.run(exercise())
 
 
-def test_provider_rejects_non_conversation_analysis_purpose() -> None:
+def test_provider_rejects_unsupported_purpose() -> None:
     async def exercise() -> None:
         provider = SyntheticAiProvider()
-        with pytest.raises(SyntheticProviderError, match="only supports"):
+        with pytest.raises(SyntheticProviderError, match="not supported"):
             await provider.call_chat_json(
                 request=_request(purpose=AiPurpose.CONVERSATION_SUMMARY),
                 bearer_key="unused",

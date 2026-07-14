@@ -41,9 +41,7 @@ def build_reply_suggestion_prompt(
         "Escalate when policy or missing critical confirmation requires it. "
         "Do not include chain-of-thought, reasoning, or hidden fields."
     )
-    transcript_lines = [
-        f"[{message_id}] {text}" for message_id, text in sanitized_messages
-    ]
+    transcript_lines = [f"[{message_id}] {text}" for message_id, text in sanitized_messages]
     memory_lines = [
         f"{fact.fact_type.value}={fact.normalized_value} status={fact.status.value}"
         for fact in memory_facts
@@ -70,8 +68,7 @@ def build_reply_suggestion_prompt(
         "purpose": "reply.suggestion",
         "customer_state": {
             "intent": (
-                "purchase_consideration|information_request|objection|"
-                "scheduling|support|unknown"
+                "purchase_consideration|information_request|objection|scheduling|support|unknown"
             ),
             "sales_stage": "discovery|offer|objection_handling|closing|follow_up|unknown",
             "primary_objection": "string|null",

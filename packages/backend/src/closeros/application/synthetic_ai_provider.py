@@ -90,7 +90,9 @@ class SyntheticAiProvider(AiProvider):
             },
             "recommended_candidate": {
                 "candidate_key": "recommended",
-                "text": "Спасибо за интерес. Подскажите, пожалуйста, на какой бюджет вы ориентируетесь?",
+                "text": (
+                    "Спасибо за интерес. Подскажите, пожалуйста, на какой бюджет вы ориентируетесь?"
+                ),
                 **candidate_base,
             },
             "alternatives": [

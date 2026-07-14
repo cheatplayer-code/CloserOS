@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -43,7 +44,12 @@ from closeros.domain.reply_suggestion import (
 )
 
 
-def _valid_payload(*, evidence_id: str, language: str = "ru", text: str | None = None) -> dict:
+def _valid_payload(
+    *,
+    evidence_id: str,
+    language: str = "ru",
+    text: str | None = None,
+) -> dict[str, Any]:
     body = text or "Спасибо за вопрос. Уточните, пожалуйста, бюджет."
     candidate = {
         "candidate_key": "recommended",
@@ -109,7 +115,7 @@ def test_validator_accepts_russian_suggestion() -> None:
         allowed_knowledge_chunk_ids=frozenset(),
     )
     assert validated.customer_state.language == "ru"
-    assert "бюджет" in validated.recommended["text"].casefold()
+    assert "бюджет" in str(validated.recommended["text"]).casefold()
 
 
 def test_validator_accepts_kazakh_suggestion() -> None:
@@ -145,7 +151,7 @@ def test_validator_accepts_mixed_language_suggestion() -> None:
         allowed_product_variant_ids=frozenset(),
         allowed_knowledge_chunk_ids=frozenset(),
     )
-    assert "budget" in validated.recommended["text"].casefold()
+    assert "budget" in str(validated.recommended["text"]).casefold()
 
 
 def test_validator_rejects_unknown_evidence() -> None:
@@ -322,9 +328,7 @@ def test_stale_stock_warning_enrichment() -> None:
     )
     candidate = {
         "warnings": [],
-        "product_references": [
-            {"product_id": str(product_id), "variant_id": str(variant_id)}
-        ],
+        "product_references": [{"product_id": str(product_id), "variant_id": str(variant_id)}],
     }
     enriched = enrich_candidate_warnings_from_catalog(candidate, product_hits=(hit,))
     assert "stale_stock" in enriched["warnings"]
