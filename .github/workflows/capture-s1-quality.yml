@@ -1,16 +1,15 @@
 name: Capture S1 quality diagnostics
 
 on:
-  push:
+  pull_request:
     branches:
-      - feat/s1-permanent-deepseek
+      - master
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   capture:
-    if: ${{ !contains(github.event.head_commit.message, '[s1-quality-log]') }}
     runs-on: ubuntu-24.04
     services:
       postgres:
@@ -40,7 +39,7 @@ jobs:
       TEST_DATABASE_URL: postgresql://closeros_ci:closeros_ci_only_not_production@127.0.0.1:5432/postgres
       TEST_REDIS_URL: redis://127.0.0.1:6379/0
     steps:
-      - name: Check out branch
+      - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Set up Node.js
@@ -79,14 +78,10 @@ jobs:
           printf '\nQUALITY_EXIT_CODE=%s\n' "$code" >> s1-quality.log
           exit 0
 
-      - name: Commit diagnostic log
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          git config user.name "CloserOS S1 automation"
-          git config user.email "actions@users.noreply.github.com"
-          git add s1-quality.log
-          git commit -m "chore: capture S1 quality output [s1-quality-log]"
-          git push
-
-# Trigger revision 2.
+      - name: Upload diagnostic log
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: s1-quality-log
+          path: s1-quality.log
+          if-no-files-found: error
+          retention-days: 1
