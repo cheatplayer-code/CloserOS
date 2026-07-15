@@ -31,14 +31,14 @@ def test_live_deepseek_reply_suggestion_smoke() -> None:
         playbook_snippets=(),
     )
     adapter = OpenAICompatibleChatAdapter(
-        base_url="https://api.deepseek.com",
+        base_url=os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
         provider_code=AiProviderCode.OPENAI_COMPATIBLE,
     )
     request = ProviderRequest(
         tenant_id=uuid4(),
         provider_code=AiProviderCode.OPENAI_COMPATIBLE,
         purpose=AiPurpose.REPLY_SUGGESTION,
-        model_code="deepseek-chat",
+        model_code=os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-flash"),
         prompt_version=REPLY_PROMPT_VERSION,
         rubric_version=REPLY_RUBRIC_VERSION,
         prompt_text=f"{bundle.system_prompt}\n\n{bundle.user_prompt}",
