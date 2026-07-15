@@ -24,7 +24,9 @@ services manually unless that preview is explicitly approved.
 - Public HTTPS domain enabled
 - One replica for staging
 - Required variables: `DATABASE_URL`, `REDIS_URL`, `AUTH_*`,
-  `APP_ENCRYPTION_KEY`, `INGESTION_SERVICE_ID`, `AUTH_ALLOWED_ORIGINS`
+  `STAGING_ENCRYPTION_KEY_HEX`, `STAGING_KNOWLEDGE_SEARCH_KEY_HEX`,
+  `REDIS_RATE_LIMIT_HMAC_SECRET`, `INGESTION_SERVICE_ID`, and
+  `AUTH_ALLOWED_ORIGINS`
 
 Railway injects `PORT`; the image binds `0.0.0.0:${PORT}`. Railway makes a new
 deployment active only after the configured healthcheck returns HTTP `200`.
@@ -58,10 +60,13 @@ Scale worker replicas only after lag monitoring exists
 Shared API/worker staging variables:
 
 ```text
-APP_ENV=production
+APP_ENV=staging
 DATABASE_URL=<sealed Supabase direct/session URL on port 5432 with TLS>
 REDIS_URL=<authenticated Railway Redis URL>
-APP_ENCRYPTION_KEY=<sealed staging-only key>
+STAGING_ENCRYPTION_KEY_HEX=<sealed random 64-hex value>
+STAGING_ENCRYPTION_KEY_VERSION=staging-kek-v1
+STAGING_KNOWLEDGE_SEARCH_KEY_HEX=<sealed random 64-hex value>
+REDIS_RATE_LIMIT_HMAC_SECRET=<sealed random value, at least 32 bytes>
 AUTH_CSRF_SECRET=<sealed random value, at least 32 bytes>
 AUTH_RATE_LIMIT_SECRET=<sealed random value, at least 32 bytes>
 INGESTION_SERVICE_ID=<staging UUID>

@@ -58,9 +58,13 @@ The authoritative S2 procedure is `docs/STAGING_SIGNOFF.md`.
 1. `DATABASE_URL` targets Supabase direct or Shared Pooler **session mode** on
    port `5432` with TLS. The current runtime rejects transaction mode `6543`.
 2. `REDIS_URL` uses Railway private networking with authentication or public TLS.
-3. `APP_ENCRYPTION_KEY` and auth secrets are staging-only, sealed, and at least
-   32 bytes.
-4. `APP_ENV=production` selects the fail-closed runtime path.
+3. `STAGING_ENCRYPTION_KEY_HEX` and
+   `STAGING_KNOWLEDGE_SEARCH_KEY_HEX` are separate sealed 64-hex values;
+   `REDIS_RATE_LIMIT_HMAC_SECRET` and auth secrets are sealed and at least 32
+   bytes.
+4. `APP_ENV=staging` selects the managed staging path. It uses secure
+   cookies, distributed rate limits, explicit provider gates, and sealed
+   staging-only keys. `APP_ENV=production` remains remote-KMS-only.
 5. `AI_EXTERNAL_CALLS_ENABLED=false` for baseline deployment.
 6. Alembic is at head (`scripts/ops/migrate_status.py --json`).
 7. Staging URLs are consistent across `STAGING_*`, `AUTH_ALLOWED_ORIGINS`, and

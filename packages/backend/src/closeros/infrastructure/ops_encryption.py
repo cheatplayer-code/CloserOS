@@ -1,4 +1,4 @@
-"""Development encryption helpers for operator scripts."""
+"""Environment-aware encryption helpers for development and staging operators."""
 
 from __future__ import annotations
 

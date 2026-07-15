@@ -12,7 +12,10 @@ DeepSeek        → external AI for sanitized Reply Copilot context only
 ```
 
 S2 proves the staging deployment and live provider path with fabricated data.
-It does **not** authorize production traffic, real customer exports, autonomous
+The services run with `APP_ENV=staging`: production-like HTTPS, cookies, rate
+limits, feature gates, and fail-closed provider behavior, but sealed staging-only
+static encryption/search keys. `APP_ENV=production` remains remote-KMS-only.
+S2 does **not** authorize production traffic, real customer exports, autonomous
 sending, or a production-readiness claim.
 
 ## Definition of done
@@ -104,10 +107,13 @@ use a TLS `rediss://` endpoint instead.
 Set these on API and worker where applicable:
 
 ```text
-APP_ENV=production
+APP_ENV=staging
 DATABASE_URL=<sealed Supabase direct/session URL>
 REDIS_URL=<authenticated Railway Redis URL>
-APP_ENCRYPTION_KEY=<sealed staging-only key>
+STAGING_ENCRYPTION_KEY_HEX=<sealed random 64-hex value>
+STAGING_ENCRYPTION_KEY_VERSION=staging-kek-v1
+STAGING_KNOWLEDGE_SEARCH_KEY_HEX=<sealed random 64-hex value>
+REDIS_RATE_LIMIT_HMAC_SECRET=<sealed random value, at least 32 bytes>
 AUTH_CSRF_SECRET=<sealed random value, at least 32 bytes>
 AUTH_RATE_LIMIT_SECRET=<sealed random value, at least 32 bytes>
 INGESTION_SERVICE_ID=<staging UUID>

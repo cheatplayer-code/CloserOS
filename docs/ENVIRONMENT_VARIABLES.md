@@ -8,7 +8,7 @@ secret stores.
 
 | Variable | Required (prod) | Description |
 |----------|-----------------|-------------|
-| `APP_ENV` | yes | `development` or `production`; staging uses `production` fail-closed runtime |
+| `APP_ENV` | yes | `development`, `staging`, or `production`. Managed staging uses `staging`; production remains remote-KMS-only. |
 | `APP_NAME` | no | Log label (`closeros`) |
 | `LOG_LEVEL` | no | `INFO` default |
 
@@ -45,7 +45,10 @@ secret stores.
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `APP_ENCRYPTION_KEY` | development / transitional staging | Staging-only envelope encryption key material. Must be at least 32 bytes, sealed, and never reused in production. **Not** a substitute for production remote KMS. |
+| `STAGING_ENCRYPTION_KEY_HEX` | staging | Sealed 64-hex (32-byte) staging-only KEK. Never reuse in production. |
+| `STAGING_ENCRYPTION_KEY_VERSION` | staging | Explicit staging key version, for example `staging-kek-v1`. |
+| `STAGING_KNOWLEDGE_SEARCH_KEY_HEX` | staging | Separate sealed 64-hex key for deterministic lexical-search tokens. |
+| `REDIS_RATE_LIMIT_HMAC_SECRET` | staging/production | Sealed HMAC secret of at least 32 bytes for distributed authentication rate-limit keys. |
 | `KMS_BASE_URL` | production KMS | HTTPS base URL for remote KMS adapter |
 | `KMS_API_TOKEN_REF` | production KMS | Secret reference for KMS API token (e.g. `env:KMS_API_TOKEN`) |
 | `KMS_ACTIVE_KEY_VERSION` | production KMS | Active key encryption key version id |
