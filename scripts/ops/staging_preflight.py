@@ -19,6 +19,7 @@ _LOCAL_MARKERS = (
     "closeros_local_redis_only_change_me",
 )
 _STRONG_SECRET_BYTES = 32
+_HEX_KEY_CHARACTERS = 64
 _SUPPORTED_DEEPSEEK_MODELS = frozenset({"deepseek-v4-flash", "deepseek-v4-pro"})
 _DEPRECATED_DEEPSEEK_MODELS = frozenset({"deepseek-chat", "deepseek-reasoner"})
 
@@ -54,7 +55,11 @@ class _Collector:
         self._checks.append(PreflightCheck(name=name, status="failed", detail=detail))
 
     def report(self) -> PreflightReport:
-        status = "failed" if any(item.status == "failed" for item in self._checks) else "passed"
+        status = (
+            "failed"
+            if any(item.status == "failed" for item in self._checks)
+            else "passed"
+        )
         return PreflightReport(status=status, checks=tuple(self._checks))
 
 
@@ -71,7 +76,12 @@ def _parse_boolean(raw_value: str, *, name: str) -> bool:
     raise ValueError(f"{name} must be a strict boolean")
 
 
-def _public_origin(raw_value: str, *, name: str, collector: _Collector) -> str | None:
+def _public_origin(
+    raw_value: str,
+    *,
+    name: str,
+    collector: _Collector,
+) -> str | None:
     if not raw_value:
         collector.failed(name, f"{name} is required")
         return None
@@ -113,6 +123,27 @@ def _validate_secret(
     collector.passed(name, f"{name} is present and meets the minimum length")
 
 
+def _validate_hex_key(
+    env: Mapping[str, str],
+    *,
+    name: str,
+    collector: _Collector,
+) -> None:
+    value = _value(env, name)
+    if len(value) != _HEX_KEY_CHARACTERS:
+        collector.failed(name, f"{name} must contain exactly 64 hexadecimal characters")
+        return
+    try:
+        decoded = bytes.fromhex(value)
+    except ValueError:
+        collector.failed(name, f"{name} must contain exactly 64 hexadecimal characters")
+        return
+    if len(decoded) != 32:
+        collector.failed(name, f"{name} must decode to exactly 32 bytes")
+        return
+    collector.passed(name, f"{name} contains a 32-byte staging-only key")
+
+
 def _validate_database_url(env: Mapping[str, str], collector: _Collector) -> None:
     raw_value = _value(env, "DATABASE_URL")
     if not raw_value:
@@ -123,16 +154,25 @@ def _validate_database_url(env: Mapping[str, str], collector: _Collector) -> Non
         return
     parsed = urlparse(raw_value)
     if parsed.scheme not in {"postgresql", "postgresql+psycopg"}:
-        collector.failed("DATABASE_URL", "DATABASE_URL must use PostgreSQL with psycopg")
+        collector.failed(
+            "DATABASE_URL",
+            "DATABASE_URL must use PostgreSQL with psycopg",
+        )
         return
     if not parsed.hostname or not parsed.username or parsed.password is None:
-        collector.failed("DATABASE_URL", "DATABASE_URL must include host and credentials")
+        collector.failed(
+            "DATABASE_URL",
+            "DATABASE_URL must include host and credentials",
+        )
         return
     if not (
         parsed.hostname.endswith(".supabase.co")
         or parsed.hostname.endswith(".pooler.supabase.com")
     ):
-        collector.failed("DATABASE_URL", "DATABASE_URL must target the staging Supabase project")
+        collector.failed(
+            "DATABASE_URL",
+            "DATABASE_URL must target the staging Supabase project",
+        )
         return
     port = parsed.port or 5432
     if port == 6543:
@@ -142,12 +182,18 @@ def _validate_database_url(env: Mapping[str, str], collector: _Collector) -> Non
         )
         return
     if port != 5432:
-        collector.failed("DATABASE_URL", "DATABASE_URL must use the direct/session port 5432")
+        collector.failed(
+            "DATABASE_URL",
+            "DATABASE_URL must use the direct/session port 5432",
+        )
         return
     query = parse_qs(parsed.query)
     sslmode = query.get("sslmode", [""])[0].lower()
     if sslmode not in {"require", "verify-ca", "verify-full"}:
-        collector.failed("DATABASE_URL", "DATABASE_URL must enforce TLS with sslmode=require or stronger")
+        collector.failed(
+            "DATABASE_URL",
+            "DATABASE_URL must enforce TLS with sslmode=require or stronger",
+        )
         return
     collector.passed(
         "DATABASE_URL",
@@ -165,12 +211,17 @@ def _validate_redis_url(env: Mapping[str, str], collector: _Collector) -> None:
         return
     parsed = urlparse(raw_value)
     if parsed.scheme not in {"redis", "rediss"} or not parsed.hostname:
-        collector.failed("REDIS_URL", "REDIS_URL must be a valid redis:// or rediss:// URL")
+        collector.failed(
+            "REDIS_URL",
+            "REDIS_URL must be a valid redis:// or rediss:// URL",
+        )
         return
     if parsed.password is None:
         collector.failed("REDIS_URL", "REDIS_URL must include authentication")
         return
-    if parsed.scheme == "redis" and not parsed.hostname.endswith(".railway.internal"):
+    if parsed.scheme == "redis" and not parsed.hostname.endswith(
+        ".railway.internal"
+    ):
         collector.failed(
             "REDIS_URL",
             "plaintext redis:// is allowed only on Railway private networking; use rediss:// otherwise",
@@ -195,7 +246,10 @@ def _validate_ai(env: Mapping[str, str], collector: _Collector) -> None:
         return
 
     if not enabled:
-        collector.passed("AI_EXTERNAL_CALLS_ENABLED", "external AI is disabled for baseline deployment")
+        collector.passed(
+            "AI_EXTERNAL_CALLS_ENABLED",
+            "external AI is disabled for baseline deployment",
+        )
         if _value(env, "DEEPSEEK_API_KEY"):
             collector.warning(
                 "DEEPSEEK_API_KEY",
@@ -206,39 +260,79 @@ def _validate_ai(env: Mapping[str, str], collector: _Collector) -> None:
     collector.passed("AI_EXTERNAL_CALLS_ENABLED", "external AI is enabled")
     api_key = _value(env, "DEEPSEEK_API_KEY")
     if not api_key:
-        collector.failed("DEEPSEEK_API_KEY", "DEEPSEEK_API_KEY is required when external AI is enabled")
+        collector.failed(
+            "DEEPSEEK_API_KEY",
+            "DEEPSEEK_API_KEY is required when external AI is enabled",
+        )
     elif len(api_key) < 20:
-        collector.failed("DEEPSEEK_API_KEY", "DEEPSEEK_API_KEY is unexpectedly short")
+        collector.failed(
+            "DEEPSEEK_API_KEY",
+            "DEEPSEEK_API_KEY is unexpectedly short",
+        )
     else:
-        collector.passed("DEEPSEEK_API_KEY", "DeepSeek key is present; value was not printed")
+        collector.passed(
+            "DEEPSEEK_API_KEY",
+            "DeepSeek key is present; value was not printed",
+        )
 
     base_url = _value(env, "DEEPSEEK_BASE_URL")
     parsed = urlparse(base_url)
     if parsed.scheme != "https" or not parsed.netloc:
-        collector.failed("DEEPSEEK_BASE_URL", "DEEPSEEK_BASE_URL must be an absolute HTTPS URL")
-    elif parsed.username is not None or parsed.password is not None or parsed.query or parsed.fragment:
-        collector.failed("DEEPSEEK_BASE_URL", "DEEPSEEK_BASE_URL must not contain credentials, query, or fragment")
+        collector.failed(
+            "DEEPSEEK_BASE_URL",
+            "DEEPSEEK_BASE_URL must be an absolute HTTPS URL",
+        )
+    elif (
+        parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+    ):
+        collector.failed(
+            "DEEPSEEK_BASE_URL",
+            "DEEPSEEK_BASE_URL must not contain credentials, query, or fragment",
+        )
+    elif parsed.hostname != "api.deepseek.com" or parsed.path not in {"", "/"}:
+        collector.failed(
+            "DEEPSEEK_BASE_URL",
+            "S2 direct-provider sign-off requires https://api.deepseek.com/",
+        )
     else:
-        collector.passed("DEEPSEEK_BASE_URL", "DeepSeek base URL is HTTPS")
+        collector.passed(
+            "DEEPSEEK_BASE_URL",
+            "DeepSeek base URL targets the reviewed direct provider endpoint",
+        )
 
     model = _value(env, "DEEPSEEK_MODEL")
     if not model:
-        collector.failed("DEEPSEEK_MODEL", "DEEPSEEK_MODEL is required when external AI is enabled")
+        collector.failed(
+            "DEEPSEEK_MODEL",
+            "DEEPSEEK_MODEL is required when external AI is enabled",
+        )
     elif model in _DEPRECATED_DEEPSEEK_MODELS:
-        collector.failed("DEEPSEEK_MODEL", "deprecated DeepSeek aliases are not accepted for staging sign-off")
+        collector.failed(
+            "DEEPSEEK_MODEL",
+            "deprecated DeepSeek aliases are not accepted for staging sign-off",
+        )
     elif model not in _SUPPORTED_DEEPSEEK_MODELS:
-        collector.warning("DEEPSEEK_MODEL", "model is not in the reviewed staging allow-list")
+        collector.failed(
+            "DEEPSEEK_MODEL",
+            "model is not in the reviewed staging allow-list",
+        )
     else:
-        collector.passed("DEEPSEEK_MODEL", "DeepSeek model is in the reviewed staging allow-list")
+        collector.passed(
+            "DEEPSEEK_MODEL",
+            "DeepSeek model is in the reviewed staging allow-list",
+        )
 
 
 def validate_environment(env: Mapping[str, str]) -> PreflightReport:
     collector = _Collector()
 
-    if _value(env, "APP_ENV") != "production":
-        collector.failed("APP_ENV", "staging must use the production runtime path")
+    if _value(env, "APP_ENV") != "staging":
+        collector.failed("APP_ENV", "managed staging must use APP_ENV=staging")
     else:
-        collector.passed("APP_ENV", "production runtime path is selected")
+        collector.passed("APP_ENV", "explicit managed staging runtime is selected")
 
     api_origin = _public_origin(
         _value(env, "STAGING_API_URL"),
@@ -275,9 +369,15 @@ def validate_environment(env: Mapping[str, str]) -> PreflightReport:
     if "*" in allowed_origins:
         collector.failed("AUTH_ALLOWED_ORIGINS", "wildcard origins are forbidden")
     elif web_origin and web_origin not in allowed_origins:
-        collector.failed("AUTH_ALLOWED_ORIGINS", "staging web origin is not allowed by the API")
+        collector.failed(
+            "AUTH_ALLOWED_ORIGINS",
+            "staging web origin is not allowed by the API",
+        )
     elif web_origin:
-        collector.passed("AUTH_ALLOWED_ORIGINS", "staging web origin is explicitly allowed")
+        collector.passed(
+            "AUTH_ALLOWED_ORIGINS",
+            "staging web origin is explicitly allowed",
+        )
     else:
         collector.failed("AUTH_ALLOWED_ORIGINS", "AUTH_ALLOWED_ORIGINS is required")
 
@@ -287,21 +387,61 @@ def validate_environment(env: Mapping[str, str]) -> PreflightReport:
             "API and web share one origin; supported, but separate origins are expected for Railway and Vercel",
         )
     elif api_origin and web_origin:
-        collector.passed("STAGING_ORIGIN_SEPARATION", "API and web use distinct HTTPS origins")
+        collector.passed(
+            "STAGING_ORIGIN_SEPARATION",
+            "API and web use distinct HTTPS origins",
+        )
 
     _validate_database_url(env, collector)
     _validate_redis_url(env, collector)
     _validate_secret(env, name="AUTH_CSRF_SECRET", collector=collector)
     _validate_secret(env, name="AUTH_RATE_LIMIT_SECRET", collector=collector)
-    _validate_secret(env, name="APP_ENCRYPTION_KEY", collector=collector)
+    _validate_secret(
+        env,
+        name="REDIS_RATE_LIMIT_HMAC_SECRET",
+        collector=collector,
+    )
+    _validate_hex_key(
+        env,
+        name="STAGING_ENCRYPTION_KEY_HEX",
+        collector=collector,
+    )
+    _validate_hex_key(
+        env,
+        name="STAGING_KNOWLEDGE_SEARCH_KEY_HEX",
+        collector=collector,
+    )
+
+    key_version = _value(env, "STAGING_ENCRYPTION_KEY_VERSION")
+    if not key_version:
+        collector.failed(
+            "STAGING_ENCRYPTION_KEY_VERSION",
+            "STAGING_ENCRYPTION_KEY_VERSION is required",
+        )
+    elif key_version.startswith("dev-") or key_version.startswith("prod-"):
+        collector.failed(
+            "STAGING_ENCRYPTION_KEY_VERSION",
+            "staging encryption key version must be explicitly staging-scoped",
+        )
+    else:
+        collector.passed(
+            "STAGING_ENCRYPTION_KEY_VERSION",
+            "staging key version is explicitly configured",
+        )
 
     ingestion_service_id = _value(env, "INGESTION_SERVICE_ID")
     try:
         UUID(ingestion_service_id)
     except ValueError:
-        collector.failed("INGESTION_SERVICE_ID", "INGESTION_SERVICE_ID must be a UUID")
+        collector.failed(
+            "INGESTION_SERVICE_ID",
+            "INGESTION_SERVICE_ID must be a UUID",
+        )
     else:
-        collector.passed("INGESTION_SERVICE_ID", "ingestion service identity is configured")
+        collector.passed(
+            "INGESTION_SERVICE_ID",
+            "ingestion service identity is configured",
+        )
 
     _validate_ai(env, collector)
     return collector.report()
@@ -311,7 +451,11 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Validate staging variables without printing secret values"
     )
-    parser.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="emit machine-readable JSON",
+    )
     return parser.parse_args()
 
 
