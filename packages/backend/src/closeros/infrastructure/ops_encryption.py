@@ -11,6 +11,7 @@ from closeros.application.encryption_ports import RetentionExpiryCalculator
 from closeros.application.integrated_unit_of_work import IntegratedUnitOfWork
 from closeros.infrastructure.aes_gcm_encryption import AesGcmContentCryptography
 from closeros.infrastructure.secure_random import OsSecureRandom
+from closeros.infrastructure.staging_runtime import build_staging_key_provider_from_env
 from closeros.infrastructure.static_key_provider import StaticKeyProvider
 
 _DEV_KEK_V1 = bytes(range(32))
@@ -25,12 +26,25 @@ def development_key_provider() -> StaticKeyProvider:
     )
 
 
+def environment_key_provider() -> StaticKeyProvider:
+    app_env = os.environ.get("APP_ENV", "development").strip().lower()
+    if app_env == "staging":
+        return build_staging_key_provider_from_env()
+    if app_env == "production":
+        raise RuntimeError(
+            "operator scripts cannot use static encryption in production; use the remote KMS runtime"
+        )
+    if app_env != "development":
+        raise RuntimeError("APP_ENV must be development, staging, or production")
+    return development_key_provider()
+
+
 def build_ops_content_encryption_service(
     uow_factory: Callable[[], IntegratedUnitOfWork],
 ) -> ContentEncryptionService:
     return ContentEncryptionService(
         data_key_cryptography=AesGcmContentCryptography(
-            key_provider=development_key_provider(),
+            key_provider=environment_key_provider(),
             secure_random=OsSecureRandom(),
         ),
         retention_expiry_calculator=RetentionExpiryCalculator(),

@@ -108,6 +108,7 @@ from closeros.infrastructure.redis_stream_queue import (
     RedisStreamQueuePublisher,
 )
 from closeros.infrastructure.secure_random import OsSecureRandom
+from closeros.infrastructure.staging_runtime import build_staging_shared_runtime
 from closeros.infrastructure.static_key_provider import (
     StaticKeyProvider,
     require_production_key_provider,
@@ -253,9 +254,15 @@ class WorkerRuntime:
     integrated_uow_factory: Callable[[], SqlAlchemyIntegratedUnitOfWork]
     queue_publisher: RedisStreamQueuePublisher
     queue_consumer: RedisStreamJobConsumer
-    publisher_service_factory: Callable[[], OutboxPublisherService]
-    processor_service_factory: Callable[[], OutboxProcessorService]
-    reconciliation_service_factory: Callable[[], OutboxReconciliationService]
+    publisher_service_factory: Callable[
+        [SqlAlchemyIntegratedUnitOfWork], OutboxPublisherService
+    ]
+    processor_service_factory: Callable[
+        [SqlAlchemyIntegratedUnitOfWork], OutboxProcessorService
+    ]
+    reconciliation_service_factory: Callable[
+        [SqlAlchemyIntegratedUnitOfWork], OutboxReconciliationService
+    ]
     whatsapp_reconciliation_service_factory: Callable[[], WhatsAppReconciliationService]
     crm_reconciliation_service_factory: Callable[[], CrmReconciliationService]
     retention_purge_service_factory: Callable[[], RetentionPurgeService]
@@ -269,21 +276,24 @@ class WorkerRuntime:
         await self.engine.dispose()
 
 
-def _merge_production_worker_overrides(
+def _merge_managed_worker_overrides(
     settings: WorkerSettings,
     overrides: WorkerRuntimeOverrides | None,
 ) -> WorkerRuntimeOverrides:
     base = overrides or WorkerRuntimeOverrides()
-    if not settings.is_production:
+    if not settings.is_managed:
         return base
     if overrides is not None:
         return base
 
     service_actor_id = _ingestion_service_id(settings, base.ingestion_service_id)
-    shared = build_production_shared_runtime(
-        database_url=settings.database_url,
-        ingestion_service_id=service_actor_id,
-    )
+    if settings.is_production:
+        shared = build_production_shared_runtime(
+            database_url=settings.database_url,
+            ingestion_service_id=service_actor_id,
+        )
+    else:
+        shared = build_staging_shared_runtime(database_url=settings.database_url)
     require_notification_transport_configured(app_env=settings.app_env)
     adapter_registry = build_production_adapter_registry(
         integrated_uow_factory=shared.integrated_uow_factory,
@@ -454,21 +464,26 @@ def build_worker_runtime(
     settings: WorkerSettings,
     overrides: WorkerRuntimeOverrides | None = None,
 ) -> WorkerRuntime:
-    override_values = _merge_production_worker_overrides(settings, overrides)
+    override_values = _merge_managed_worker_overrides(settings, overrides)
 
     adapter_registry: ProviderAdapterRegistry
     pending_adapter_registry: ProviderAdapterRegistry | None = override_values.adapter_registry
-    if settings.is_production:
+    if settings.is_managed:
         if overrides is not None:
-            key_provider = cast(
-                KeyProvider,
-                require_production_key_provider(override_values.key_provider),
-            )
+            if settings.is_production:
+                key_provider = cast(
+                    KeyProvider,
+                    require_production_key_provider(override_values.key_provider),
+                )
+            else:
+                if override_values.key_provider is None:
+                    raise WorkerConfigurationError("staging worker key provider is required")
+                key_provider = override_values.key_provider
             require_notification_transport_configured(app_env=settings.app_env)
             adapter_registry = require_production_provider_adapters(pending_adapter_registry)
         else:
             if override_values.key_provider is None or pending_adapter_registry is None:
-                raise WorkerConfigurationError("production worker runtime is incomplete")
+                raise WorkerConfigurationError("managed worker runtime is incomplete")
             key_provider = override_values.key_provider
             adapter_registry = pending_adapter_registry
     else:
@@ -520,7 +535,7 @@ def build_worker_runtime(
     if capabilities is None:
         capabilities = (
             resolve_production_feature_capabilities()
-            if settings.is_production
+            if settings.is_managed
             else _development_capabilities()
         )
 
@@ -544,7 +559,7 @@ def build_worker_runtime(
 
     if override_values.knowledge_search_key_provider is not None:
         knowledge_key_provider = override_values.knowledge_search_key_provider
-    elif not settings.is_production:
+    elif settings.is_development:
         knowledge_key_provider = DevKnowledgeSearchKeyProvider()
     else:
         raise WorkerConfigurationError("knowledge search key provider is required")
@@ -608,7 +623,7 @@ def build_worker_runtime(
     ai_providers: dict[AiProviderCode, AiProvider] = {
         AiProviderCode.SYNTHETIC: SyntheticAiProvider(),
     }
-    if capabilities.external_ai_enabled or not settings.is_production:
+    if capabilities.external_ai_enabled or settings.is_development:
         ai_providers[AiProviderCode.OPENAI_COMPATIBLE] = OpenAICompatibleChatAdapter(
             base_url=_deepseek_base_url(),
             provider_code=AiProviderCode.OPENAI_COMPATIBLE,
@@ -616,7 +631,7 @@ def build_worker_runtime(
 
     external_calls_enabled = (
         capabilities.external_ai_enabled
-        if settings.is_production
+        if settings.is_managed
         else _bool_env("AI_EXTERNAL_CALLS_ENABLED", default=False)
     )
     ai_gateway = NopqAiGateway(
@@ -671,7 +686,7 @@ def build_worker_runtime(
                 whatsapp_credential_resolver,
                 integrated_uow_factory=integrated_uow_factory,
             )
-            if settings.is_production
+            if settings.is_managed
             else _development_media_access_token_resolver
         )
         media_fetch_handler: OutboxJobHandler = MediaFetchHandler(
@@ -782,8 +797,9 @@ def build_worker_runtime(
         block_ms=settings.processor_block_ms,
     )
 
-    def publisher_service_factory() -> OutboxPublisherService:
-        uow = integrated_uow_factory()
+    def publisher_service_factory(
+        uow: SqlAlchemyIntegratedUnitOfWork,
+    ) -> OutboxPublisherService:
         return OutboxPublisherService(
             outbox_jobs=uow.outbox_jobs,
             outbox_job_attempts=uow.outbox_job_attempts,
@@ -791,8 +807,9 @@ def build_worker_runtime(
             worker_id=settings.worker_id,
         )
 
-    def processor_service_factory() -> OutboxProcessorService:
-        uow = integrated_uow_factory()
+    def processor_service_factory(
+        uow: SqlAlchemyIntegratedUnitOfWork,
+    ) -> OutboxProcessorService:
         return OutboxProcessorService(
             outbox_jobs=uow.outbox_jobs,
             outbox_job_attempts=uow.outbox_job_attempts,
@@ -802,8 +819,9 @@ def build_worker_runtime(
             clock=ai_clock,
         )
 
-    def reconciliation_service_factory() -> OutboxReconciliationService:
-        uow = integrated_uow_factory()
+    def reconciliation_service_factory(
+        uow: SqlAlchemyIntegratedUnitOfWork,
+    ) -> OutboxReconciliationService:
         return OutboxReconciliationService(outbox_jobs=uow.outbox_jobs)
 
     def whatsapp_reconciliation_service_factory() -> WhatsAppReconciliationService:
