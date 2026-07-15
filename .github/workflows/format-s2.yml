@@ -1,0 +1,91 @@
+name: Format S2 changes
+
+on:
+  push:
+    branches:
+      - feat/s2-staging-deepseek-signoff
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: ${{ !contains(github.event.head_commit.message, '[s2-formatted]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          check-latest: false
+
+      - name: Enable pnpm
+        run: corepack enable pnpm
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: 0.11.28
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install workspaces
+        run: |
+          corepack pnpm install --frozen-lockfile
+          uv sync --all-packages --frozen
+
+      - name: Format changed files
+        run: |
+          corepack pnpm exec prettier --write \
+            apps/web/lib/api/reply-client.ts \
+            package.json \
+            PROJECT_STATUS.md \
+            docs/DEPLOYMENT.md \
+            docs/ENVIRONMENT_VARIABLES.md \
+            docs/STAGING_DEEPSEEK.md \
+            docs/STAGING_RAILWAY.md \
+            docs/STAGING_SIGNOFF.md \
+            docs/STAGING_SUPABASE.md \
+            docs/STAGING_VERCEL.md
+          uv run ruff format \
+            apps/api/src/closeros_api/composition.py \
+            apps/api/src/closeros_api/reply_suggestion_router.py \
+            apps/api/src/closeros_api/reply_suggestion_schemas.py \
+            apps/api/src/closeros_api/settings.py \
+            apps/worker/src/closeros_worker/__main__.py \
+            apps/worker/src/closeros_worker/runtime.py \
+            apps/worker/src/closeros_worker/settings.py \
+            packages/backend/src/closeros/infrastructure/configured_knowledge_search_key_provider.py \
+            packages/backend/src/closeros/infrastructure/ops_encryption.py \
+            packages/backend/src/closeros/infrastructure/staging_runtime.py \
+            scripts/__init__.py \
+            scripts/ops/__init__.py \
+            scripts/ops/deepseek_staging_smoke.py \
+            scripts/ops/staging_preflight.py \
+            tests/test_deepseek_staging_smoke.py \
+            tests/test_reply_suggestion_response_telemetry.py \
+            tests/test_staging_preflight.py \
+            tests/test_staging_runtime.py
+
+      - name: Commit formatting
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name "CloserOS S2 automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps packages scripts tests docs PROJECT_STATUS.md package.json
+          if git diff --cached --quiet; then
+            echo "No formatting changes"
+            exit 0
+          fi
+          git commit -m "style: format S2 changes [s2-formatted]"
+          git push
