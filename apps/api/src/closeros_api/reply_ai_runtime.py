@@ -29,13 +29,9 @@ def build_reply_ai_runtime(settings: ApiSettings) -> ReplyAiRuntimeConfiguration
 
     if settings.ai_external_calls_enabled:
         if settings.deepseek_api_key is None:
-            raise ApiConfigurationError(
-                "AI_EXTERNAL_CALLS_ENABLED requires DEEPSEEK_API_KEY"
-            )
+            raise ApiConfigurationError("AI_EXTERNAL_CALLS_ENABLED requires DEEPSEEK_API_KEY")
         if settings.deepseek_model is None:
-            raise ApiConfigurationError(
-                "AI_EXTERNAL_CALLS_ENABLED requires DEEPSEEK_MODEL"
-            )
+            raise ApiConfigurationError("AI_EXTERNAL_CALLS_ENABLED requires DEEPSEEK_MODEL")
         return ReplyAiRuntimeConfiguration(
             provider=OpenAICompatibleChatAdapter(
                 base_url=settings.deepseek_base_url,

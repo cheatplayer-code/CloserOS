@@ -178,13 +178,9 @@ def _validate_external_ai_settings(settings: ApiSettings) -> None:
     if not settings.ai_external_calls_enabled:
         return
     if settings.deepseek_api_key is None:
-        raise ApiConfigurationError(
-            "AI_EXTERNAL_CALLS_ENABLED requires DEEPSEEK_API_KEY"
-        )
+        raise ApiConfigurationError("AI_EXTERNAL_CALLS_ENABLED requires DEEPSEEK_API_KEY")
     if settings.deepseek_model is None:
-        raise ApiConfigurationError(
-            "AI_EXTERNAL_CALLS_ENABLED requires DEEPSEEK_MODEL"
-        )
+        raise ApiConfigurationError("AI_EXTERNAL_CALLS_ENABLED requires DEEPSEEK_MODEL")
     parsed = urlparse(settings.deepseek_base_url)
     if parsed.scheme != "https" or not parsed.netloc:
         raise ApiConfigurationError(

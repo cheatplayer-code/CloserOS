@@ -261,9 +261,7 @@ class ReplySuggestionService:
                 prompt_version=REPLY_PROMPT_VERSION,
                 rubric_version=REPLY_RUBRIC_VERSION,
                 provider_code=(
-                    None
-                    if provider_code is None
-                    else _provider_storage_code(provider_code)
+                    None if provider_code is None else _provider_storage_code(provider_code)
                 ),
                 model_code=model_code,
                 input_tokens=None,
