@@ -86,11 +86,16 @@ Canonical reference for CloserOS configuration. Safe defaults live in
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `AI_EXTERNAL_CALLS_ENABLED` | no | `false` default |
-| `DEEPSEEK_API_KEY` | if enabled | Vendor key (blank default) |
-| `DEEPSEEK_BASE_URL` | if enabled | HTTPS OpenAI-compatible base |
-| `OPENAI_COMPATIBLE_*` | optional | Alternate provider |
-| `CLOSEROS_DEV_KNOWLEDGE_SEARCH_KEY_HEX` | dev only | Deterministic dev search |
+| `AI_EXTERNAL_CALLS_ENABLED` | no | `false` by default. Development uses deterministic synthetic replies while disabled; production does not silently fall back to synthetic AI. |
+| `DEEPSEEK_API_KEY` | if enabled | Vendor key injected by the platform secret store. Hidden from settings repr and never persisted. |
+| `DEEPSEEK_BASE_URL` | if enabled | HTTPS OpenAI-compatible base. Defaults to `https://api.deepseek.com/`. Credentials, query strings, and fragments are rejected. |
+| `DEEPSEEK_MODEL` | if enabled | Explicit model code. The staging example uses `deepseek-v4-flash`; deprecated aliases are not used by CloserOS defaults. |
+| `OPENAI_COMPATIBLE_*` | optional | Alternate provider variables used by other gateway paths; not the Reply Copilot source of truth. |
+| `CLOSEROS_DEV_KNOWLEDGE_SEARCH_KEY_HEX` | dev only | Deterministic dev search. |
+
+When `AI_EXTERNAL_CALLS_ENABLED=true`, API startup fails closed unless the key,
+HTTPS base URL, and model are all valid. No external request is attempted while
+the flag is disabled.
 
 ## Synthetic staging smoke (Z0)
 

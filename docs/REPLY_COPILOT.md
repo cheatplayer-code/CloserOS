@@ -20,10 +20,23 @@ analysis findings.
 8. Seller selects or edits a candidate → encrypted outbound **draft** only.
 9. Existing explicit approval remains required. No autonomous send.
 
+## Runtime provider selection
+
+- Development/CI with `AI_EXTERNAL_CALLS_ENABLED=false` uses the deterministic
+  synthetic provider.
+- With external calls enabled, the ordinary API uses the configured HTTPS
+  DeepSeek adapter and fails startup closed when key or model configuration is
+  missing.
+- Production never silently falls back from a requested live provider to
+  synthetic output.
+- Completed runs persist the provider and model actually returned by the
+  provider adapter, plus token and latency metadata when available.
+
 ## Cost
 
-`cost_status=unknown` until Block 6 pricing configuration. Do not store `0` as
-a known monetary cost.
+Synthetic usage is `not_applicable`. External cost remains `unknown` until a
+pricing calculator provides a positive estimate; zero is never stored as known
+monetary cost.
 
 ## Memory
 

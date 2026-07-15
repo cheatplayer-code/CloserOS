@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 from urllib.parse import urlparse
 from uuid import UUID
@@ -12,6 +12,7 @@ from uuid import UUID
 _MIN_SECRET_LENGTH = 32
 _DEVELOPMENT = "development"
 _PRODUCTION = "production"
+_DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com/"
 
 
 class ApiConfigurationError(RuntimeError):
@@ -30,6 +31,10 @@ class ApiSettings:
     webhook_max_body_bytes: int
     csv_max_body_bytes: int
     ingestion_service_id: UUID
+    ai_external_calls_enabled: bool = False
+    deepseek_api_key: str | None = field(default=None, repr=False)
+    deepseek_base_url: str = _DEFAULT_DEEPSEEK_BASE_URL
+    deepseek_model: str | None = None
 
     @property
     def is_production(self) -> bool:
@@ -92,6 +97,16 @@ class ApiSettings:
             default=10_485_760,
         )
         ingestion_service_id = _ingestion_service_id_from_env(app_env=app_env)
+        ai_external_calls_enabled = _boolean_from_env(
+            variable_name="AI_EXTERNAL_CALLS_ENABLED",
+            default=False,
+        )
+        deepseek_api_key = os.environ.get("DEEPSEEK_API_KEY", "").strip() or None
+        deepseek_base_url = _https_base_url_from_env(
+            variable_name="DEEPSEEK_BASE_URL",
+            default=_DEFAULT_DEEPSEEK_BASE_URL,
+        )
+        deepseek_model = os.environ.get("DEEPSEEK_MODEL", "").strip() or None
 
         return cls(
             app_env=app_env,
@@ -104,9 +119,14 @@ class ApiSettings:
             webhook_max_body_bytes=webhook_max_body_bytes,
             csv_max_body_bytes=csv_max_body_bytes,
             ingestion_service_id=ingestion_service_id,
+            ai_external_calls_enabled=ai_external_calls_enabled,
+            deepseek_api_key=deepseek_api_key,
+            deepseek_base_url=deepseek_base_url,
+            deepseek_model=deepseek_model,
         )
 
     def validate_for_runtime(self) -> None:
+        _validate_external_ai_settings(self)
         if self.is_development:
             for origin in self.auth_allowed_origins:
                 parsed = urlparse(origin)
@@ -125,6 +145,51 @@ class ApiSettings:
                 raise ApiConfigurationError("production allowed origins must use https")
             if not parsed.netloc:
                 raise ApiConfigurationError("production allowed origins must include a host")
+
+
+def _boolean_from_env(*, variable_name: str, default: bool) -> bool:
+    raw_value = os.environ.get(variable_name, "").strip().lower()
+    if not raw_value:
+        return default
+    if raw_value in {"1", "true", "yes", "on"}:
+        return True
+    if raw_value in {"0", "false", "no", "off"}:
+        return False
+    raise ApiConfigurationError(
+        f"{variable_name} must be one of true/false, 1/0, yes/no, or on/off"
+    )
+
+
+def _https_base_url_from_env(*, variable_name: str, default: str) -> str:
+    raw_value = os.environ.get(variable_name, "").strip() or default
+    parsed = urlparse(raw_value)
+    if parsed.scheme != "https":
+        raise ApiConfigurationError(f"{variable_name} must use https")
+    if not parsed.netloc:
+        raise ApiConfigurationError(f"{variable_name} must include a host")
+    if parsed.username is not None or parsed.password is not None:
+        raise ApiConfigurationError(f"{variable_name} must not contain credentials")
+    if parsed.query or parsed.fragment:
+        raise ApiConfigurationError(f"{variable_name} must not contain query or fragment")
+    return raw_value if raw_value.endswith("/") else f"{raw_value}/"
+
+
+def _validate_external_ai_settings(settings: ApiSettings) -> None:
+    if not settings.ai_external_calls_enabled:
+        return
+    if settings.deepseek_api_key is None:
+        raise ApiConfigurationError("AI_EXTERNAL_CALLS_ENABLED requires DEEPSEEK_API_KEY")
+    if settings.deepseek_model is None:
+        raise ApiConfigurationError("AI_EXTERNAL_CALLS_ENABLED requires DEEPSEEK_MODEL")
+    parsed = urlparse(settings.deepseek_base_url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise ApiConfigurationError(
+            "AI_EXTERNAL_CALLS_ENABLED requires a valid HTTPS DEEPSEEK_BASE_URL"
+        )
+    if parsed.username is not None or parsed.password is not None:
+        raise ApiConfigurationError("DEEPSEEK_BASE_URL must not contain credentials")
+    if parsed.query or parsed.fragment:
+        raise ApiConfigurationError("DEEPSEEK_BASE_URL must not contain query or fragment")
 
 
 def _secret_from_env(

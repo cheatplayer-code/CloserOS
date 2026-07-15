@@ -54,7 +54,6 @@ from closeros.application.provider_ports import (
 from closeros.application.reply_suggestion_service import ReplySuggestionService
 from closeros.application.retention_purge_service import RetentionPurgeService
 from closeros.application.scorecard_query_service import ScorecardQueryService
-from closeros.application.synthetic_ai_provider import SyntheticAiProvider
 from closeros.application.tenant_context import TenantContextResolver, TenantListingService
 from closeros.application.tenant_persistence import TenantUnitOfWork
 from closeros.application.webhook_ingestion import WebhookIngestionService
@@ -122,6 +121,7 @@ from closeros_api.auth_ports import (
 )
 from closeros_api.auth_security import SessionCookieConfig, session_cookie_config
 from closeros_api.observability_router import ProductionReadinessProbe, RuntimeReadinessProbe
+from closeros_api.reply_ai_runtime import build_reply_ai_runtime
 from closeros_api.settings import ApiSettings
 
 _DEV_KEK_V1 = bytes(range(32))
@@ -810,6 +810,7 @@ def build_api_runtime(
                 clock=clock.now,
             )
         )
+        reply_ai_runtime = build_reply_ai_runtime(settings)
         reply_suggestion_service = (
             override_values.reply_suggestion_service
             or ReplySuggestionService(
@@ -817,7 +818,9 @@ def build_api_runtime(
                 content_encryption=content_encryption,
                 outbound_message_service=outbound_message_service,
                 clock=clock,
-                ai_provider=SyntheticAiProvider(),
+                ai_provider=reply_ai_runtime.provider,
+                ai_credential_resolver=reply_ai_runtime.credential_resolver,
+                model_code=reply_ai_runtime.model_code,
                 uuid_factory=uuid_factory,
             )
         )

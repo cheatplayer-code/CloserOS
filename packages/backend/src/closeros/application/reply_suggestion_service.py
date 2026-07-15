@@ -11,7 +11,12 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 
 from closeros.application.ai_policy_persistence import TenantAiPolicyRecord
-from closeros.application.ai_ports import AiCredentialResolver, AiProvider, ProviderRequest
+from closeros.application.ai_ports import (
+    AiCredentialResolver,
+    AiProvider,
+    ProviderRequest,
+    ProviderResult,
+)
 from closeros.application.audit_recording import AuditContext, append_required_audit_event
 from closeros.application.buyer_memory_inference import infer_memory_facts_from_customer_state
 from closeros.application.clock import Clock, SystemClock
@@ -73,8 +78,7 @@ _UuidFactory = Callable[[], UUID]
 
 _ACCESS_ROLES = frozenset({Role.OWNER, Role.SALES_HEAD, Role.MANAGER})
 _PRIVILEGED_ROLES = frozenset({Role.OWNER, Role.SALES_HEAD})
-_DEFAULT_MODEL = "deepseek-chat"
-_DEFAULT_PROVIDER_CODE = AiProviderCode.SYNTHETIC
+_DEFAULT_MODEL = "synthetic-reply-v1"
 
 
 class ReplySuggestionServiceError(ReplySuggestionError):
@@ -148,6 +152,32 @@ def _provider_storage_code(provider_code: AiProviderCode) -> str:
     return "local"
 
 
+def _apply_provider_result_metadata(
+    *,
+    run: ReplySuggestionRun,
+    provider_result: ProviderResult,
+) -> ReplySuggestionRun:
+    usage = provider_result.usage
+    cost_status = ReplyCostStatus.UNKNOWN
+    estimated_cost_microunits: int | None = None
+    if provider_result.provider_code is AiProviderCode.SYNTHETIC:
+        cost_status = ReplyCostStatus.NOT_APPLICABLE
+    elif usage is not None and usage.estimated_cost_microunits > 0:
+        cost_status = ReplyCostStatus.KNOWN
+        estimated_cost_microunits = usage.estimated_cost_microunits
+
+    return replace(
+        run,
+        provider_code=_provider_storage_code(provider_result.provider_code),
+        model_code=provider_result.model_code,
+        input_tokens=None if usage is None else usage.input_tokens,
+        output_tokens=None if usage is None else usage.output_tokens,
+        latency_milliseconds=None if usage is None else usage.latency_milliseconds,
+        cost_status=cost_status,
+        estimated_cost_microunits=estimated_cost_microunits,
+    )
+
+
 class ReplySuggestionService:
     def __init__(
         self,
@@ -158,6 +188,7 @@ class ReplySuggestionService:
         clock: Clock | None = None,
         ai_provider: AiProvider | None = None,
         ai_credential_resolver: AiCredentialResolver | None = None,
+        model_code: str | None = _DEFAULT_MODEL,
         uuid_factory: _UuidFactory | None = None,
     ) -> None:
         self._uow_factory = uow_factory
@@ -166,6 +197,12 @@ class ReplySuggestionService:
         self._clock = clock or SystemClock()
         self._ai_provider = ai_provider
         self._ai_credential_resolver = ai_credential_resolver
+        normalized_model_code: str | None = None
+        if model_code is not None:
+            normalized_model_code = model_code.strip()
+            if not normalized_model_code:
+                raise ValueError("model_code must be non-empty when configured")
+        self._model_code = normalized_model_code
         self._uuid_factory = uuid_factory or uuid4
 
     async def generate_suggestions(
@@ -209,9 +246,10 @@ class ReplySuggestionService:
                 user_id=context.user.id,
             )
 
-            provider_code = _DEFAULT_PROVIDER_CODE
+            provider_code: AiProviderCode | None = None
             if self._ai_provider is not None:
                 provider_code = self._ai_provider.provider_code
+            model_code = self._model_code
 
             run = ReplySuggestionRun(
                 id=run_id,
@@ -222,8 +260,10 @@ class ReplySuggestionService:
                 status=ReplySuggestionStatus.RUNNING,
                 prompt_version=REPLY_PROMPT_VERSION,
                 rubric_version=REPLY_RUBRIC_VERSION,
-                provider_code=_provider_storage_code(provider_code),
-                model_code=_DEFAULT_MODEL,
+                provider_code=(
+                    None if provider_code is None else _provider_storage_code(provider_code)
+                ),
+                model_code=model_code,
                 input_tokens=None,
                 output_tokens=None,
                 latency_milliseconds=None,
@@ -284,7 +324,7 @@ class ReplySuggestionService:
                 actor_id=context.user.id,
             )
 
-        if self._ai_provider is None:
+        if self._ai_provider is None or provider_code is None or model_code is None:
             return await self._finalize_blocked(
                 tenant_id=tenant_id,
                 run_id=run_id,
@@ -371,7 +411,7 @@ class ReplySuggestionService:
             tenant_id=tenant_id,
             provider_code=provider_code,
             purpose=AiPurpose.REPLY_SUGGESTION,
-            model_code=_DEFAULT_MODEL,
+            model_code=model_code,
             prompt_version=REPLY_PROMPT_VERSION,
             rubric_version=REPLY_RUBRIC_VERSION,
             prompt_text=prompt_text,
@@ -390,6 +430,19 @@ class ReplySuggestionService:
                 tenant_id=tenant_id,
                 run_id=run_id,
                 failure_code=ReplyFailureCode.PROVIDER_FAILURE,
+                input_digest=input_digest,
+                audit_context=audit_context,
+                actor_id=context.user.id,
+            )
+
+        if (
+            provider_result.provider_code is not provider_code
+            or provider_result.purpose is not AiPurpose.REPLY_SUGGESTION
+        ):
+            return await self._finalize_failed(
+                tenant_id=tenant_id,
+                run_id=run_id,
+                failure_code=ReplyFailureCode.OUTPUT_INVALID,
                 input_digest=input_digest,
                 audit_context=audit_context,
                 actor_id=context.user.id,
@@ -478,13 +531,12 @@ class ReplySuggestionService:
                 escalation_reason=validated.escalation,
                 input_digest=input_digest,
                 output_digest=validated.output_digest,
-                input_tokens=None if usage is None else usage.input_tokens,
-                output_tokens=None if usage is None else usage.output_tokens,
-                latency_milliseconds=None if usage is None else usage.latency_milliseconds,
-                cost_status=ReplyCostStatus.UNKNOWN,
-                estimated_cost_microunits=None,
                 updated_at=completed_at,
                 completed_at=completed_at,
+            )
+            completed_run = _apply_provider_result_metadata(
+                run=completed_run,
+                provider_result=provider_result,
             )
             await uow.reply_suggestion_runs.save(completed_run)
             await uow.reply_suggestion_candidates.replace_for_run(
