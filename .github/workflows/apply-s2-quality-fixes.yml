@@ -1,0 +1,41 @@
+name: Apply S2 quality fixes
+
+on:
+  push:
+    branches:
+      - feat/s2-staging-deepseek-signoff
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[s2-quality-fixes-applied]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Apply fixes
+        run: python scripts/ops/apply_s2_quality_fixes.py
+
+      - name: Format changed Python
+        run: |
+          python -m compileall -q scripts/ops/apply_s2_quality_fixes.py
+
+      - name: Verify whitespace
+        run: git diff --check
+
+      - name: Commit changes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name "CloserOS S2 automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps packages scripts/ops/staging_preflight.py tests/test_deepseek_staging_smoke.py
+          if git diff --cached --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git commit -m "fix: resolve S2 lint and typing failures [s2-quality-fixes-applied]"
+          git push
