@@ -1,46 +1,65 @@
 # Staging — DeepSeek / External AI
 
 CloserOS uses a provider-neutral AI gateway (ADR-0015). DeepSeek is the initial
-low-cost OpenAI-compatible provider, but **external calls are disabled by default**
-in staging until Block Z release-gate criteria pass.
+OpenAI-compatible provider. External calls remain disabled by default and the
+normal API selects the live provider directly from typed configuration; no
+PowerShell monkeypatch or alternate API entry point is required.
 
 ## Default staging posture
 
 ```text
 AI_EXTERNAL_CALLS_ENABLED=false
-DEEPSEEK_API_KEY=          # unset
-DEEPSEEK_BASE_URL=         # unset
+DEEPSEEK_API_KEY=
+DEEPSEEK_BASE_URL=https://api.deepseek.com/
+DEEPSEEK_MODEL=deepseek-v4-flash
 ```
 
 With external calls disabled:
 
-- `message.analyze` jobs use the synthetic deterministic provider in CI/local mode.
-- API routes reject live provider configuration that would send sanitized text
-  without explicit opt-in.
-- Budget and policy tables still enforce tenant isolation.
+- deterministic development and CI flows use `SyntheticAiProvider`;
+- production does not silently report synthetic output as live AI;
+- policy, tenant, sanitization, and budget boundaries remain enforced;
+- no external request is made.
 
 ## Enabling sanctioned sandbox checks
 
 Only for approved operator sessions:
 
-1. Obtain a sandbox API key through vendor onboarding (not committed).
-2. Set `DEEPSEEK_BASE_URL` to the official HTTPS endpoint documented by the vendor.
-3. Set `AI_EXTERNAL_CALLS_ENABLED=true` on worker **and** API.
-4. Confirm tenant AI policy allows analysis for a test tenant only.
-5. Run with metadata-only logging; never log prompts or model output bodies.
+1. Obtain a sandbox API key through vendor onboarding and store it only in the
+   deployment platform secret store.
+2. Set `AI_EXTERNAL_CALLS_ENABLED=true` on worker and API.
+3. Set `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, and `DEEPSEEK_MODEL`.
+4. Use a current model name such as `deepseek-v4-flash` or
+   `deepseek-v4-pro`; CloserOS does not default to deprecated aliases.
+5. Confirm the test tenant AI policy allows `reply.suggestion`.
+6. Run with metadata-only logging; never log prompts, model output bodies, or
+   bearer keys.
+
+Enabling external calls with a missing key, model, or invalid non-HTTPS base
+URL fails API startup closed. It never falls back to synthetic output.
 
 ## Data boundary
 
-Only **sanitized** text may leave the jurisdiction to an external model.
-Raw message bodies and provider tokens never go to DeepSeek.
+Only **sanitized** text may leave the jurisdiction to an external model. Raw
+encrypted message bodies, provider credentials, and unrelated tenant data never
+go to DeepSeek. Provider responses still pass strict evidence, product,
+commercial-action, PII, link, and chain-of-thought validation before candidates
+are persisted.
 
-See `docs/AI_GATEWAY.md`, `docs/PRIVACY_REDACTION.md`, and ADR-0005.
+Candidate selection creates an encrypted outbound **draft** only. Existing human
+approval remains mandatory; S1 does not introduce autonomous sending.
+
+See `docs/AI_GATEWAY.md`, `docs/PRIVACY_REDACTION.md`, `docs/REPLY_COPILOT.md`,
+and ADR-0005.
 
 ## Staging checklist before enabling
 
 - [ ] Legal/vendor review recorded
 - [ ] Tenant budget limits configured
 - [ ] Kill switch tested (`AI_EXTERNAL_CALLS_ENABLED=false`)
+- [ ] Startup failure tested with missing `DEEPSEEK_API_KEY`
+- [ ] Actual provider/model/token/latency metadata verified in
+      `reply_suggestion_runs`
 - [ ] No real customer conversations in staging tenant
 - [ ] Incident contacts listed in `docs/INCIDENT_RESPONSE.md`
 
