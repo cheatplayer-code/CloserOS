@@ -50,9 +50,7 @@ def _safe_payload(payload: object) -> None:
             normalized_key = str(raw_key).casefold()
             for marker in _SENSITIVE_MARKERS:
                 if marker in normalized_key:
-                    raise SmokeFailure(
-                        f"unsafe field appeared in response JSON: {marker}"
-                    )
+                    raise SmokeFailure(f"unsafe field appeared in response JSON: {marker}")
             _safe_payload(value)
         return
     if isinstance(payload, list):
