@@ -19,6 +19,16 @@ from tests.auth_api_support import development_api_settings, production_api_sett
 from tests.database_url_support import placeholder_database_url
 
 
+def _enabled_settings() -> ApiSettings:
+    return replace(
+        development_api_settings(database_url=placeholder_database_url()),
+        ai_external_calls_enabled=True,
+        deepseek_api_key="synthetic-key",
+        deepseek_base_url="https://api.deepseek.com/",
+        deepseek_model="deepseek-v4-flash",
+    )
+
+
 def test_disabled_development_uses_deterministic_synthetic_provider() -> None:
     settings = development_api_settings(database_url=placeholder_database_url())
 
@@ -41,13 +51,7 @@ def test_disabled_production_does_not_silently_fallback_to_synthetic() -> None:
 
 def test_enabled_runtime_uses_configured_deepseek_adapter_and_hidden_key() -> None:
     secret = "synthetic-deepseek-secret"
-    settings = replace(
-        development_api_settings(database_url=placeholder_database_url()),
-        ai_external_calls_enabled=True,
-        deepseek_api_key=secret,
-        deepseek_base_url="https://api.deepseek.com/",
-        deepseek_model="deepseek-v4-flash",
-    )
+    settings = replace(_enabled_settings(), deepseek_api_key=secret)
     settings.validate_for_runtime()
 
     runtime = build_reply_ai_runtime(settings)
@@ -68,28 +72,27 @@ def test_enabled_runtime_uses_configured_deepseek_adapter_and_hidden_key() -> No
     assert secret not in repr(settings)
 
 
-@pytest.mark.parametrize(
-    ("changes", "message"),
-    [
-        ({"deepseek_api_key": None}, "DEEPSEEK_API_KEY"),
-        ({"deepseek_model": None}, "DEEPSEEK_MODEL"),
-        ({"deepseek_base_url": "http://api.deepseek.com/"}, "HTTPS"),
-    ],
-)
-def test_enabled_runtime_configuration_fails_closed(
-    changes: dict[str, object],
-    message: str,
-) -> None:
-    base = replace(
-        development_api_settings(database_url=placeholder_database_url()),
-        ai_external_calls_enabled=True,
-        deepseek_api_key="synthetic-key",
-        deepseek_base_url="https://api.deepseek.com/",
-        deepseek_model="deepseek-v4-flash",
-    )
-    settings = replace(base, **changes)
+def test_enabled_runtime_without_key_fails_closed() -> None:
+    settings = replace(_enabled_settings(), deepseek_api_key=None)
 
-    with pytest.raises(ApiConfigurationError, match=message):
+    with pytest.raises(ApiConfigurationError, match="DEEPSEEK_API_KEY"):
+        settings.validate_for_runtime()
+
+
+def test_enabled_runtime_without_model_fails_closed() -> None:
+    settings = replace(_enabled_settings(), deepseek_model=None)
+
+    with pytest.raises(ApiConfigurationError, match="DEEPSEEK_MODEL"):
+        settings.validate_for_runtime()
+
+
+def test_enabled_runtime_with_non_https_base_url_fails_closed() -> None:
+    settings = replace(
+        _enabled_settings(),
+        deepseek_base_url="http://api.deepseek.com/",
+    )
+
+    with pytest.raises(ApiConfigurationError, match="HTTPS"):
         settings.validate_for_runtime()
 
 
