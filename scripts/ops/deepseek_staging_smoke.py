@@ -43,10 +43,21 @@ def _required_env(name: str) -> str:
 
 
 def _safe_payload(payload: object) -> None:
-    encoded = json.dumps(payload, sort_keys=True).lower()
-    for marker in _SENSITIVE_MARKERS:
-        if marker in encoded:
-            raise SmokeFailure(f"unsafe field appeared in response JSON: {marker}")
+    """Reject sensitive response field names without inspecting customer text values."""
+
+    if isinstance(payload, dict):
+        for raw_key, value in payload.items():
+            normalized_key = str(raw_key).casefold()
+            for marker in _SENSITIVE_MARKERS:
+                if marker in normalized_key:
+                    raise SmokeFailure(
+                        f"unsafe field appeared in response JSON: {marker}"
+                    )
+            _safe_payload(value)
+        return
+    if isinstance(payload, list):
+        for item in payload:
+            _safe_payload(item)
 
 
 def _require_status(response: httpx.Response, expected: int, operation: str) -> None:

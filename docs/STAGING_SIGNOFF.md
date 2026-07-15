@@ -123,7 +123,7 @@ NOTIFICATIONS_ENABLED=false
 MEDIA_SCANNER_ENABLED=false
 ```
 
-API-only variables:
+Cross-service staging values (set only on the service that consumes each value):
 
 ```text
 STAGING_API_URL=https://<railway-api-domain>
@@ -251,8 +251,8 @@ uv run python scripts/ops/staging_preflight.py --json
 ```
 
 The API fails startup closed if the key or model is missing, or if the base URL
-is not HTTPS. It never silently falls back to synthetic output in the production
-runtime path.
+is not HTTPS. It never silently falls back to synthetic output in the managed
+staging runtime path.
 
 ## 8. Run live DeepSeek acceptance
 

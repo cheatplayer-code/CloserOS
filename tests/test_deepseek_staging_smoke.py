@@ -42,6 +42,7 @@ def _live_run() -> dict[str, object]:
         "candidates": [
             {
                 "id": CANDIDATE_ID,
+                "text": "The word password in customer-safe candidate text is allowed.",
                 "evidence_message_ids": [str(uuid4())],
             }
         ],
