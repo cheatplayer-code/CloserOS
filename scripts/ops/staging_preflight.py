@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import sys
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from urllib.parse import parse_qs, urlparse
@@ -173,7 +172,9 @@ def _validate_database_url(env: Mapping[str, str], collector: _Collector) -> Non
     if port == 6543:
         collector.failed(
             "DATABASE_URL",
-            "Supabase transaction-pooler port 6543 is not supported by the current persistent SQLAlchemy runtime; use direct or session mode on port 5432",
+            "Supabase transaction-pooler port 6543 is not supported by the "
+            "current persistent SQLAlchemy runtime; use direct or session mode "
+            "on port 5432",
         )
         return
     if port != 5432:
@@ -217,7 +218,8 @@ def _validate_redis_url(env: Mapping[str, str], collector: _Collector) -> None:
     if parsed.scheme == "redis" and not parsed.hostname.endswith(".railway.internal"):
         collector.failed(
             "REDIS_URL",
-            "plaintext redis:// is allowed only on Railway private networking; use rediss:// otherwise",
+            "plaintext redis:// is allowed only on Railway private networking; "
+            "use rediss:// otherwise",
         )
         return
     detail = (
@@ -246,7 +248,8 @@ def _validate_ai(env: Mapping[str, str], collector: _Collector) -> None:
         if _value(env, "DEEPSEEK_API_KEY"):
             collector.warning(
                 "DEEPSEEK_API_KEY",
-                "a DeepSeek key is present while external AI is disabled; keep it sealed and verify the kill-switch drill",
+                "a DeepSeek key is present while external AI is disabled; "
+                "keep it sealed and verify the kill-switch drill",
             )
         return
 
@@ -377,7 +380,8 @@ def validate_environment(env: Mapping[str, str]) -> PreflightReport:
     if api_origin and web_origin and api_origin == web_origin:
         collector.warning(
             "STAGING_ORIGIN_SEPARATION",
-            "API and web share one origin; supported, but separate origins are expected for Railway and Vercel",
+            "API and web share one origin; supported, but separate origins "
+            "are expected for Railway and Vercel",
         )
     elif api_origin and web_origin:
         collector.passed(

@@ -114,7 +114,7 @@ def test_live_smoke_verifies_actual_metadata_and_draft_creation() -> None:
 
 
 def test_kill_switch_smoke_accepts_only_blocked_provider_failure() -> None:
-    disabled_run = {
+    disabled_run: dict[str, object] = {
         "id": RUN_ID,
         "conversation_thread_id": THREAD_ID,
         "status": "blocked",

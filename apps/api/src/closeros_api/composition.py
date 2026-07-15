@@ -86,6 +86,7 @@ from closeros.infrastructure.production_feature_capabilities import (
     resolve_production_feature_capabilities,
 )
 from closeros.infrastructure.production_runtime import (
+    ProductionSharedRuntime,
     build_production_adapter_registry,
     build_production_import_scanner,
     build_production_mfa_policy,
@@ -96,7 +97,10 @@ from closeros.infrastructure.production_runtime import (
 from closeros.infrastructure.redis_distributed_rate_limiter import RedisDistributedRateLimiter
 from closeros.infrastructure.redis_rate_limiter import RedisWebhookRateLimiter
 from closeros.infrastructure.secure_random import OsSecureRandom
-from closeros.infrastructure.staging_runtime import build_staging_shared_runtime
+from closeros.infrastructure.staging_runtime import (
+    StagingSharedRuntime,
+    build_staging_shared_runtime,
+)
 from closeros.infrastructure.static_key_provider import (
     StaticKeyProvider,
     require_production_key_provider,
@@ -505,6 +509,7 @@ def _merge_managed_api_overrides(
     if overrides is not None:
         return base
 
+    shared: ProductionSharedRuntime | StagingSharedRuntime
     if settings.is_production:
         shared = build_production_shared_runtime(
             database_url=settings.database_url,

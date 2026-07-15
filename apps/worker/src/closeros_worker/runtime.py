@@ -99,6 +99,7 @@ from closeros.infrastructure.production_feature_capabilities import (
     resolve_production_feature_capabilities,
 )
 from closeros.infrastructure.production_runtime import (
+    ProductionSharedRuntime,
     build_production_adapter_registry,
     build_production_media_scanner,
     build_production_shared_runtime,
@@ -108,7 +109,10 @@ from closeros.infrastructure.redis_stream_queue import (
     RedisStreamQueuePublisher,
 )
 from closeros.infrastructure.secure_random import OsSecureRandom
-from closeros.infrastructure.staging_runtime import build_staging_shared_runtime
+from closeros.infrastructure.staging_runtime import (
+    StagingSharedRuntime,
+    build_staging_shared_runtime,
+)
 from closeros.infrastructure.static_key_provider import (
     StaticKeyProvider,
     require_production_key_provider,
@@ -283,6 +287,7 @@ def _merge_managed_worker_overrides(
         return base
 
     service_actor_id = _ingestion_service_id(settings, base.ingestion_service_id)
+    shared: ProductionSharedRuntime | StagingSharedRuntime
     if settings.is_production:
         shared = build_production_shared_runtime(
             database_url=settings.database_url,
@@ -311,6 +316,17 @@ def _merge_managed_worker_overrides(
         media_scanner=media_scanner,
         ingestion_service_id=service_actor_id,
     )
+
+
+def _merge_production_worker_overrides(
+    settings: WorkerSettings,
+    overrides: WorkerRuntimeOverrides | None,
+) -> WorkerRuntimeOverrides:
+    """Compatibility wrapper retained for production-composition tests."""
+
+    if not settings.is_production:
+        return overrides or WorkerRuntimeOverrides()
+    return _merge_managed_worker_overrides(settings, overrides)
 
 
 def _development_key_provider() -> StaticKeyProvider:

@@ -32,7 +32,8 @@ def environment_key_provider() -> StaticKeyProvider:
         return build_staging_key_provider_from_env()
     if app_env == "production":
         raise RuntimeError(
-            "operator scripts cannot use static encryption in production; use the remote KMS runtime"
+            "operator scripts cannot use static encryption in production; "
+            "use the remote KMS runtime"
         )
     if app_env != "development":
         raise RuntimeError("APP_ENV must be development, staging, or production")
