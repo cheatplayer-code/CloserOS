@@ -132,7 +132,9 @@ def _validate_live_run(
     if cost_status not in {"known", "unknown"}:
         raise SmokeFailure("external reply run has an invalid cost status")
     if cost_status == "known" and (
-        not isinstance(estimated_cost, int) or isinstance(estimated_cost, bool) or estimated_cost <= 0
+        not isinstance(estimated_cost, int)
+        or isinstance(estimated_cost, bool)
+        or estimated_cost <= 0
     ):
         raise SmokeFailure("known external cost is not a positive integer")
     if cost_status == "unknown" and estimated_cost is not None:
@@ -201,9 +203,7 @@ def run_smoke(
         tenant_id = str(tenant.get("id"))
         UUID(tenant_id)
 
-        conversations_response = client.get(
-            f"/api/v1/tenants/{tenant_id}/conversations"
-        )
+        conversations_response = client.get(f"/api/v1/tenants/{tenant_id}/conversations")
         _require_status(conversations_response, 200, "conversation listing")
         conversations_payload = conversations_response.json()
         conversations = conversations_payload.get("conversations")

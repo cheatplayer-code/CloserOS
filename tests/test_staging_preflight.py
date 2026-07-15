@@ -16,10 +16,7 @@ def _base_environment() -> dict[str, str]:
             "postgresql+psycopg://postgres.project:staging-db-password@"
             "aws-0-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=require"
         ),
-        "REDIS_URL": (
-            "redis://default:staging-redis-password@"
-            "redis.railway.internal:6379/0"
-        ),
+        "REDIS_URL": ("redis://default:staging-redis-password@redis.railway.internal:6379/0"),
         "REDIS_RATE_LIMIT_HMAC_SECRET": "h" * 48,
         "AUTH_CSRF_SECRET": "c" * 48,
         "AUTH_RATE_LIMIT_SECRET": "r" * 48,
@@ -76,9 +73,7 @@ def test_transaction_pooler_is_rejected_for_persistent_runtime() -> None:
 
 def test_public_redis_requires_tls() -> None:
     environment = _base_environment()
-    environment["REDIS_URL"] = (
-        "redis://default:secret@redis-public.example.com:6379/0"
-    )
+    environment["REDIS_URL"] = "redis://default:secret@redis-public.example.com:6379/0"
 
     assert "REDIS_URL" in _failed_names(environment)
 

@@ -254,12 +254,8 @@ class WorkerRuntime:
     integrated_uow_factory: Callable[[], SqlAlchemyIntegratedUnitOfWork]
     queue_publisher: RedisStreamQueuePublisher
     queue_consumer: RedisStreamJobConsumer
-    publisher_service_factory: Callable[
-        [SqlAlchemyIntegratedUnitOfWork], OutboxPublisherService
-    ]
-    processor_service_factory: Callable[
-        [SqlAlchemyIntegratedUnitOfWork], OutboxProcessorService
-    ]
+    publisher_service_factory: Callable[[SqlAlchemyIntegratedUnitOfWork], OutboxPublisherService]
+    processor_service_factory: Callable[[SqlAlchemyIntegratedUnitOfWork], OutboxProcessorService]
     reconciliation_service_factory: Callable[
         [SqlAlchemyIntegratedUnitOfWork], OutboxReconciliationService
     ]

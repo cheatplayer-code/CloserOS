@@ -55,11 +55,7 @@ class _Collector:
         self._checks.append(PreflightCheck(name=name, status="failed", detail=detail))
 
     def report(self) -> PreflightReport:
-        status = (
-            "failed"
-            if any(item.status == "failed" for item in self._checks)
-            else "passed"
-        )
+        status = "failed" if any(item.status == "failed" for item in self._checks) else "passed"
         return PreflightReport(status=status, checks=tuple(self._checks))
 
 
@@ -166,8 +162,7 @@ def _validate_database_url(env: Mapping[str, str], collector: _Collector) -> Non
         )
         return
     if not (
-        parsed.hostname.endswith(".supabase.co")
-        or parsed.hostname.endswith(".pooler.supabase.com")
+        parsed.hostname.endswith(".supabase.co") or parsed.hostname.endswith(".pooler.supabase.com")
     ):
         collector.failed(
             "DATABASE_URL",
@@ -219,9 +214,7 @@ def _validate_redis_url(env: Mapping[str, str], collector: _Collector) -> None:
     if parsed.password is None:
         collector.failed("REDIS_URL", "REDIS_URL must include authentication")
         return
-    if parsed.scheme == "redis" and not parsed.hostname.endswith(
-        ".railway.internal"
-    ):
+    if parsed.scheme == "redis" and not parsed.hostname.endswith(".railway.internal"):
         collector.failed(
             "REDIS_URL",
             "plaintext redis:// is allowed only on Railway private networking; use rediss:// otherwise",

@@ -58,9 +58,7 @@ class ApiSettings:
     def from_env(cls) -> ApiSettings:
         app_env = os.environ.get("APP_ENV", _DEVELOPMENT).strip().lower()
         if app_env not in {_DEVELOPMENT, _STAGING, _PRODUCTION}:
-            raise ApiConfigurationError(
-                "APP_ENV must be development, staging, or production"
-            )
+            raise ApiConfigurationError("APP_ENV must be development, staging, or production")
 
         database_url = os.environ.get("DATABASE_URL", "").strip()
         if not database_url:
@@ -220,9 +218,7 @@ def _secret_from_env(
 
     encoded = raw_value.encode("utf-8")
     if app_env in _MANAGED_ENVIRONMENTS and len(encoded) < _MIN_SECRET_LENGTH:
-        raise ApiConfigurationError(
-            f"{variable_name} is too weak for a managed environment"
-        )
+        raise ApiConfigurationError(f"{variable_name} is too weak for a managed environment")
     return encoded
 
 

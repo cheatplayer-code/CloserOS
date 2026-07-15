@@ -77,7 +77,9 @@ def _require_hex_key(name: str) -> bytes:
     try:
         key = bytes.fromhex(raw_value)
     except ValueError as error:
-        raise StagingConfigurationError(f"{name} must contain exactly 64 hexadecimal characters") from error
+        raise StagingConfigurationError(
+            f"{name} must contain exactly 64 hexadecimal characters"
+        ) from error
     if len(key) != 32:
         raise StagingConfigurationError(f"{name} must decode to exactly 32 bytes")
     return key

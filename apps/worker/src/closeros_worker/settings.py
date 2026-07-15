@@ -50,9 +50,7 @@ class WorkerSettings:
     def from_env(cls) -> WorkerSettings:
         app_env = os.environ.get("APP_ENV", _DEVELOPMENT).strip().lower()
         if app_env not in {_DEVELOPMENT, _STAGING, _PRODUCTION}:
-            raise WorkerConfigurationError(
-                "APP_ENV must be development, staging, or production"
-            )
+            raise WorkerConfigurationError("APP_ENV must be development, staging, or production")
 
         database_url = os.environ.get("DATABASE_URL", "").strip()
         redis_url = os.environ.get("REDIS_URL", "").strip()

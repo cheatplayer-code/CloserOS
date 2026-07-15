@@ -119,9 +119,7 @@ def test_staging_key_provider_rejects_invalid_hex() -> None:
 def test_staging_shared_runtime_does_not_require_production_kms() -> None:
     environment = _staging_environment()
     with patch.dict(os.environ, environment, clear=True):
-        runtime = build_staging_shared_runtime(
-            database_url=placeholder_database_url()
-        )
+        runtime = build_staging_shared_runtime(database_url=placeholder_database_url())
 
     assert runtime.key_provider.active_key_version == "staging-kek-v1"
     assert runtime.capabilities.external_ai_enabled is False
