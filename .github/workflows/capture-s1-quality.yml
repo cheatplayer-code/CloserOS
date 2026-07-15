@@ -88,3 +88,5 @@ jobs:
           git add s1-quality.log
           git commit -m "chore: capture S1 quality output [s1-quality-log]"
           git push
+
+# Trigger revision 2.
