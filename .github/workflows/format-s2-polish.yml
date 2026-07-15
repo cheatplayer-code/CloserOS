@@ -1,0 +1,63 @@
+name: Format final S2 polish
+
+on:
+  push:
+    branches:
+      - feat/s2-staging-deepseek-signoff
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: ${{ !contains(github.event.head_commit.message, '[s2-polish-formatted]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version-file: .node-version
+          check-latest: false
+
+      - name: Enable pnpm
+        run: corepack enable pnpm
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version-file: .python-version
+          check-latest: false
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+        with:
+          version: 0.11.28
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install formatters
+        run: |
+          corepack pnpm install --frozen-lockfile
+          uv sync --all-packages --frozen
+
+      - name: Format files
+        run: |
+          corepack pnpm exec prettier --write docs/STAGING_SIGNOFF.md
+          uv run ruff format scripts/ops/deepseek_staging_smoke.py tests/test_deepseek_staging_smoke.py
+
+      - name: Commit formatting
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name "CloserOS S2 automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add docs/STAGING_SIGNOFF.md scripts/ops/deepseek_staging_smoke.py tests/test_deepseek_staging_smoke.py
+          if git diff --cached --quiet; then
+            echo "No formatting changes"
+            exit 0
+          fi
+          git commit -m "style: format final S2 polish [s2-polish-formatted]"
+          git push
