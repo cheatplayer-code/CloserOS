@@ -1,0 +1,38 @@
+name: Apply S1 source patch
+
+on:
+  push:
+    branches:
+      - feat/s1-permanent-deepseek
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: ${{ !contains(github.event.head_commit.message, '[s1-source-applied]') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out branch
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Apply source patch
+        run: python scripts/ops/apply_s1_existing_files.py
+
+      - name: Verify whitespace
+        run: git diff --check
+
+      - name: Commit source changes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git config user.name "CloserOS S1 automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add apps/api/src/closeros_api/composition.py \
+            packages/backend/src/closeros/application/reply_suggestion_service.py
+          if git diff --cached --quiet; then
+            echo "No source changes to commit"
+            exit 0
+          fi
+          git commit -m "feat: wire permanent DeepSeek provider [s1-source-applied]"
+          git push
