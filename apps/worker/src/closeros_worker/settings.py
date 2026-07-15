@@ -7,7 +7,9 @@ import uuid
 from dataclasses import dataclass
 
 _DEVELOPMENT = "development"
+_STAGING = "staging"
 _PRODUCTION = "production"
+_MANAGED_ENVIRONMENTS = frozenset({_STAGING, _PRODUCTION})
 
 
 class WorkerConfigurationError(RuntimeError):
@@ -33,18 +35,28 @@ class WorkerSettings:
         return self.app_env == _PRODUCTION
 
     @property
+    def is_staging(self) -> bool:
+        return self.app_env == _STAGING
+
+    @property
     def is_development(self) -> bool:
         return self.app_env == _DEVELOPMENT
+
+    @property
+    def is_managed(self) -> bool:
+        return self.app_env in _MANAGED_ENVIRONMENTS
 
     @classmethod
     def from_env(cls) -> WorkerSettings:
         app_env = os.environ.get("APP_ENV", _DEVELOPMENT).strip().lower()
-        if app_env not in {_DEVELOPMENT, _PRODUCTION}:
-            raise WorkerConfigurationError("APP_ENV must be development or production")
+        if app_env not in {_DEVELOPMENT, _STAGING, _PRODUCTION}:
+            raise WorkerConfigurationError(
+                "APP_ENV must be development, staging, or production"
+            )
 
         database_url = os.environ.get("DATABASE_URL", "").strip()
         redis_url = os.environ.get("REDIS_URL", "").strip()
-        if app_env == _PRODUCTION:
+        if app_env in _MANAGED_ENVIRONMENTS:
             if not database_url:
                 raise WorkerConfigurationError("DATABASE_URL is not set")
             if not redis_url:
@@ -54,7 +66,9 @@ class WorkerSettings:
                 "postgresql://closeros_local:closeros_local_only_change_me"
                 "@127.0.0.1:5432/closeros_local"
             )
-            redis_url = redis_url or "redis://:closeros_local_redis_only_change_me@127.0.0.1:6379/0"
+            redis_url = redis_url or (
+                "redis://:closeros_local_redis_only_change_me@127.0.0.1:6379/0"
+            )
 
         outbox_stream = os.environ.get("OUTBOX_STREAM", "closeros.outbox.jobs").strip()
         outbox_consumer_group = os.environ.get(
