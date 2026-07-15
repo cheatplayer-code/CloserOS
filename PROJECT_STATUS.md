@@ -1,34 +1,36 @@
-﻿# Project Status
+# Project Status
 
 ## Current phase
 
-**Block V1-3 — Reply suggestion copilot and Buyer Memory** (branch
-`feat/v1-reply-memory`; includes V1-1 + V1-2; **not** production-ready)
+**Block S2 — managed staging activation and live DeepSeek sign-off tooling**
+(branch `feat/s2-staging-deepseek-signoff`; **not** production-ready)
 
 | Status | Detail |
 |--------|--------|
-| Baseline | `master` at `bf9915e` (Z0 merged) |
-| This branch | Grounded reply candidates, Buyer Memory, encrypted draft-on-select |
-| Prior | V1-1 integrity + V1-2 catalog grounding carried on this branch |
-| Live providers | **None** (synthetic AI in CI; optional DeepSeek smoke gated) |
+| Baseline | `master` after S1 permanent DeepSeek wiring (PR #21 merged) |
+| This branch | Staging preflight, live/disabled DeepSeek HTTP smoke, provider telemetry, deployment/sign-off runbook |
+| Live provider code | Permanent fail-closed DeepSeek wiring merged; no PowerShell monkeypatch |
+| Live cloud sign-off | Pending owner-provisioned Supabase, Railway, Vercel, and sealed staging secrets |
 
 ## Completed implementation blocks
 
 | Block | Scope | Status |
 |-------|-------|--------|
-| **FG**–**Z0** | Foundation through staging bootstrap | Merged on master |
-| **V1-1** | Integrity foundation defect repair | Implemented on this branch |
-| **V1-2** | Structured catalog + grounding | Implemented on this branch |
-| **V1-3** | Reply copilot + Buyer Memory | **In progress on `feat/v1-reply-memory`** |
+| **FG**–**Z0** | Foundation through synthetic staging bootstrap | Merged on master |
+| **V1-1** | Integrity foundation defect repair | Merged on master |
+| **V1-2** | Structured catalog + grounding | Merged on master |
+| **V1-3** | Reply copilot + Buyer Memory | Merged on master |
+| **S1** | Permanent fail-closed DeepSeek provider wiring | Merged on master (PR #21) |
+| **S2** | Managed staging activation and live DeepSeek sign-off tooling | Implemented on this branch; live cloud evidence pending |
 
-## Remaining block
+## Remaining release work
 
-**Z only** — live provider sandbox sign-off, production KMS vendor selection,
-staging/production deployment (Supabase/Railway/Vercel), backup/restore drill,
-security release gate, legal/compliance approval, design-partner pilot, go/no-go.
+Live Supabase/Railway/Vercel provisioning and S2 evidence capture, production KMS
+vendor selection and rotation drill, backup/restore drill, security release gate,
+legal/compliance approval, design-partner pilot, and production go/no-go remain.
 
-Z0 operator tooling (`scripts/ops/bootstrap_tenant.py`, `seed_synthetic_demo.py`,
-`synthetic_smoke.py`) supports synthetic verification **without** live providers.
+Z0/S2 operator tooling supports synthetic baseline verification, fail-closed
+configuration checks, live DeepSeek acceptance, and kill-switch verification.
 No production readiness claim.
 
 ## Current capabilities
@@ -98,21 +100,23 @@ No production readiness claim.
 - `docs/SYNTHETIC_STAGING_SMOKE.md` runbook; `dev:worker` runs `closeros-worker all`.
 - PostgreSQL integration tests for bootstrap, seed, and smoke flows.
 
-## Not complete (Z-only live verification)
+## Not complete (live and production verification)
 
+- S2 cloud provisioning and captured live DeepSeek staging evidence.
 - Live Meta WhatsApp sandbox verification.
 - Bitrix24 live sandbox verification.
 - Production KMS vendor live verification and key rotation drill.
 - Production SMTP provider activation.
 - Production Kazakhstan hosting sign-off.
-- Autonomous outbound messaging.
-- Remote GitHub PR CI green claim for Z0 branch (XY PR #18 passed).
-- Staging/production deployment.
+- Backup/restore drill against the selected managed PostgreSQL tier.
+- Security/legal release gate and design-partner pilot.
+- Autonomous outbound messaging (explicitly out of scope).
 
 ## Last updated
 
-2026-07-14 (Block V1-3 reply copilot + buyer memory on `feat/v1-reply-memory`;
-reply unit tests green; migration head `c3e5a7b9d1f0`; no autonomous send)
+2026-07-16 (S1 merged; S2 staging preflight and live/disabled DeepSeek sign-off
+tooling implemented on `feat/s2-staging-deepseek-signoff`; cloud evidence pending;
+no autonomous send)
 
 ## Open decisions requiring owner input
 

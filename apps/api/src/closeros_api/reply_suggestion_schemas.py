@@ -61,7 +61,11 @@ class ReplySuggestionRunResponse(BaseModel):
     rubric_version: str
     provider_code: str | None
     model_code: str | None
+    input_tokens: int | None
+    output_tokens: int | None
+    latency_milliseconds: int | None
     cost_status: str
+    estimated_cost_microunits: int | None
     failure_code: str | None
     customer_state: ReplyCustomerStateResponse | None
     next_best_action: ReplyNextBestActionResponse | None

@@ -33,7 +33,12 @@
     "infra:clean-checkout": "node infra/docker/clean-checkout.mjs",
     "dev:web": "corepack pnpm --filter @closeros/web dev",
     "dev:api": "uv run closeros-api",
-    "dev:worker": "uv run closeros-worker all"
+    "dev:worker": "uv run closeros-worker all",
+    "staging:preflight": "uv run python scripts/ops/staging_preflight.py --json",
+    "staging:smoke:synthetic": "uv run python scripts/ops/synthetic_smoke.py",
+    "staging:smoke:deepseek": "uv run python scripts/ops/deepseek_staging_smoke.py",
+    "staging:smoke:deepseek:draft": "uv run python scripts/ops/deepseek_staging_smoke.py --select-candidate",
+    "staging:smoke:deepseek:disabled": "uv run python scripts/ops/deepseek_staging_smoke.py --expect-disabled"
   },
   "devDependencies": {
     "@types/node": "24.13.3",

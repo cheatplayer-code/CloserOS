@@ -11,7 +11,9 @@ from uuid import UUID
 
 _MIN_SECRET_LENGTH = 32
 _DEVELOPMENT = "development"
+_STAGING = "staging"
 _PRODUCTION = "production"
+_MANAGED_ENVIRONMENTS = frozenset({_STAGING, _PRODUCTION})
 _DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com/"
 
 
@@ -41,14 +43,22 @@ class ApiSettings:
         return self.app_env == _PRODUCTION
 
     @property
+    def is_staging(self) -> bool:
+        return self.app_env == _STAGING
+
+    @property
     def is_development(self) -> bool:
         return self.app_env == _DEVELOPMENT
+
+    @property
+    def is_managed(self) -> bool:
+        return self.app_env in _MANAGED_ENVIRONMENTS
 
     @classmethod
     def from_env(cls) -> ApiSettings:
         app_env = os.environ.get("APP_ENV", _DEVELOPMENT).strip().lower()
-        if app_env not in {_DEVELOPMENT, _PRODUCTION}:
-            raise ApiConfigurationError("APP_ENV must be development or production")
+        if app_env not in {_DEVELOPMENT, _STAGING, _PRODUCTION}:
+            raise ApiConfigurationError("APP_ENV must be development, staging, or production")
 
         database_url = os.environ.get("DATABASE_URL", "").strip()
         if not database_url:
@@ -135,16 +145,18 @@ class ApiSettings:
             return
 
         if len(self.auth_csrf_secret) < _MIN_SECRET_LENGTH:
-            raise ApiConfigurationError("AUTH_CSRF_SECRET is too weak for production")
+            raise ApiConfigurationError("AUTH_CSRF_SECRET is too weak for a managed environment")
         if len(self.auth_rate_limit_secret) < _MIN_SECRET_LENGTH:
-            raise ApiConfigurationError("AUTH_RATE_LIMIT_SECRET is too weak for production")
+            raise ApiConfigurationError(
+                "AUTH_RATE_LIMIT_SECRET is too weak for a managed environment"
+            )
 
         for origin in self.auth_allowed_origins:
             parsed = urlparse(origin)
             if parsed.scheme != "https":
-                raise ApiConfigurationError("production allowed origins must use https")
+                raise ApiConfigurationError("managed allowed origins must use https")
             if not parsed.netloc:
-                raise ApiConfigurationError("production allowed origins must include a host")
+                raise ApiConfigurationError("managed allowed origins must include a host")
 
 
 def _boolean_from_env(*, variable_name: str, default: bool) -> bool:
@@ -205,8 +217,8 @@ def _secret_from_env(
         raise ApiConfigurationError(f"{variable_name} is not set")
 
     encoded = raw_value.encode("utf-8")
-    if app_env == _PRODUCTION and len(encoded) < _MIN_SECRET_LENGTH:
-        raise ApiConfigurationError(f"{variable_name} is too weak for production")
+    if app_env in _MANAGED_ENVIRONMENTS and len(encoded) < _MIN_SECRET_LENGTH:
+        raise ApiConfigurationError(f"{variable_name} is too weak for a managed environment")
     return encoded
 
 

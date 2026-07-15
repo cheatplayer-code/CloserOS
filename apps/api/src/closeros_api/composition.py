@@ -86,6 +86,7 @@ from closeros.infrastructure.production_feature_capabilities import (
     resolve_production_feature_capabilities,
 )
 from closeros.infrastructure.production_runtime import (
+    ProductionSharedRuntime,
     build_production_adapter_registry,
     build_production_import_scanner,
     build_production_mfa_policy,
@@ -96,6 +97,10 @@ from closeros.infrastructure.production_runtime import (
 from closeros.infrastructure.redis_distributed_rate_limiter import RedisDistributedRateLimiter
 from closeros.infrastructure.redis_rate_limiter import RedisWebhookRateLimiter
 from closeros.infrastructure.secure_random import OsSecureRandom
+from closeros.infrastructure.staging_runtime import (
+    StagingSharedRuntime,
+    build_staging_shared_runtime,
+)
 from closeros.infrastructure.static_key_provider import (
     StaticKeyProvider,
     require_production_key_provider,
@@ -494,20 +499,24 @@ class _UnconfiguredAtomicContentCommands:
         raise RuntimeError("atomic content commands are not configured")
 
 
-def _merge_production_api_overrides(
+def _merge_managed_api_overrides(
     settings: ApiSettings,
     overrides: ApiRuntimeOverrides | None,
 ) -> ApiRuntimeOverrides:
     base = overrides or ApiRuntimeOverrides()
-    if not settings.is_production:
+    if not settings.is_managed:
         return base
     if overrides is not None:
         return base
 
-    shared = build_production_shared_runtime(
-        database_url=settings.database_url,
-        ingestion_service_id=settings.ingestion_service_id,
-    )
+    shared: ProductionSharedRuntime | StagingSharedRuntime
+    if settings.is_production:
+        shared = build_production_shared_runtime(
+            database_url=settings.database_url,
+            ingestion_service_id=settings.ingestion_service_id,
+        )
+    else:
+        shared = build_staging_shared_runtime(database_url=settings.database_url)
     require_crm_configured(capabilities=shared.capabilities)
     uuid_factory = base.uuid_factory or RandomUuidFactory()
     integrated_uow_factory = base.integrated_uow_factory or shared.integrated_uow_factory
@@ -546,9 +555,9 @@ def build_api_runtime(
     overrides: ApiRuntimeOverrides | None = None,
 ) -> ApiRuntime:
     settings.validate_for_runtime()
-    override_values = _merge_production_api_overrides(settings, overrides)
+    override_values = _merge_managed_api_overrides(settings, overrides)
     capabilities: ProductionFeatureCapabilities | None = (
-        resolve_production_feature_capabilities() if settings.is_production else None
+        resolve_production_feature_capabilities() if settings.is_managed else None
     )
 
     engine = override_values.engine
@@ -582,12 +591,12 @@ def build_api_runtime(
     rate_limiter: RateLimiter
     webhook_rate_limiter: WebhookRateLimiter
 
-    if settings.is_production:
+    if settings.is_managed:
         if override_values.mfa_requirement_policy is None:
-            raise RuntimeError("production MFA requirement policy must be configured explicitly")
+            raise RuntimeError("managed MFA requirement policy must be configured explicitly")
         mfa_policy = override_values.mfa_requirement_policy
         if override_values.mfa_verifier is None:
-            raise RuntimeError("production MFA verifier must be configured explicitly")
+            raise RuntimeError("managed MFA verifier must be configured explicitly")
         mfa_verifier = override_values.mfa_verifier
         if override_values.notification_dispatcher is None:
             dispatcher = NoOpNotificationDispatcher()
@@ -601,17 +610,22 @@ def build_api_runtime(
             rate_limiter = override_values.rate_limiter
             if override_values.webhook_rate_limiter is None:
                 raise ProductionWebhookRateLimiterRequiredError(
-                    "production webhook rate limiter must be configured explicitly"
+                    "managed webhook rate limiter must be configured explicitly"
                 )
             webhook_rate_limiter = override_values.webhook_rate_limiter
-        key_provider = cast(
-            KeyProvider,
-            require_production_key_provider(override_values.key_provider),
-        )
+        if settings.is_production:
+            key_provider = cast(
+                KeyProvider,
+                require_production_key_provider(override_values.key_provider),
+            )
+        else:
+            if override_values.key_provider is None:
+                raise RuntimeError("staging key provider must be configured explicitly")
+            key_provider = override_values.key_provider
         adapter_registry = require_production_provider_adapters(override_values.adapter_registry)
         if override_values.content_scanner is None:
             raise ProductionImportContentScannerRequiredError(
-                "production CSV content scanner must be configured explicitly"
+                "managed CSV content scanner must be configured explicitly"
             )
         content_scanner = override_values.content_scanner
     else:
@@ -690,7 +704,7 @@ def build_api_runtime(
             def integrated_uow_factory() -> SqlAlchemyIntegratedUnitOfWork:
                 return SqlAlchemyIntegratedUnitOfWork(session_factory)
 
-    if not settings.is_production and dev_adapter_registry is None:
+    if settings.is_development and dev_adapter_registry is None:
         if integrated_uow_factory is not None:
             adapter_registry = _build_development_adapter_registry(
                 integrated_uow_factory=integrated_uow_factory,
@@ -1015,7 +1029,7 @@ def build_api_runtime(
     if isinstance(rate_limiter, RedisDistributedRateLimiter):
         redis_client = rate_limiter.redis
 
-    if settings.is_production and capabilities is not None:
+    if settings.is_managed and capabilities is not None:
         readiness_probe: RuntimeReadinessProbe | ProductionReadinessProbe = (
             ProductionReadinessProbe(
                 session_factory=session_factory,
@@ -1038,7 +1052,7 @@ def build_api_runtime(
         mfa_verifier=mfa_verifier,
         notification_dispatcher=dispatcher,
         rate_limiter=rate_limiter,
-        cookie_config=session_cookie_config(is_production=settings.is_production),
+        cookie_config=session_cookie_config(is_production=settings.is_managed),
         engine=engine,
         session_factory=session_factory,
         platform_uow_factory=platform_uow_factory,

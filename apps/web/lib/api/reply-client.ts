@@ -11,14 +11,24 @@ export interface ReplySuggestionCandidateV1 {
   confidence_label: string;
   evidence_message_ids: string[];
   product_references: Array<{ product_id: string; variant_id: string }>;
+  knowledge_citation_ids: string[];
   warnings: string[];
   is_recommended: boolean;
+  created_at: string;
 }
 
 export interface ReplySuggestionRunV1 {
   id: string;
+  conversation_thread_id: string;
+  lead_id: string | null;
   status: string;
   prompt_version: string;
+  rubric_version: string;
+  provider_code: string | null;
+  model_code: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  latency_milliseconds: number | null;
   customer_state: {
     intent: string;
     sales_stage: string;
@@ -30,7 +40,11 @@ export interface ReplySuggestionRunV1 {
   next_best_action: { action_code: string; explanation: string } | null;
   escalation_reason: string | null;
   cost_status: string;
+  estimated_cost_microunits: number | null;
   failure_code: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
   candidates: ReplySuggestionCandidateV1[];
 }
 

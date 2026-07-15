@@ -73,7 +73,7 @@ async def _run_publisher(runtime: WorkerRuntime, *, stop_event: asyncio.Event) -
         now = datetime.now(tz=UTC)
         uow = runtime.integrated_uow_factory()
         async with uow:
-            publisher = runtime.publisher_service_factory()
+            publisher = runtime.publisher_service_factory(uow)
             await publisher.publish_batch(
                 now=now,
                 batch_size=runtime.settings.publish_batch_size,
@@ -102,7 +102,7 @@ async def _process_message(
     now = datetime.now(tz=UTC)
     uow = runtime.integrated_uow_factory()
     async with uow:
-        processor = runtime.processor_service_factory()
+        processor = runtime.processor_service_factory(uow)
         await processor.process_job(job_id=job_id, now=now)
         await uow.commit()
     await runtime.queue_consumer.acknowledge(message_id=message_id)
@@ -150,7 +150,7 @@ async def _run_reconcile_once(runtime: WorkerRuntime) -> None:
     overdue_before = now - timedelta(minutes=5)
     uow = runtime.integrated_uow_factory()
     async with uow:
-        reconciliation = runtime.reconciliation_service_factory()
+        reconciliation = runtime.reconciliation_service_factory(uow)
         report = await reconciliation.reconcile(now=now, overdue_before=overdue_before)
         await uow.commit()
     _print_safe_json(
