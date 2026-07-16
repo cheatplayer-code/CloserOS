@@ -10,7 +10,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /usr/local/bin/uv
 
-WORKDIR /build
+# Keep the project and its virtual environment at the same absolute path in
+# builder and runtime stages. Python console-script shebangs and uv editable
+# workspace paths are absolute and are not safely relocatable.
+WORKDIR /app
 
 COPY pyproject.toml uv.lock .python-version ./
 COPY apps/api/pyproject.toml apps/api/pyproject.toml
@@ -39,10 +42,15 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY --from=builder --chown=closeros:closeros /build/.venv /app/.venv
-COPY --from=builder --chown=closeros:closeros /build/apps/api /app/apps/api
-COPY --from=builder --chown=closeros:closeros /build/packages/backend /app/packages/backend
+COPY --from=builder --chown=closeros:closeros /app/.venv /app/.venv
+COPY --from=builder --chown=closeros:closeros /app/apps/api /app/apps/api
+COPY --from=builder --chown=closeros:closeros /app/packages/backend /app/packages/backend
 COPY --chown=closeros:closeros pyproject.toml uv.lock .python-version ./
+
+# Execute the relocated console script and import the installed workspace in the
+# final image so CI catches broken shebangs or editable paths before deployment.
+RUN /app/.venv/bin/uvicorn --version >/dev/null \
+    && /app/.venv/bin/python -c "import closeros, closeros_api, uvicorn"
 
 USER closeros
 
