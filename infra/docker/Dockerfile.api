@@ -47,6 +47,11 @@ COPY --from=builder --chown=closeros:closeros /app/apps/api /app/apps/api
 COPY --from=builder --chown=closeros:closeros /app/packages/backend /app/packages/backend
 COPY --chown=closeros:closeros pyproject.toml uv.lock .python-version ./
 
+# Execute the relocated console script and import the installed workspace in the
+# final image so CI catches broken shebangs or editable paths before deployment.
+RUN /app/.venv/bin/uvicorn --version >/dev/null \
+    && /app/.venv/bin/python -c "import closeros, closeros_api, uvicorn"
+
 USER closeros
 
 EXPOSE 8000
