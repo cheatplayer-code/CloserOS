@@ -5,7 +5,7 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "infra/docker/Dockerfile.api"
-watchPatterns = ["apps/api/**", "packages/backend/**", "pyproject.toml", "uv.lock"]
+watchPatterns = ["apps/api/**", "packages/backend/**", "infra/docker/**", "pyproject.toml", "uv.lock"]
 
 [deploy]
 healthcheckPath = "/ready"
