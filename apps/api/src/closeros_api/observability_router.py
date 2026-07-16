@@ -58,6 +58,28 @@ def _env_present(*names: str) -> bool:
     return all(os.environ.get(name, "").strip() for name in names)
 
 
+def _managed_key_provider_status() -> DependencyStatus:
+    if os.environ.get("APP_ENV", "").strip().lower() == "staging":
+        return (
+            "configured"
+            if _env_present(
+                "STAGING_ENCRYPTION_KEY_HEX",
+                "STAGING_KNOWLEDGE_SEARCH_KEY_HEX",
+            )
+            else "failed"
+        )
+    return (
+        "configured"
+        if _env_present(
+            "KMS_BASE_URL",
+            "KMS_API_TOKEN_REF",
+            "KMS_ACTIVE_KEY_VERSION",
+            "KMS_KEY_VERSIONS",
+        )
+        else "failed"
+    )
+
+
 class RuntimeReadinessProbe:
     def __init__(
         self,
@@ -201,14 +223,7 @@ class ProductionReadinessProbe:
             return "failed"
 
     def _check_kms_config(self) -> DependencyStatus:
-        if _env_present(
-            "KMS_BASE_URL",
-            "KMS_API_TOKEN_REF",
-            "KMS_ACTIVE_KEY_VERSION",
-            "KMS_KEY_VERSIONS",
-        ):
-            return "configured"
-        return "failed"
+        return _managed_key_provider_status()
 
     def _check_smtp_config(self) -> DependencyStatus:
         return "ok" if _env_present("SMTP_HOST", "SMTP_PORT", "SMTP_FROM_ADDRESS") else "failed"
