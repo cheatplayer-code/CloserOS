@@ -47,6 +47,11 @@ COPY --from=builder --chown=closeros:closeros /app/apps/worker /app/apps/worker
 COPY --from=builder --chown=closeros:closeros /app/packages/backend /app/packages/backend
 COPY --chown=closeros:closeros pyproject.toml uv.lock .python-version ./
 
+# Execute the relocated console script and import the installed workspace in the
+# final image so CI catches broken shebangs or editable paths before deployment.
+RUN /app/.venv/bin/closeros-worker --help >/dev/null \
+    && /app/.venv/bin/python -c "import closeros, closeros_worker"
+
 USER closeros
 
 # No HTTP health endpoint; rely on process exit codes and platform restart policy.
