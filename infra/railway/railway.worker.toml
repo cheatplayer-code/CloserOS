@@ -5,7 +5,7 @@
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "infra/docker/Dockerfile.worker"
-watchPatterns = ["apps/worker/**", "packages/backend/**", "pyproject.toml", "uv.lock"]
+watchPatterns = ["apps/worker/**", "packages/backend/**", "infra/docker/**", "pyproject.toml", "uv.lock"]
 
 [deploy]
 restartPolicyType = "ON_FAILURE"
